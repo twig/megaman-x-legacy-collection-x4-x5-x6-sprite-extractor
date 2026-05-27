@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from os import makedirs
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
-PAL_HEADER_SIZE = 0
+PAL_HEADER_SIZE = 12  # COL file: 4-byte magic + 4-byte unknown + 4-byte entry count
 PAL_BLOCK_SIZE = 2
 
 
@@ -100,6 +101,11 @@ def extract_tex(input_path: Path) -> tuple[int, int, int, bytes]:
 
     return format_code, width, height, payload
 
+def is_all_transparent_clut(colours: list[tuple[int, int, int]]) -> bool:
+    for swatch in colours:
+        if sum(swatch) != 0:
+            return False
+    return True
 
 def render_tex(
     payload: bytes,
@@ -107,37 +113,31 @@ def render_tex(
     height: int,
     palette: list[tuple[int, int, int]],
     output_path: Path,
+    clut_base: int = 0, # row index in palette file (0-based)
 ) -> None:
-    pixels = []
-    index_channel = 3  # rgba
-    for pixel_index in range(width * height):
-        raw_index = payload[pixel_index * 4 + index_channel]
-
-        b_index = payload[pixel_index * 4 + 0]
-        g_index = payload[pixel_index * 4 + 1]
-        r_index = payload[pixel_index * 4 + 2]
-        a_index = payload[pixel_index * 4 + 3]
-
-        # the following calculations are incorrect
-        # colour_index = round(r_index / 17)
-        # palette_row = round(a_index / 17)
-        colour_index = r_index >> 4  # or round(r_index/17)
-        palette_row = a_index >> 4  # or round(a_index/17)
-        final_index = palette_row * 16 + colour_index
-
-        print(
-            pixel_index, "rgba", (r_index, g_index, b_index, a_index), "->", final_index
+    clut_start = clut_base * 16
+    if clut_start + 16 > len(palette):
+        raise ValueError(
+            f"Clut index {clut_base} out of range for palette size {len(palette)} (clut start {clut_start})"
         )
 
-        if raw_index >= len(palette):
-            raise ValueError(
-                f"Palette index {raw_index} out of range for palette size {len(palette)}"
-            )
-        elif final_index == 0:
+    if is_all_transparent_clut(palette[clut_start : clut_start + 16]):
+        print(f"skip: Clut index {clut_base} only has black")
+        return
+
+    # Each pixel stores a 4-bit colour index (0-15) in the alpha channel.
+    # B=G=R all equal alpha*16 (redundant). The colour index selects a colour
+    # from one 16-entry CLUT block within the palette: final_index = clut_base*16 + colour_index.
+    # Index 0 in any CLUT is transparent. clut_base must be supplied externally
+    # (it is not encoded in the pixel data).
+    pixels = []
+    for pixel_index in range(width * height):
+        colour_index = payload[pixel_index * 4 + 3]  # a_index == r_index >> 4
+        final_index = clut_base * 16 + colour_index
+
+        if colour_index == 0:
             pixels.append((255, 0, 255, 0))
         else:
-            # pixels.append(palette[raw_index])
-            # pixels.append(palette[a_index])
             r, g, b = palette[final_index]
             pixels.append((r, g, b, 255))
 
@@ -146,21 +146,32 @@ def render_tex(
     image.save(output_path)
 
 
-def render_palette(palette: list[tuple[int, int, int]], output_path: Path) -> None:
+def render_palette(_palette: list[tuple[int, int, int]], output_path: Path) -> None:
+    # Determine end of meaningful data and trim palette if necessary
+    last_nonzero_index = max(i for i, (r, g, b) in enumerate(_palette) if (r, g, b) != (0, 0, 0))
+    palette = _palette[: last_nonzero_index + 1]
+
     num_colors = len(palette)
-    cols = 32
+    cols = 16
     rows = (num_colors + cols - 1) // cols
     cell_size = 16
-    image_width = cols * cell_size
+    label_width = 40
+    image_width = cols * cell_size + label_width
     image_height = rows * cell_size
 
     image = Image.new("RGB", (image_width, image_height), color=(0, 0, 0))
+    draw = ImageDraw.Draw(image)
     for i, (r, g, b) in enumerate(palette):
         x = (i % cols) * cell_size
         y = (i // cols) * cell_size
         for dx in range(cell_size):
             for dy in range(cell_size):
                 image.putpixel((x + dx, y + dy), (r, g, b))
+
+    for row in range(rows):
+        y = row * cell_size
+        label = str(row)
+        draw.text((cols * cell_size + 2, y + 2), label, fill=(255, 255, 255))
 
     image.save(output_path)
 
@@ -207,6 +218,12 @@ def main() -> None:
         type=Path,
         help="Path to a COL palette file.",
     )
+    parser.add_argument(
+        "--clut",
+        type=int,
+        default=None,
+        help="Render tex against a specific CLUT row index (0-based) within the palette file. Otherwise renders against all CLUTs in the palette",
+    )
 
     args = parser.parse_args()
     input_path: Path = args.input
@@ -221,14 +238,9 @@ def main() -> None:
     palette = load_palette_blocks(palette_path)
     _format_code, width, height, payload = extract_tex(input_path)
 
-    render_tex(payload, width, height, palette, output_path)
+    # generate debug files
     # render_palette(palette, palette_path.with_name(palette_path.stem + "_palette.png"))
     # tex_to_csv(payload, input_path, width, height)
-
-    print(
-        f"Wrote {output_path} ({width}x{height}) with palette ({len(palette)} colors, format: {_format_code})"
-    )
-
     # dump palette to txt
     # with open(
     #     palette_path.with_name(palette_path.stem + "_palette.txt"), "w"
@@ -236,6 +248,31 @@ def main() -> None:
     #     for index, data in enumerate(palette):
     #         palette_txt.write(f"{index}: {data[0], data[1], data[2]}\n")
 
+    if args.clut is not None:
+        render_tex(payload, width, height, palette, output_path, clut_base=args.clut)
+        print(
+            f"Wrote {output_path} ({width}x{height}) with palette ({len(palette)} colors, format: {_format_code})"
+        )
+    else:
+        makedirs(input_path.parent / input_path.stem, exist_ok=True)
+
+        # Render one image per CLUT block in the palette
+        num_cluts = len(palette) // 16
+        clut_str_len = len(f"{num_cluts}")
+
+        # Create directory based on input_path.stem
+        output_folder = output_path.parent / input_path.stem / palette_path.stem
+        if not output_folder.exists():
+            makedirs(output_folder, exist_ok=True)
+
+        output_folder = output_path.parent / input_path.stem / palette_path.stem / input_path.stem
+
+        for clut_base in range(num_cluts):
+            clut_output_path = output_folder.with_name(f"{input_path.stem}_clut{clut_base:0{clut_str_len}d}.png")
+            render_tex(payload, width, height, palette, clut_output_path, clut_base=clut_base)
+            print(
+                f"Wrote {clut_output_path} ({width}x{height}) with palette ({len(palette)} colors, format: {_format_code})"
+            )
 
 if __name__ == "__main__":
     main()
