@@ -187,7 +187,11 @@ def render_tex(
     image.save(output_path)
 
 
-def render_palette(palette: list[tuple[int, int, int]], output_path: Path) -> None:
+def render_palette(_palette: list[tuple[int, int, int]], output_path: Path) -> None:
+    # Determine end of meaningful data and trim palette if necessary
+    last_nonzero_index = max(i for i, (r, g, b) in enumerate(_palette) if (r, g, b) != (0, 0, 0))
+    palette = _palette[: last_nonzero_index + 1]
+
     num_colors = len(palette)
     cols = 16
     rows = (num_colors + cols - 1) // cols
