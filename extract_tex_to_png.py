@@ -189,7 +189,9 @@ def render_tex(
 
 def render_palette(_palette: list[tuple[int, int, int]], output_path: Path) -> None:
     # Determine end of meaningful data and trim palette if necessary
-    last_nonzero_index = max(i for i, (r, g, b) in enumerate(_palette) if (r, g, b) != (0, 0, 0))
+    last_nonzero_index = max(
+        i for i, (r, g, b) in enumerate(_palette) if (r, g, b) != (0, 0, 0)
+    )
     palette = _palette[: last_nonzero_index + 1]
 
     num_colors = len(palette)
@@ -290,7 +292,15 @@ def main() -> None:
     #         palette_txt.write(f"{index}: {data[0], data[1], data[2]}\n")
 
     if args.clut is not None:
-        render_tex(payload, width, height, palette, output_path, format_code=format_code, clut_base=args.clut)
+        render_tex(
+            payload,
+            width,
+            height,
+            palette,
+            output_path,
+            format_code=format_code,
+            clut_base=args.clut,
+        )
         print(
             f"Wrote {output_path} ({width}x{height}) with palette ({len(palette)} colors, format: {format_code})"
         )
@@ -315,7 +325,13 @@ def main() -> None:
                 f"{input_path.stem}_clut{clut_base:0{clut_str_len}d}.png"
             )
             render_tex(
-                payload, width, height, palette, clut_output_path, format_code=format_code, clut_base=clut_base
+                payload,
+                width,
+                height,
+                palette,
+                clut_output_path,
+                format_code=format_code,
+                clut_base=clut_base,
             )
             print(
                 f"Wrote {clut_output_path} ({width}x{height}) with palette ({len(palette)} colors, format: {format_code})"
