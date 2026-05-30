@@ -29,7 +29,7 @@ def parse_tex_header(data: bytes) -> tuple[int, int, int, int]:
     return format_code, width, height, mip_count
 
 
-def load_palette_blocks(palette_path: Path) -> list[tuple[int, int, int]]:
+def load_col_palette(palette_path: Path) -> list[tuple[int, int, int]]:
     if not palette_path.exists():
         raise FileNotFoundError(f"Palette file does not exist: {palette_path}")
 
@@ -278,7 +278,7 @@ def main() -> None:
     if not palette_path.exists():
         raise FileNotFoundError(f"Palette file does not exist: {palette_path}")
 
-    palette = load_palette_blocks(palette_path)
+    palette = load_col_palette(palette_path)
     format_code, width, height, payload = extract_tex(input_path)
 
     # generate debug files
