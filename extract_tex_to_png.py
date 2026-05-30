@@ -169,7 +169,7 @@ def render_tex(
 
     # Each pixel stores a 4-bit colour index (0-15).
     # For 0x07 (32bpp): index is in the alpha channel (byte 3 of each 4-byte pixel).
-    # For 0x12 (8bpp palette-indexed): each byte is the index directly.
+    # For 0x12 (8bpp palette-indexed): each byte is the index directly?
     # The colour index selects a colour from one 16-entry CLUT block within the palette:
     # final_index = clut_base*16 + colour_index.
     # Index 0 in any CLUT is transparent. clut_base must be supplied externally
