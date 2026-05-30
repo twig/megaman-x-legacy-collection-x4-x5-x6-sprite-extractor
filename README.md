@@ -52,6 +52,7 @@ pip install -r requirements.txt
 
 - Buy and download Megaman X Legacy Collection 1 and 2 from Steam
 - Go to the game files from the MMXLC or MMXLC2 library
+  - Library > MMXLC Game > Cog > Manage > Browse local files
 - Navigate to game of choice (X4/X5/X6) and get the ARC files to extract from
   - Mega Man X Legacy Collection\nativeDX10\X4\romPC
   - Mega Man X Legacy Collection 2\nativeDX10\X5\romPC
