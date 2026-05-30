@@ -84,6 +84,12 @@ def load_col_palette(palette_path: Path) -> list[tuple[int, int, int]]:
     return blocks
 
 
+def convert_to_2d_palette(
+    palette: list[tuple[int, int, int]],
+) -> list[list[tuple[int, int, int]]]:
+    return [palette[i : i + 16] for i in range(0, len(palette), 16)]
+
+
 def extract_tex(input_path: Path) -> tuple[int, int, int, bytes]:
     data = input_path.read_bytes()
     format_code, width, height, _mip_count = parse_tex_header(data)

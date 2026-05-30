@@ -11,11 +11,16 @@ clears the selection.
 import argparse
 import sys
 import tkinter as tk
+from tkinter import filedialog, messagebox
 from pathlib import Path
-from PIL import Image, ImageTk
+from PIL import Image, ImageDraw, ImageTk
 
 
-from extract_tex_to_png import load_col_palette
+from extract_tex_to_png import (
+    load_col_palette,
+    parse_tex_header,
+    convert_to_2d_palette,
+)
 
 
 def parse_args():
@@ -29,15 +34,6 @@ def parse_args():
     return p.parse_args()
 
 
-# Split into rows of 16
-def convert_to_2d_palette(
-    palette: list[tuple[int, int, int]],
-) -> list[list[tuple[int, int, int]]]:
-    return [
-        palette[clut_base : clut_base + 16] for clut_base in range(0, len(palette), 16)
-    ]
-
-
 class CLUToFinderApp:
     def __init__(self, root: tk.Tk, pil_image: Image.Image, palette):
         self.root = root
@@ -48,16 +44,38 @@ class CLUToFinderApp:
 
         content_frame = tk.Frame(root)
         content_frame.pack(fill="both", expand=True)
+        content_frame.columnconfigure(0, weight=1)
+        content_frame.columnconfigure(1, weight=0)
+        content_frame.rowconfigure(0, weight=1)
 
         self.canvas = tk.Canvas(content_frame, width=self.w, height=self.h)
-        self.canvas.pack(side="left", fill="both", expand=True)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
         self.canvas_image = self.canvas.create_image(
             0, 0, anchor="nw", image=self.photo
         )
 
-        self.side_panel = tk.Frame(content_frame, width=200)
-        self.side_panel.pack(side="right", fill="y")
+        ui_frame = tk.Frame(content_frame)
+        ui_frame.grid(row=0, column=1, sticky="ns")
+        ui_frame.columnconfigure(0, weight=0)
+        ui_frame.columnconfigure(1, weight=0)
+        ui_frame.rowconfigure(0, weight=1)
+
+        self.side_panel = tk.Frame(ui_frame, width=200)
+        self.side_panel.grid(row=0, column=0, sticky="ns")
         self.side_panel.pack_propagate(False)
+
+        self.placeholder_frame = tk.Frame(ui_frame, width=220)
+        self.placeholder_frame.grid(row=0, column=1, sticky="ns")
+        self.placeholder_frame.pack_propagate(False)
+        self.placeholder_image_label = tk.Label(self.placeholder_frame)
+        self.placeholder_image_label.pack(pady=10, padx=10)
+        self.placeholder_info = tk.Label(
+            self.placeholder_frame,
+            text="No TEX file selected",
+            wraplength=200,
+            justify="center",
+        )
+        self.placeholder_info.pack(fill="x", padx=10)
 
         self.hint = tk.Label(
             self.side_panel,
@@ -71,6 +89,27 @@ class CLUToFinderApp:
             self.side_panel, text="Unique colors: 0", anchor="center"
         )
         self.status.pack(fill="x", pady=(10, 5), padx=10)
+
+        self.open_image_button = tk.Button(
+            self.side_panel,
+            text="Open screenshot...",
+            command=self.open_screenshot,
+        )
+        self.open_image_button.pack(fill="x", pady=(5, 2), padx=10)
+
+        self.open_palette_button = tk.Button(
+            self.side_panel,
+            text="Open COL palette...",
+            command=self.open_palette,
+        )
+        self.open_palette_button.pack(fill="x", pady=2, padx=10)
+
+        self.open_tex_button = tk.Button(
+            self.side_panel,
+            text="Open TEX file...",
+            command=self.open_tex,
+        )
+        self.open_tex_button.pack(fill="x", pady=(2, 10), padx=10)
 
         matches_frame = tk.Frame(self.side_panel)
         matches_frame.pack(fill="both", expand=True, pady=(10, 5), padx=10)
@@ -162,6 +201,98 @@ class CLUToFinderApp:
                 self.colour_set.add((r, g, b))
 
         self.update_status()
+
+    def open_screenshot(self):
+        path = filedialog.askopenfilename(
+            title="Open screenshot",
+            filetypes=[("PNG images", "*.png"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+
+        try:
+            image = Image.open(path)
+        except Exception as e:
+            messagebox.showerror("Open screenshot", f"Failed to open image: {e}")
+            return
+
+        self.load_screenshot(image)
+
+    def load_screenshot(self, image: Image.Image):
+        self.image = image.convert("RGB")
+        self.photo = ImageTk.PhotoImage(self.image)
+        self.w, self.h = self.image.size
+        self.canvas.config(width=self.w, height=self.h)
+        self.canvas.itemconfig(self.canvas_image, image=self.photo)
+        self.clear_selection()
+
+    def open_palette(self):
+        path = filedialog.askopenfilename(
+            title="Open COL palette",
+            filetypes=[("COL palette files", "*.col"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+
+        try:
+            palette = load_col_palette(Path(path))
+            self.palette = convert_to_2d_palette(palette)
+        except Exception as e:
+            messagebox.showerror("Open COL palette", f"Failed to open palette: {e}")
+            return
+
+        self.clear_selection()
+
+    def open_tex(self):
+        path = filedialog.askopenfilename(
+            title="Open TEX file",
+            filetypes=[("TEX files", "*.tex"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+
+        try:
+            data = Path(path).read_bytes()
+            _, width, height, _ = parse_tex_header(data)
+        except Exception as e:
+            messagebox.showerror("Open TEX file", f"Failed to read TEX header: {e}")
+            return
+
+        self.update_tex_placeholder(width, height, Path(path).name)
+
+    def clear_selection(self):
+        if self.rect_id is not None:
+            self.canvas.delete(self.rect_id)
+            self.rect_id = None
+        self.colour_set.clear()
+        self.status.config(text="Unique colors: 0\n\nMatching indexes: 0")
+        self.set_matches_text("")
+
+    def update_tex_placeholder(
+        self, width: int | None, height: int | None, tex_name: str | None = None
+    ):
+        if width is None or height is None:
+            placeholder_text = "No TEX file selected"
+            placeholder_image = self.create_placeholder_image(placeholder_text)
+            self.tex_placeholder_photo = ImageTk.PhotoImage(placeholder_image)
+            self.placeholder_image_label.config(image=self.tex_placeholder_photo)
+            self.placeholder_info.config(text="No TEX file selected")
+            return
+
+        placeholder_text = f"TEX: {width} × {height}"
+        placeholder_image = self.create_placeholder_image(placeholder_text)
+        self.tex_placeholder_photo = ImageTk.PhotoImage(placeholder_image)
+        self.placeholder_image_label.config(image=self.tex_placeholder_photo)
+        self.placeholder_info.config(
+            text=f"{tex_name or 'TEX file'}\n{width} × {height}"
+        )
+
+    def create_placeholder_image(self, text: str) -> Image.Image:
+        image = Image.new("RGB", (200, 140), color=(200, 200, 200))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((2, 2, 197, 137), outline=(120, 120, 120), width=2)
+        draw.text((12, 40), text, fill=(30, 30, 30))
+        return image
 
     def update_status(self):
         def is_colour_match(
