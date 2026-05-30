@@ -4,6 +4,15 @@ Trying to find ways to make it easier for sprite rippers to get accurate sprites
 
 `WIP:` currently only working with _some_ X5 assets
 
+Remaining
+
+- 8bpp TEX
+- Animation sprites
+
+# Reference code
+
+- TehemanX4 Editor
+
 # Requirements
 
 - Python 3.12+
