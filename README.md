@@ -9,15 +9,32 @@ Remaining
 - 8bpp TEX
 - Animation sprites
 
-# Reference code
+# References for code
 
-- TehemanX4 Editor
+- [TileMolester](https://github.com/toruzz/TileMolester)
+- [ARC format](https://www.watto.org/specs.html?specs=Archive_ARC_ARC_2)
+- romhacking.net threads
+  - [Megaman X PS1 Background Sprites Ripped](https://www.romhacking.net/forum/index.php?topic=36801.0)
+  - [Mega Man X4 (PSX) Decompression Routine](https://www.romhacking.net/forum/index.php?topic=21330.0)
+  - [Mega Man X Legacy Collection Sprites Extraction](https://www.romhacking.net/forum/index.php?topic=26730.0)
+  - [Need help with MegaManX4 Sprites](https://www.romhacking.net/forum/index.php?topic=26749)
+- [MT Framework .Tex files?](https://gbatemp.net/threads/mt-framework-tex-files.456868/)
+- [r/mahvelmods Texture Tutorial](https://www.reddit.com/r/mahvelmods/wiki/textures/)
+- [xdanieldzd's Scarlet.IO.ImageFormats/CapcomTEX.cs](https://github.com/xdanieldzd/Scarlet/blob/master/Scarlet.IO.ImageFormats/CapcomTEX.cs)
+- [FrozenFish24's TurnaboutTools TEXporter](https://github.com/FrozenFish24/TurnaboutTools/blob/master/TEXporter/TEXporter/Program.cs)
+- zenhax.com threads
+  - [New M.T. Framework Texture Format](https://zenhax.com/viewtopic.php@t=15549.html)
+- [AsteriskAmpersand's MHR_Tex_Chopper](https://github.com/AsteriskAmpersand/MHR_Tex_Chopper)
+- [RandomTBush's RTB-QuickBMS-Scripts CapcomMTFrameworkPC_TEX.bms](https://github.com/RandomTBush/RTB-QuickBMS-Scripts/blob/master/Textures%2FCapcomMTFrameworkPC_TEX.bms)
+- [Silvris's MH-Tools-and-Scripts Noesis plugin tex_mtFramework_tex.py](https://github.com/Silvris/MH-Tools-and-Scripts/blob/master/Noesis%2Fplugins%2Fpython%2Ftex_mtFramework_tex.py)
+- [Kuumba123's MMX5---X6-DAT-Extract](https://github.com/Kuumba123/MMX5---X6-DAT-Extract) to compare PSX files
+- ❤️ [Kuumba123's TehemanX4 Editor](https://github.com/Kuumba123/TeheManX4_Editor)
 
 # Requirements
 
 - Python 3.12+
-- Megaman X Legacy Collection 1 and 2 on PC/Steam (for ARC files)
-- Game Extractor (to extract ARC files)
+- Megaman X Legacy Collection [1](https://store.steampowered.com/app/743890/Mega_Man_X_Legacy_Collection/) and [2](https://store.steampowered.com/app/743900/Mega_Man_X_Legacy_Collection_2/) on PC/Steam (for ARC files)
+- [Watto Game Extractor](https://www.watto.org/game_extractor.html) (to extract ARC files)
 
 # Setup
 
@@ -36,6 +53,9 @@ pip install -r requirements.txt
 - Buy and download Megaman X Legacy Collection 1 and 2 from Steam
 - Go to the game files from the MMXLC or MMXLC2 library
 - Navigate to game of choice (X4/X5/X6) and get the ARC files to extract from
+  - Mega Man X Legacy Collection\nativeDX10\X4\romPC
+  - Mega Man X Legacy Collection 2\nativeDX10\X5\romPC
+  - Mega Man X Legacy Collection 2\nativeDX10\X6\romPC
 - Use Game Extrator to extract game assets from each of the ARC files
 
 TODO: more information/details on filenames and folders later
