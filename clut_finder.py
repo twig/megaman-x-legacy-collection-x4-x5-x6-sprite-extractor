@@ -36,6 +36,7 @@ class CLUTFinderApp:
         self.photo = ImageTk.PhotoImage(self.image)
         self.w, self.h = self.image.size
         self.tex_file: Path | None = None
+        self.matching_indexes: list[tuple[int, float]] = []
 
         content_frame = tk.Frame(root)
         content_frame.pack(fill="both", expand=True)
@@ -193,7 +194,7 @@ class CLUTFinderApp:
                 r, g, b = pixels[xx, yy]  # type: ignore
                 self.colour_set.add((r, g, b))
 
-        self.update_status()
+        self.process_selected_colours()
 
     def open_screenshot(self):
         path = filedialog.askopenfilename(
@@ -257,8 +258,10 @@ class CLUTFinderApp:
             messagebox.showerror("Open TEX file", f"Failed to read TEX header: {e}")
             return
 
-        # TODO: pass in best matching clut index
-        preview_image = convert_tex_to_image(tex_data, self.palette, 0)
+        # determine best matching clut index
+        clut_index = self.matching_indexes[0][0] if len(self.matching_indexes) else 0
+
+        preview_image = convert_tex_to_image(tex_data, self.palette, clut_index)
         self.preview_tex_image = ImageTk.PhotoImage(preview_image)
         self.tex_image.config(image=self.preview_tex_image)
 
@@ -268,9 +271,10 @@ class CLUTFinderApp:
             self.rect_id = None
         self.colour_set.clear()
         self.status.config(text="")
+        self.matching_indexes = []
         self.set_matches_text("")
 
-    def update_status(self):
+    def process_selected_colours(self):
         # Fuzzy-matching of colour since screenshot isn't always accurate.
         def is_colour_match(search_colour: ColourRGB, palette_colour: ColourRGB):
             difference = 3
@@ -340,6 +344,10 @@ Matching indexes: {len(filtered)}""")
                 [f"#{clut_base} ({percentage}%)" for clut_base, percentage in filtered]
             )
         )
+
+        self.matching_indexes = filtered
+        # Update preview if needed
+        self.preview_tex()
 
     def set_matches_text(self, text: str):
         self.matches.config(state="normal")
