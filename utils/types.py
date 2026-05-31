@@ -8,8 +8,9 @@ type CLUT = list[Palette]  # Colour lookup table, 16 colours per row
 
 
 class TexFormat(IntEnum):
-    FORMAT_8BPP = 0x07  # Value 7
-    FORMAT_4BPP = 0x12  # Value 18, TBC if 4bpp
+    # https://github.com/RandomTBush/RTB-QuickBMS-Scripts/blob/master/Textures/CapcomMTFrameworkSwitch_TEX.bms
+    FORMAT_32BPP = 0x07  # Value 7, BITPERPIX=32, BLOCKSIZE=128, ISCOMPRESSED=False
+    FORMAT_8BPP = 0x12  # Value 18, TBC seems to be 8bpp (up from 4bpp in PSX) and maybe format BC3_UNORM_SRGB / BC3 / DXT5?
 
 
 class TexData(TypedDict):

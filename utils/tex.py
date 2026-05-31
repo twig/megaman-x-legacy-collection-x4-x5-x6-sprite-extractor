@@ -43,7 +43,7 @@ def load_tex(input_path: Path) -> TexData:
     #     },
     # )
 
-    if format_code == TexFormat.FORMAT_8BPP:
+    if format_code == TexFormat.FORMAT_32BPP:
         offset_table = [
             int.from_bytes(data[0x10 + i * 4 : 0x14 + i * 4], "little")
             for i in range(7)
@@ -53,7 +53,7 @@ def load_tex(input_path: Path) -> TexData:
         expected_size = width * height * 4
         raw_image = data[base_offset : base_offset + expected_size]
 
-    elif format_code == TexFormat.FORMAT_4BPP:
+    elif format_code == TexFormat.FORMAT_8BPP:
         offset_table = [
             int.from_bytes(data[0x10 + i * 4 : 0x14 + i * 4], "little")
             for i in range(7)
@@ -106,18 +106,18 @@ def convert_tex_to_image(
         return None
 
     # Each pixel in TEX data stores a 4-bit colour index (0-15).
-    # For 0x07 (8bpp): index is in the alpha channel (byte 3 of each 4-byte pixel).
-    # For 0x12 (4bpp palette-indexed): each byte is the index directly? TBC
+    # For 0x07 (32bpp): index is in the alpha channel (byte 3 of each 4-byte pixel).
+    # For 0x12 (8bpp palette-indexed): each byte is the index directly? TBC
     # The colour index selects a colour from one 16-entry CLUT block within the palette:
     # final_index = clut_index*16 + colour_index.
     # Index 0 in any CLUT is transparent. clut_index must be supplied externally
     # (it is not encoded in the pixel data).
     pixels: list[ColourRGBA] = []
     for pixel_index in range(width * height):
-        if format_code == TexFormat.FORMAT_8BPP:
+        if format_code == TexFormat.FORMAT_32BPP:
             # [0-3] RGBA or BGRA, either way A channel is 3
             colour_index = raw_image[pixel_index * 4 + 3]
-        elif format_code == TexFormat.FORMAT_4BPP:
+        elif format_code == TexFormat.FORMAT_8BPP:
             # TODO: make this work
             colour_index = raw_image[pixel_index]
         else:
