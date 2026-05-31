@@ -1,19 +1,42 @@
 from __future__ import annotations
 
+from typing import TypedDict, Literal
 import argparse
 from pathlib import Path
 from os import makedirs
+import csv
 
 from PIL import Image, ImageDraw
 
-PAL_HEADER_SIZE = 12  # COL file: 4-byte magic + 4-byte unknown + 4-byte entry count
-PAL_BLOCK_SIZE = 2
+COL_HEADER_SIZE = 12  # COL file: 4-byte magic + 4-byte unknown + 4-byte entry count
+COL_BLOCK_SIZE = 2
+
+type ColourRGB = tuple[int, int, int]
+type ColourRGBA = tuple[int, int, int, int]
+type Palette = list[ColourRGB]  # List of colours
+type CLUT = list[Palette]  # Colour lookup table, 16 colours per row
+
+from enum import IntEnum
+
+
+class TexFormat(IntEnum):
+    FORMAT_32BPP = 0x07  # Value 7
+    FORMAT_8BPP = 0x12  # Value 18, TBC if 8bpp
+
+
+class TexData(TypedDict):
+    format_code: TexFormat
+    width: int
+    height: int
+    mip_count: int
+    raw_image: bytes
 
 
 def parse_tex_header(data: bytes) -> tuple[int, int, int, int]:
     if len(data) < 0x30:
         raise ValueError(f"TEX file too small: {len(data)} bytes")
 
+    # Check magic header
     if data[:4] != b"TEX\x00":
         raise ValueError(f"Not a TEX file: {data[:4]!r}")
 
@@ -29,28 +52,30 @@ def parse_tex_header(data: bytes) -> tuple[int, int, int, int]:
     return format_code, width, height, mip_count
 
 
-def load_col_palette(palette_path: Path) -> list[tuple[int, int, int]]:
+def load_col_palettes(palette_path: Path) -> Palette:
     if not palette_path.exists():
         raise FileNotFoundError(f"Palette file does not exist: {palette_path}")
 
     palette_data = palette_path.read_bytes()
 
-    if len(palette_data) < PAL_HEADER_SIZE + 1:
+    if len(palette_data) < COL_HEADER_SIZE + 1:
         raise ValueError(f"Palette file too small: {len(palette_data)} bytes")
 
+    # magic header
     if palette_data[:4] != b"COL\x00":
         raise ValueError(f"Not a COL file: {palette_data[:4]!r}")
 
     entry_count = int.from_bytes(palette_data[8:12], byteorder="little")
-    max_offset = PAL_HEADER_SIZE + entry_count * PAL_BLOCK_SIZE
+    max_offset = COL_HEADER_SIZE + entry_count * COL_BLOCK_SIZE
+
     if max_offset > len(palette_data):
         raise ValueError(
             f"COL entry count {entry_count} exceeds file size "
             f"(expected {max_offset} bytes, got {len(palette_data)})"
         )
 
-    blocks: list[tuple[int, int, int]] = []
-    offset = PAL_HEADER_SIZE
+    palette: Palette = []
+    offset = COL_HEADER_SIZE
     # Read BGR555 palette data from the start of the file.
     # Each 2-byte little-endian value encodes one colour:
     # MSB 15 -> 0 LSB
@@ -60,11 +85,10 @@ def load_col_palette(palette_path: Path) -> list[tuple[int, int, int]]:
     # Bits 5-9:  Green channel (0-31)
     # Bits 0-4:  Red channel (0-31)
     # Scale each 5-bit channel to 8-bit by left-shifting 3 (multiply by 8).
-    while offset + PAL_BLOCK_SIZE <= max_offset:
-        block = palette_data[offset : offset + PAL_BLOCK_SIZE]
+    while offset + COL_BLOCK_SIZE <= max_offset:
+        block = palette_data[offset : offset + COL_BLOCK_SIZE]
         value = int.from_bytes(block, byteorder="little")
 
-        # Currently "close enough", potential slight miscalculations on the colours
         # Extract 5-bit channels
         r = value & 0x1F
         g = (value >> 5) & 0x1F
@@ -75,43 +99,40 @@ def load_col_palette(palette_path: Path) -> list[tuple[int, int, int]]:
         g8 = (g << 3) | (g >> 2)
         b8 = (b << 3) | (b >> 2)
 
-        blocks.append((r8, g8, b8))
-        offset += PAL_BLOCK_SIZE
+        palette.append((r8, g8, b8))
+        offset += COL_BLOCK_SIZE
 
-    if not blocks:
+    if not palette:
         raise ValueError("No palette blocks found in COL file")
 
-    return blocks
+    return palette
 
 
-def convert_to_2d_palette(
-    palette: list[tuple[int, int, int]],
-) -> list[list[tuple[int, int, int]]]:
+def convert_palette_to_clut(palette: Palette) -> CLUT:
+    """
+    Converts a flat palette to a 2D 16-column table/CLUT (colour lookup table)
+    """
     return [palette[i : i + 16] for i in range(0, len(palette), 16)]
 
 
-def extract_tex(input_path: Path) -> tuple[int, int, int, bytes]:
+def load_tex(input_path: Path) -> TexData:
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file does not exist: {input_path}")
+
     data = input_path.read_bytes()
-    format_code, width, height, _mip_count = parse_tex_header(data)
+    format_code, width, height, mip_count = parse_tex_header(data)
 
-    print(
-        "header",
-        {
-            "format_code": format_code,
-            "width": width,
-            "height": height,
-            "_mip_count": _mip_count,
-        },
-    )
+    # print(
+    #     "header",
+    #     {
+    #         "format_code": format_code,
+    #         "width": width,
+    #         "height": height,
+    #         "_mip_count": mip_count,
+    #     },
+    # )
 
-    if format_code not in [0x07, 0x12]:
-        raise NotImplementedError(
-            f"Unsupported TEX format 0x{format_code:02x}. "
-            "This extractor currently supports palette-mapped TEX files only."
-        )
-
-    # 32bpp
-    if format_code == 0x07:
+    if format_code == TexFormat.FORMAT_32BPP:
         offset_table = [
             int.from_bytes(data[0x10 + i * 4 : 0x14 + i * 4], "little")
             for i in range(7)
@@ -119,10 +140,9 @@ def extract_tex(input_path: Path) -> tuple[int, int, int, bytes]:
         base_offset = offset_table[0]
 
         expected_size = width * height * 4
-        payload = data[base_offset : base_offset + expected_size]
+        raw_image = data[base_offset : base_offset + expected_size]
 
-    # 8bpp palette-indexed
-    elif format_code == 0x12:
+    elif format_code == TexFormat.FORMAT_8BPP:
         offset_table = [
             int.from_bytes(data[0x10 + i * 4 : 0x14 + i * 4], "little")
             for i in range(7)
@@ -130,59 +150,78 @@ def extract_tex(input_path: Path) -> tuple[int, int, int, bytes]:
         base_offset = offset_table[0]
 
         expected_size = width * height
-        payload = data[base_offset : base_offset + expected_size]
+        raw_image = data[base_offset : base_offset + expected_size]
 
-    if len(payload) != expected_size:
-        raise ValueError(
-            f"Payload size mismatch for {input_path.name}: "
-            f"expected {expected_size} bytes, got {len(payload)}"
+    else:
+        raise NotImplementedError(
+            f"Unsupported TEX format 0x{format_code:02x}. "
+            "This extractor currently supports palette-mapped TEX files only."
         )
 
-    return format_code, width, height, payload
+    if len(raw_image) != expected_size:
+        raise ValueError(
+            f"Payload size mismatch for {input_path.name}: "
+            f"expected {expected_size} bytes, got {len(raw_image)}"
+        )
+
+    return {
+        # Python types can't seem to determine whats been filtered out
+        "format_code": format_code,  # type: ignore
+        "width": width,
+        "height": height,
+        "mip_count": mip_count,
+        "raw_image": raw_image,
+    }
 
 
-def is_all_transparent_clut(colours: list[tuple[int, int, int]]) -> bool:
-    for swatch in colours:
+def is_palette_all_black(palette: Palette) -> bool:
+    for swatch in palette:
         if sum(swatch) != 0:
             return False
     return True
 
 
 def render_tex(
-    payload: bytes,
-    width: int,
-    height: int,
-    palette: list[tuple[int, int, int]],
+    tex_data: TexData,
+    palette: Palette,
     output_path: Path,
-    format_code: int = 0x07,
-    clut_base: int = 0,  # row index in palette file (0-based)
+    clut_index: int,  # 0-based row index in CLUT table
 ) -> None:
-    clut_start = clut_base * 16
+    raw_image = tex_data["raw_image"]
+    width = tex_data["width"]
+    height = tex_data["height"]
+    format_code = tex_data["format_code"]
+
+    clut_start = clut_index * 16
     if clut_start + 16 > len(palette):
         raise ValueError(
-            f"Clut index {clut_base} out of range for palette size {len(palette)} (clut start {clut_start})"
+            f"Clut index {clut_index} out of range for palette size {len(palette)} (clut start {clut_start})"
         )
 
-    if is_all_transparent_clut(palette[clut_start : clut_start + 16]):
-        print(f"skip: Clut index {clut_base} only has black")
+    if is_palette_all_black(palette[clut_start : clut_start + 16]):
+        print(f"skip: Clut index {clut_index} only has black")
         return
 
-    # Each pixel stores a 4-bit colour index (0-15).
+    # Each pixel in TEX data stores a 4-bit colour index (0-15).
     # For 0x07 (32bpp): index is in the alpha channel (byte 3 of each 4-byte pixel).
-    # For 0x12 (8bpp palette-indexed): each byte is the index directly?
+    # For 0x12 (8bpp palette-indexed): each byte is the index directly? TBC
     # The colour index selects a colour from one 16-entry CLUT block within the palette:
-    # final_index = clut_base*16 + colour_index.
-    # Index 0 in any CLUT is transparent. clut_base must be supplied externally
+    # final_index = clut_index*16 + colour_index.
+    # Index 0 in any CLUT is transparent. clut_index must be supplied externally
     # (it is not encoded in the pixel data).
-    pixels = []
+    pixels: list[ColourRGBA] = []
     for pixel_index in range(width * height):
-        if format_code == 0x07:
-            colour_index = payload[pixel_index * 4 + 3]  # a_index == r_index >> 4
-        else:  # 0x12
-            colour_index = payload[pixel_index]
-        final_index = clut_base * 16 + colour_index
+        if format_code == TexFormat.FORMAT_32BPP:
+            colour_index = raw_image[pixel_index * 4 + 3]  # a_index == r_index >> 4
+        elif format_code == TexFormat.FORMAT_8BPP:
+            colour_index = raw_image[pixel_index]
+        else:
+            raise Exception(f"Unsupported TEX format 0x{format_code:02x}")
+
+        final_index = clut_index * 16 + colour_index
 
         if colour_index == 0:
+            # Transparent colour, render as Magenta with Alpha 0 for easy debugging
             pixels.append((255, 0, 255, 0))
         else:
             r, g, b = palette[final_index]
@@ -193,18 +232,19 @@ def render_tex(
     image.save(output_path)
 
 
-def render_palette(_palette: list[tuple[int, int, int]], output_path: Path) -> None:
+def render_palette(original_palette: Palette, output_path: Path) -> None:
+    # Since this is mainly used for debugging, we don't need a big black patch at the end
     # Determine end of meaningful data and trim palette if necessary
     last_nonzero_index = max(
-        i for i, (r, g, b) in enumerate(_palette) if (r, g, b) != (0, 0, 0)
+        i for i, (r, g, b) in enumerate(original_palette) if (r, g, b) != (0, 0, 0)
     )
-    palette = _palette[: last_nonzero_index + 1]
+    palette = original_palette[: last_nonzero_index + 1]
 
-    num_colors = len(palette)
     cols = 16
-    rows = (num_colors + cols - 1) // cols
     cell_size = 16
     label_width = 40
+    num_colors = len(palette)
+    rows = (num_colors + cols - 1) // cols
     image_width = cols * cell_size + label_width
     image_height = rows * cell_size
 
@@ -225,9 +265,7 @@ def render_palette(_palette: list[tuple[int, int, int]], output_path: Path) -> N
     image.save(output_path)
 
 
-def tex_to_csv(payload: bytes, input_path: Path, width: int, height: int) -> None:
-    import csv
-
+def tex_to_csv(raw_image: bytes, input_path: Path, width: int, height: int) -> None:
     output_path_grey = input_path.with_name(input_path.stem + "_grey.csv")
     output_path_alpha = input_path.with_name(input_path.stem + "_alpha.csv")
 
@@ -247,8 +285,8 @@ def tex_to_csv(payload: bytes, input_path: Path, width: int, height: int) -> Non
                     pixel_index = y * width + x
                     # b_index = payload[pixel_index * 4 + 0]
                     # g_index = payload[pixel_index * 4 + 1]
-                    r_index = payload[pixel_index * 4 + 2]
-                    a_index = payload[pixel_index * 4 + 3]
+                    r_index = raw_image[pixel_index * 4 + 2]
+                    a_index = raw_image[pixel_index * 4 + 3]
 
                     row_grey.append(r_index)
                     row_alpha.append(a_index)
@@ -259,37 +297,33 @@ def tex_to_csv(payload: bytes, input_path: Path, width: int, height: int) -> Non
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Extract a TEX file as a PNG using one or more COL palettes."
+        description="Extract PNG from a TEX file using given palette file."
     )
     parser.add_argument("input", type=Path, help="Path to the input TEX file")
-    parser.add_argument(
-        "palette",
-        type=Path,
-        help="Path to a COL palette file.",
-    )
+    parser.add_argument("palette", type=Path, help="Path to a COL palette file.")
     parser.add_argument(
         "--clut",
         type=int,
         default=None,
-        help="Render tex against a specific CLUT row index (0-based) within the palette file. Otherwise renders against all CLUTs in the palette",
+        help="Render using a specific CLUT index within the palette. Otherwise renders against all CLUTs in the palette (default)",
     )
 
     args = parser.parse_args()
     input_path: Path = args.input
     output_path: Path = input_path.with_suffix(".png")
     palette_path: Path = args.palette
+    clut: int | None = args.clut
 
-    if not input_path.exists():
-        raise FileNotFoundError(f"Input file does not exist: {input_path}")
-    if not palette_path.exists():
-        raise FileNotFoundError(f"Palette file does not exist: {palette_path}")
+    palette = load_col_palettes(palette_path)
+    tex_data = load_tex(input_path)
 
-    palette = load_col_palette(palette_path)
-    format_code, width, height, payload = extract_tex(input_path)
+    format_code = tex_data["format_code"]
+    width = tex_data["width"]
+    height = tex_data["height"]
 
     # generate debug files
     # render_palette(palette, palette_path.with_name(palette_path.stem + "_palette.png"))
-    # tex_to_csv(payload, input_path, width, height)
+    # tex_to_csv(tex_data["raw_image"], input_path, width, height)
     # dump palette to txt
     # with open(
     #     palette_path.with_name(palette_path.stem + "_palette.txt"), "w"
@@ -297,25 +331,24 @@ def main() -> None:
     #     for index, data in enumerate(palette):
     #         palette_txt.write(f"{index}: {data[0], data[1], data[2]}\n")
 
-    if args.clut is not None:
+    # Render specific palette
+    if clut is not None:
         render_tex(
-            payload,
-            width,
-            height,
+            tex_data,
             palette,
             output_path,
-            format_code=format_code,
-            clut_base=args.clut,
+            clut_index=clut,
         )
         print(
             f"Wrote {output_path} ({width}x{height}) with palette ({len(palette)} colors, format: {format_code})"
         )
+    # Render all palettes in CLUT
     else:
         makedirs(input_path.parent / input_path.stem, exist_ok=True)
 
         # Render one image per CLUT block in the palette
-        num_cluts = len(palette) // 16
-        clut_str_len = len(f"{num_cluts}")
+        num_rows = len(palette) // 16
+        row_str_len = len(f"{num_rows}")
 
         # Create directory based on input_path.stem
         output_folder = output_path.parent / input_path.stem / palette_path.stem
@@ -326,18 +359,15 @@ def main() -> None:
             output_path.parent / input_path.stem / palette_path.stem / input_path.stem
         )
 
-        for clut_base in range(num_cluts):
+        for clut_index in range(num_rows):
             clut_output_path = output_folder.with_name(
-                f"{input_path.stem}_clut{clut_base:0{clut_str_len}d}.png"
+                f"{input_path.stem}_clut{clut_index:0{row_str_len}d}.png"
             )
             render_tex(
-                payload,
-                width,
-                height,
+                tex_data,
                 palette,
                 clut_output_path,
-                format_code=format_code,
-                clut_base=clut_base,
+                clut_index=clut_index,
             )
             print(
                 f"Wrote {clut_output_path} ({width}x{height}) with palette ({len(palette)} colors, format: {format_code})"

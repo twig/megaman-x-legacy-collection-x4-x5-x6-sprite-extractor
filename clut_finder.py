@@ -3,9 +3,11 @@ CLUT Finder GUI
 
 Usage: python clut_finder.py image.png palette.col
 
-Displays a PNG and lets you drag a rectangular selection. On release,
-collects unique RGB tuples from the selected area. Click (no-drag)
-clears the selection.
+Displays a screenshot and lets you select an area for CLUT index matching from palette file.
+Clicking on screenshot image clears the selection.
+
+Preferably PNG screenshots as the colours don't get distorted by JPG artifacting.
+Tested with screenshots from Duckstation with scaling: billinear (sharp)
 """
 
 import argparse
@@ -14,31 +16,23 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageTk
+from PIL.Image import Image as PILImage
 
 
 from extract_tex_to_png import (
-    load_col_palette,
-    parse_tex_header,
-    convert_to_2d_palette,
+    load_col_palettes,
+    load_tex,
+    convert_palette_to_clut,
+    Palette,
+    ColourRGB,
 )
 
 
-def parse_args():
-    p = argparse.ArgumentParser(
-        description="Display PNG and pick unique RGBs from a selection"
-    )
-    p.add_argument("png", help="Path to PNG image to open", type=Path)
-    p.add_argument(
-        "col", help="Path to COL palette file (accepted, not required)", type=Path
-    )
-    return p.parse_args()
-
-
-class CLUToFinderApp:
-    def __init__(self, root: tk.Tk, pil_image: Image.Image, palette):
+class CLUTFinderApp:
+    def __init__(self, root: tk.Tk, screenshot: PILImage, palette: Palette):
         self.root = root
-        self.palette = convert_to_2d_palette(palette)
-        self.image = pil_image.convert("RGB")
+        self.clut = convert_palette_to_clut(palette)
+        self.image = screenshot.convert("RGB")
         self.photo = ImageTk.PhotoImage(self.image)
         self.w, self.h = self.image.size
 
@@ -92,21 +86,21 @@ class CLUToFinderApp:
 
         self.open_image_button = tk.Button(
             self.side_panel,
-            text="Open screenshot...",
+            text="Open screenshot",
             command=self.open_screenshot,
         )
         self.open_image_button.pack(fill="x", pady=(5, 2), padx=10)
 
         self.open_palette_button = tk.Button(
             self.side_panel,
-            text="Open COL palette...",
+            text="Open COL palette",
             command=self.open_palette,
         )
         self.open_palette_button.pack(fill="x", pady=2, padx=10)
 
         self.open_tex_button = tk.Button(
             self.side_panel,
-            text="Open TEX file...",
+            text="Open TEX file",
             command=self.open_tex,
         )
         self.open_tex_button.pack(fill="x", pady=(2, 10), padx=10)
@@ -153,6 +147,10 @@ class CLUToFinderApp:
         y = max(0, min(self.h - 1, int(event.y)))
         self.moved = True
 
+        # For some reason we don't have the data we need
+        if not self.start_x or not self.start_y:
+            return
+
         # update rectangle
         if self.rect_id is None:
             self.rect_id = self.canvas.create_rectangle(
@@ -171,13 +169,17 @@ class CLUToFinderApp:
         end_x = max(0, min(self.w - 1, int(event.x)))
         end_y = max(0, min(self.h - 1, int(event.y)))
 
+        # treat as click: clear selection if exists
         if not self.moved:
-            # treat as click: clear selection if exists
             if self.rect_id is not None:
                 self.canvas.delete(self.rect_id)
                 self.rect_id = None
                 self.colour_set.clear()
                 self.update_status()
+            return
+
+        # For some reason we don't have the data we need
+        if not self.start_x or not self.start_y:
             return
 
         # normalize bbox
@@ -194,10 +196,12 @@ class CLUToFinderApp:
 
         # sample pixels in bbox
         self.colour_set = set()
-        pix = self.image.load()
+        pixels = self.image.load()
+
         for yy in range(y0, y1 + 1):
             for xx in range(x0, x1 + 1):
-                r, g, b = pix[xx, yy]
+                # it's ok pixels is tuple, not float
+                r, g, b = pixels[xx, yy]  # type: ignore
                 self.colour_set.add((r, g, b))
 
         self.update_status()
@@ -218,7 +222,7 @@ class CLUToFinderApp:
 
         self.load_screenshot(image)
 
-    def load_screenshot(self, image: Image.Image):
+    def load_screenshot(self, image: PILImage):
         self.image = image.convert("RGB")
         self.photo = ImageTk.PhotoImage(self.image)
         self.w, self.h = self.image.size
@@ -235,8 +239,8 @@ class CLUToFinderApp:
             return
 
         try:
-            palette = load_col_palette(Path(path))
-            self.palette = convert_to_2d_palette(palette)
+            palette = load_col_palettes(Path(path))
+            self.clut = convert_palette_to_clut(palette)
         except Exception as e:
             messagebox.showerror("Open COL palette", f"Failed to open palette: {e}")
             return
@@ -252,13 +256,14 @@ class CLUToFinderApp:
             return
 
         try:
-            data = Path(path).read_bytes()
-            _, width, height, _ = parse_tex_header(data)
+            tex_data = load_tex(Path(path))
         except Exception as e:
             messagebox.showerror("Open TEX file", f"Failed to read TEX header: {e}")
             return
 
-        self.update_tex_placeholder(width, height, Path(path).name)
+        self.update_tex_placeholder(
+            tex_data["width"], tex_data["height"], Path(path).name
+        )
 
     def clear_selection(self):
         if self.rect_id is not None:
@@ -279,7 +284,7 @@ class CLUToFinderApp:
             self.placeholder_info.config(text="No TEX file selected")
             return
 
-        placeholder_text = f"TEX: {width} × {height}"
+        placeholder_text = f"TEX: {width} x {height}"
         placeholder_image = self.create_placeholder_image(placeholder_text)
         self.tex_placeholder_photo = ImageTk.PhotoImage(placeholder_image)
         self.placeholder_image_label.config(image=self.tex_placeholder_photo)
@@ -287,7 +292,7 @@ class CLUToFinderApp:
             text=f"{tex_name or 'TEX file'}\n{width} × {height}"
         )
 
-    def create_placeholder_image(self, text: str) -> Image.Image:
+    def create_placeholder_image(self, text: str) -> PILImage:
         image = Image.new("RGB", (200, 140), color=(200, 200, 200))
         draw = ImageDraw.Draw(image)
         draw.rectangle((2, 2, 197, 137), outline=(120, 120, 120), width=2)
@@ -295,9 +300,8 @@ class CLUToFinderApp:
         return image
 
     def update_status(self):
-        def is_colour_match(
-            search_colour: list[int, int, int], palette_colour: list[int, int, int]
-        ):
+        # Fuzzy-matching of colour since screenshot isn't always accurate.
+        def is_colour_match(search_colour: ColourRGB, palette_colour: ColourRGB):
             difference = 3
             r1, g1, b1 = search_colour
             r2, g2, b2 = palette_colour
@@ -307,24 +311,25 @@ class CLUToFinderApp:
             match_b = (b1 - difference) < b2 < (b1 + difference)
             return match_r and match_g and match_b
 
+        # Counts the number of similar colours in selection
         def count_fuzzy_clut_intersection(
-            row: list[tuple[int, int, int]], selected_colours: set[tuple[int, int, int]]
+            palette: Palette, selected_colours: set[ColourRGB]
         ) -> int:
             matches = 0
 
-            for swatch_colour in row:
+            for swatch_colour in palette:
                 for selected_colour in selected_colours:
                     if is_colour_match(selected_colour, swatch_colour):
                         matches += 1
 
             return matches
 
-        # index, percentage of colour_set
-        found: list[tuple[int, int]] = []
+        # [clut index, percentage of colour_set match]
+        found: list[tuple[int, float]] = []
 
         # print("colour_set", self.colour_set)
         # print("palette", len(self.palette[32]))
-        for index, row in enumerate(self.palette):
+        for index, row in enumerate(self.clut):
             match_count = count_fuzzy_clut_intersection(row, self.colour_set)
             # print("index", index, "match", match_count)
 
@@ -342,11 +347,15 @@ class CLUToFinderApp:
             #     )
 
             if match_count:
-                found.append((index, (match_count / 16) * 100))
+                match_percent = (match_count / 16) * 100
 
+                # more than 95% match is good. usually get over 100%
+                if match_percent >= 75:
+                    found.append((index, match_percent))
+
+        # SORT BY percent DESC
         filtered = sorted(
-            # more than 75% match is decent
-            [result for result in found if result[1] >= 75],
+            [result for result in found],
             key=lambda x: x[1],
             reverse=True,
         )
@@ -369,16 +378,26 @@ Matching indexes: {len(filtered)}""")
 
 
 def main():
-    args = parse_args()
+    parser = argparse.ArgumentParser(
+        description="Display PNG and pick unique RGBs from a selection"
+    )
+    parser.add_argument("png", help="Path to PNG image to open", type=Path)
+    parser.add_argument(
+        "col", help="Path to COL palette file (accepted, not required)", type=Path
+    )
+    args = parser.parse_args()
+
+    screenshot_file: Path = args.png
+    palette_file: Path = args.col
 
     try:
-        img = Image.open(args.png)
+        img = Image.open(screenshot_file)
     except Exception as e:
         print(f"Failed to open image: {e}")
         sys.exit(1)
 
     try:
-        palette = load_col_palette(args.col)
+        palette = load_col_palettes(palette_file)
     except Exception as e:
         print(f"Failed to open palette: {e}")
         sys.exit(1)
@@ -386,7 +405,7 @@ def main():
     root = tk.Tk()
     root.title("CLUT Finder")
 
-    app = CLUToFinderApp(root, img, palette)
+    app = CLUTFinderApp(root, img, palette)
 
     root.mainloop()
 
