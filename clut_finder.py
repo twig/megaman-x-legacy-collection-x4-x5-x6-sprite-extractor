@@ -18,8 +18,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageTk
 from PIL.Image import Image as PILImage
 
-from utils.types import Palette, ColourRGB
+from utils.types import Palette, ColourRGB, TexData
 from utils.palette import load_col_palettes, convert_palette_to_clut
+from utils.tex import convert_tex_to_image
 from extract_tex_to_png import (
     load_col_palettes,
     load_tex,
@@ -29,10 +30,12 @@ from extract_tex_to_png import (
 class CLUTFinderApp:
     def __init__(self, root: tk.Tk, screenshot: PILImage, palette: Palette):
         self.root = root
+        self.palette = palette
         self.clut = convert_palette_to_clut(palette)
         self.image = screenshot.convert("RGB")
         self.photo = ImageTk.PhotoImage(self.image)
         self.w, self.h = self.image.size
+        self.tex_file: Path | None = None
 
         content_frame = tk.Frame(root)
         content_frame.pack(fill="both", expand=True)
@@ -59,15 +62,8 @@ class CLUTFinderApp:
         self.placeholder_frame = tk.Frame(ui_frame, width=220)
         self.placeholder_frame.grid(row=0, column=1, sticky="ns")
         self.placeholder_frame.pack_propagate(False)
-        self.placeholder_image_label = tk.Label(self.placeholder_frame)
-        self.placeholder_image_label.pack(pady=10, padx=10)
-        self.placeholder_info = tk.Label(
-            self.placeholder_frame,
-            text="No TEX file selected",
-            wraplength=200,
-            justify="center",
-        )
-        self.placeholder_info.pack(fill="x", padx=10)
+        self.tex_image = tk.Label(self.placeholder_frame)
+        self.tex_image.pack(pady=10, padx=10)
 
         self.open_image_button = tk.Button(
             self.side_panel,
@@ -248,15 +244,23 @@ class CLUTFinderApp:
         if not path:
             return
 
+        self.tex_file = Path(path)
+        self.preview_tex()
+
+    def preview_tex(self):
+        if not self.tex_file:
+            return
+
         try:
-            tex_data = load_tex(Path(path))
+            tex_data = load_tex(self.tex_file)
         except Exception as e:
             messagebox.showerror("Open TEX file", f"Failed to read TEX header: {e}")
             return
 
-        self.update_tex_placeholder(
-            tex_data["width"], tex_data["height"], Path(path).name
-        )
+        # TODO: pass in best matching clut index
+        preview_image = convert_tex_to_image(tex_data, self.palette, 0)
+        self.preview_tex_image = ImageTk.PhotoImage(preview_image)
+        self.tex_image.config(image=self.preview_tex_image)
 
     def clear_selection(self):
         if self.rect_id is not None:
@@ -265,32 +269,6 @@ class CLUTFinderApp:
         self.colour_set.clear()
         self.status.config(text="")
         self.set_matches_text("")
-
-    def update_tex_placeholder(
-        self, width: int | None, height: int | None, tex_name: str | None = None
-    ):
-        if width is None or height is None:
-            placeholder_text = "No TEX file selected"
-            placeholder_image = self.create_placeholder_image(placeholder_text)
-            self.tex_placeholder_photo = ImageTk.PhotoImage(placeholder_image)
-            self.placeholder_image_label.config(image=self.tex_placeholder_photo)
-            self.placeholder_info.config(text="No TEX file selected")
-            return
-
-        placeholder_text = f"TEX: {width} x {height}"
-        placeholder_image = self.create_placeholder_image(placeholder_text)
-        self.tex_placeholder_photo = ImageTk.PhotoImage(placeholder_image)
-        self.placeholder_image_label.config(image=self.tex_placeholder_photo)
-        self.placeholder_info.config(
-            text=f"{tex_name or 'TEX file'}\n{width} × {height}"
-        )
-
-    def create_placeholder_image(self, text: str) -> PILImage:
-        image = Image.new("RGB", (200, 140), color=(200, 200, 200))
-        draw = ImageDraw.Draw(image)
-        draw.rectangle((2, 2, 197, 137), outline=(120, 120, 120), width=2)
-        draw.text((12, 40), text, fill=(30, 30, 30))
-        return image
 
     def update_status(self):
         # Fuzzy-matching of colour since screenshot isn't always accurate.
