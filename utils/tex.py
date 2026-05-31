@@ -95,6 +95,8 @@ def convert_tex_to_image(
     height = tex_data["height"]
     format_code = tex_data["format_code"]
 
+    print("convert_tex_to_image", format_code, width, height, clut_index)
+
     clut_start = clut_index * 16
     if clut_start + 16 > len(palette):
         raise ValueError(
@@ -117,13 +119,25 @@ def convert_tex_to_image(
         if format_code == TexFormat.FORMAT_32BPP:
             # [0-3] RGBA or BGRA, either way A channel is 3
             colour_index = raw_image[pixel_index * 4 + 3]
+            final_index = clut_index * 16 + colour_index
         elif format_code == TexFormat.FORMAT_8BPP:
             # TODO: make this work
             colour_index = raw_image[pixel_index]
+            final_index = clut_index * 16 + colour_index
         else:
             raise Exception(f"Unsupported TEX format 0x{format_code:02x}")
 
-        final_index = clut_index * 16 + colour_index
+        # if pixel_index == 272:
+        #     print(
+        #         "272: format_code",
+        #         format_code,
+        #         "colour_index",
+        #         colour_index,
+        #         "final_index",
+        #         final_index,
+        #         "pixel",
+        #         palette[final_index],
+        #     )
 
         if colour_index == 0:
             # Transparent colour, render as Magenta with Alpha 0 for easy debugging
