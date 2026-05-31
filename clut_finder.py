@@ -69,19 +69,6 @@ class CLUTFinderApp:
         )
         self.placeholder_info.pack(fill="x", padx=10)
 
-        self.hint = tk.Label(
-            self.side_panel,
-            text="Drag to select; click to clear selection.",
-            wraplength=180,
-            justify="center",
-        )
-        self.hint.pack(fill="x", padx=10)
-
-        self.status = tk.Label(
-            self.side_panel, text="Unique colors: 0", anchor="center"
-        )
-        self.status.pack(fill="x", pady=(10, 5), padx=10)
-
         self.open_image_button = tk.Button(
             self.side_panel,
             text="Open screenshot",
@@ -102,6 +89,17 @@ class CLUTFinderApp:
             command=self.open_tex,
         )
         self.open_tex_button.pack(fill="x", pady=(2, 10), padx=10)
+
+        self.hint = tk.Label(
+            self.side_panel,
+            text="Drag to select; click to clear selection.",
+            wraplength=180,
+            justify="center",
+        )
+        self.hint.pack(fill="x", padx=10)
+
+        self.status = tk.Label(self.side_panel, text="", anchor="center")
+        self.status.pack(fill="x", pady=(10, 5), padx=10)
 
         matches_frame = tk.Frame(self.side_panel)
         matches_frame.pack(fill="both", expand=True, pady=(10, 5), padx=10)
@@ -170,10 +168,7 @@ class CLUTFinderApp:
         # treat as click: clear selection if exists
         if not self.moved:
             if self.rect_id is not None:
-                self.canvas.delete(self.rect_id)
-                self.rect_id = None
-                self.colour_set.clear()
-                self.update_status()
+                self.clear_selection()
             return
 
         # For some reason we don't have the data we need
@@ -268,7 +263,7 @@ class CLUTFinderApp:
             self.canvas.delete(self.rect_id)
             self.rect_id = None
         self.colour_set.clear()
-        self.status.config(text="Unique colors: 0\n\nMatching indexes: 0")
+        self.status.config(text="")
         self.set_matches_text("")
 
     def update_tex_placeholder(
