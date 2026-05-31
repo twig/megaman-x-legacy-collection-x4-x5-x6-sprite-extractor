@@ -2,7 +2,7 @@ import csv
 from pathlib import Path
 from PIL import Image, ImageDraw
 
-from utils.types import Palette, TexData
+from utils.types import Palette, TexData, TexFormat
 from utils.palette import convert_palette_to_clut
 
 
@@ -60,30 +60,46 @@ def debug_tex_csv(tex_data: TexData, input_path: Path) -> None:
     width = tex_data["width"]
     height = tex_data["height"]
 
+    output_path_8bpp = input_path.with_name(input_path.stem + "_8bpp.csv")
     output_path_grey = input_path.with_name(input_path.stem + "_grey.csv")
     output_path_alpha = input_path.with_name(input_path.stem + "_alpha.csv")
 
-    with output_path_grey.open("w", newline="") as csvfile_grey:
-        with output_path_alpha.open("w", newline="") as csvfile_alpha:
-            writer_grey = csv.writer(csvfile_grey)
-            # writer_grey.writerow(range(width))
-
-            writer_alpha = csv.writer(csvfile_alpha)
-            # writer_alpha.writerow(range(width))
+    if tex_data["format_code"] == TexFormat.FORMAT_8BPP:
+        with output_path_8bpp.open("w", newline="") as csvfile:
+            writer = csv.writer(csvfile)
 
             for y in range(height):
-                row_grey = []
-                row_alpha = []
+                row = []
 
                 for x in range(width):
                     pixel_index = y * width + x
-                    # b_index = payload[pixel_index * 4 + 0]
-                    # g_index = payload[pixel_index * 4 + 1]
-                    r_index = raw_image[pixel_index * 4 + 2]
-                    a_index = raw_image[pixel_index * 4 + 3]
+                    pixel = raw_image[pixel_index]
+                    row.append(pixel)
 
-                    row_grey.append(r_index)
-                    row_alpha.append(a_index)
+                writer.writerow(row)
 
-                writer_grey.writerow(row_grey)
-                writer_alpha.writerow(row_alpha)
+    elif tex_data["format_code"] == TexFormat.FORMAT_32BPP:
+        with output_path_grey.open("w", newline="") as csvfile_grey:
+            with output_path_alpha.open("w", newline="") as csvfile_alpha:
+                writer_grey = csv.writer(csvfile_grey)
+                # writer_grey.writerow(range(width))
+
+                writer_alpha = csv.writer(csvfile_alpha)
+                # writer_alpha.writerow(range(width))
+
+                for y in range(height):
+                    row_grey = []
+                    row_alpha = []
+
+                    for x in range(width):
+                        pixel_index = y * width + x
+                        # b_index = payload[pixel_index * 4 + 0]
+                        # g_index = payload[pixel_index * 4 + 1]
+                        r_index = raw_image[pixel_index * 4 + 2]
+                        a_index = raw_image[pixel_index * 4 + 3]
+
+                        row_grey.append(r_index)
+                        row_alpha.append(a_index)
+
+                    writer_grey.writerow(row_grey)
+                    writer_alpha.writerow(row_alpha)
