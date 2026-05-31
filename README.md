@@ -18,6 +18,8 @@ Remaining
   - [Mega Man X4 (PSX) Decompression Routine](https://www.romhacking.net/forum/index.php?topic=21330.0)
   - [Mega Man X Legacy Collection Sprites Extraction](https://www.romhacking.net/forum/index.php?topic=26730.0)
   - [Need help with MegaManX4 Sprites](https://www.romhacking.net/forum/index.php?topic=26749)
+- [mmx5 improvement project addendum Workbook_2022.07.19.xlsx](https://archive.org/download/mmx5_improvement_project_addendum)
+- [Mega Man X6 Tweaks Workbook](https://www.romhacking.net/documents/780/)
 - [MT Framework .Tex files?](https://gbatemp.net/threads/mt-framework-tex-files.456868/)
 - [r/mahvelmods Texture Tutorial](https://www.reddit.com/r/mahvelmods/wiki/textures/)
 - [xdanieldzd's Scarlet.IO.ImageFormats/CapcomTEX.cs](https://github.com/xdanieldzd/Scarlet/blob/master/Scarlet.IO.ImageFormats/CapcomTEX.cs)
