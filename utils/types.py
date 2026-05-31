@@ -8,8 +8,8 @@ type CLUT = list[Palette]  # Colour lookup table, 16 colours per row
 
 
 class TexFormat(IntEnum):
-    FORMAT_32BPP = 0x07  # Value 7
-    FORMAT_8BPP = 0x12  # Value 18, TBC if 8bpp
+    FORMAT_8BPP = 0x07  # Value 7
+    FORMAT_4BPP = 0x12  # Value 18, TBC if 4bpp
 
 
 class TexData(TypedDict):

@@ -6,8 +6,8 @@ Trying to find ways to make it easier for sprite rippers to get accurate sprites
 
 Remaining
 
-- 8bpp TEX
-- Animation sprites
+- 4bpp TEX
+- Animation sprites maybe?
 
 # References for code
 
@@ -63,10 +63,10 @@ TODO: more information/details on filenames and folders later
 
 ### File types
 
-| Extension | Description                                           |
-| --------- | ----------------------------------------------------- |
-| COL       | Palette files                                         |
-| TEX       | Image files. Formats <br>0x07: 32bpp <br>0x12: 8bpp ? |
+| Extension | Description                                          |
+| --------- | ---------------------------------------------------- |
+| COL       | Palette files                                        |
+| TEX       | Image files. Formats <br>0x07: 8bpp <br>0x12: 4bpp ? |
 
 There are others, but not there yet.
 
@@ -74,7 +74,7 @@ There are others, but not there yet.
 
 First get into Python virtualenv with `.venv\Scripts\activate.bat`
 
-## Extract 32bpp TEX images
+## Extract 8bpp TEX images
 
 The `extract_tex_to_png.py` script is used for converting MMXLC TEX images to PNG.
 
