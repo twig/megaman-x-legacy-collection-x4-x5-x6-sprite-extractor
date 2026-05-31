@@ -60,7 +60,7 @@ def main() -> None:
     # debug_clut_txt(
     #     palette, palette_path.with_name(palette_path.stem + "_clut_debug.txt")
     # )
-    debug_tex_csv(tex_data, input_path)
+    # debug_tex_csv(tex_data, input_path)
 
     # Render specific palette
     if clut is not None:
