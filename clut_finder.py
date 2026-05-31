@@ -245,6 +245,7 @@ class CLUTFinderApp:
         if not path:
             return
 
+        self.clear_selection()
         self.tex_file = Path(path)
         self.preview_tex()
 
@@ -262,8 +263,11 @@ class CLUTFinderApp:
         clut_index = self.matching_indexes[0][0] if len(self.matching_indexes) else 0
 
         preview_image = convert_tex_to_image(tex_data, self.palette, clut_index)
-        self.preview_tex_image = ImageTk.PhotoImage(preview_image)
-        self.tex_image.config(image=self.preview_tex_image)
+        if preview_image:
+            self.preview_tex_image = ImageTk.PhotoImage(preview_image)
+            self.tex_image.config(image=self.preview_tex_image)
+        else:
+            print("Unable to preview", self.tex_file)
 
     def clear_selection(self):
         if self.rect_id is not None:

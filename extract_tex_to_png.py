@@ -6,7 +6,12 @@ from os import makedirs
 
 
 from utils.types import Palette, TexData
-from utils.debug import debug_palette_png, debug_tex_csv, debug_palette_txt
+from utils.debug import (
+    debug_palette_png,
+    debug_tex_csv,
+    debug_palette_txt,
+    debug_clut_txt,
+)
 from utils.palette import load_col_palettes
 from utils.tex import load_tex, convert_tex_to_image
 
@@ -51,8 +56,11 @@ def main() -> None:
 
     # generate debug files
     # debug_palette_png(palette, palette_path.with_name(palette_path.stem + "_debug.png"))
-    # debug_tex_csv(tex_data, input_path)
     # debug_palette_txt(palette, palette_path.with_name(palette_path.stem + "_debug.txt"))
+    # debug_clut_txt(
+    #     palette, palette_path.with_name(palette_path.stem + "_clut_debug.txt")
+    # )
+    # debug_tex_csv(tex_data, input_path)
 
     # Render specific palette
     if clut is not None:

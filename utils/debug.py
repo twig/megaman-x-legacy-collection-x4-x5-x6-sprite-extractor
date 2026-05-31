@@ -3,12 +3,23 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 from utils.types import Palette, TexData
+from utils.palette import convert_palette_to_clut
 
 
 def debug_palette_txt(palette: Palette, output_path: Path):
     with open(output_path, "w") as palette_txt:
-        for index, data in enumerate(palette):
-            palette_txt.write(f"{index}: {data[0], data[1], data[2]}\n")
+        for index, swatch in enumerate(palette):
+            palette_txt.write(f"{index}: {swatch[0], swatch[1], swatch[2]}\n")
+
+
+def debug_clut_txt(palette: Palette, output_path: Path):
+    clut = convert_palette_to_clut(palette)
+    with open(output_path, "w") as clut_txt:
+        for clut_index, palette in enumerate(clut):
+            clut_txt.write(f"clut index #{clut_index}:\n")
+
+            for index, swatch in enumerate(palette):
+                clut_txt.write(f"{index}: {swatch[0], swatch[1], swatch[2]}\n")
 
 
 def debug_palette_png(original_palette: Palette, output_path: Path) -> None:
