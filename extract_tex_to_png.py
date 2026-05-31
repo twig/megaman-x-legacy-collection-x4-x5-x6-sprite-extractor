@@ -5,89 +5,12 @@ from pathlib import Path
 from os import makedirs
 
 from PIL import Image
+from PIL.Image import Image as PILImage
 
 from utils.types import Palette, ColourRGBA, TexData, TexFormat
 from utils.debug import debug_palette_png, debug_tex_csv, debug_palette_txt
 from utils.palette import load_col_palettes
-
-
-def parse_tex_header(data: bytes) -> tuple[int, int, int, int]:
-    if len(data) < 0x30:
-        raise ValueError(f"TEX file too small: {len(data)} bytes")
-
-    # Check magic header
-    if data[:4] != b"TEX\x00":
-        raise ValueError(f"Not a TEX file: {data[:4]!r}")
-
-    packed = int.from_bytes(data[0x08:0x0C], "little")
-    format_code = data[0x0D]
-    mip_count = packed & 0x3F
-    width = (packed & 0x0007FFC0) >> 6
-    height = (packed & 0xFFF80000) >> 19
-
-    if width <= 0 or height <= 0:
-        raise ValueError(f"Invalid dimensions: {width}x{height}")
-
-    return format_code, width, height, mip_count
-
-
-def load_tex(input_path: Path) -> TexData:
-    if not input_path.exists():
-        raise FileNotFoundError(f"Input file does not exist: {input_path}")
-
-    data = input_path.read_bytes()
-    format_code, width, height, mip_count = parse_tex_header(data)
-
-    # print(
-    #     "header",
-    #     {
-    #         "format_code": format_code,
-    #         "width": width,
-    #         "height": height,
-    #         "_mip_count": mip_count,
-    #     },
-    # )
-
-    if format_code == TexFormat.FORMAT_32BPP:
-        offset_table = [
-            int.from_bytes(data[0x10 + i * 4 : 0x14 + i * 4], "little")
-            for i in range(7)
-        ]
-        base_offset = offset_table[0]
-
-        expected_size = width * height * 4
-        raw_image = data[base_offset : base_offset + expected_size]
-
-    elif format_code == TexFormat.FORMAT_8BPP:
-        offset_table = [
-            int.from_bytes(data[0x10 + i * 4 : 0x14 + i * 4], "little")
-            for i in range(7)
-        ]
-        base_offset = offset_table[0]
-
-        expected_size = width * height
-        raw_image = data[base_offset : base_offset + expected_size]
-
-    else:
-        raise NotImplementedError(
-            f"Unsupported TEX format 0x{format_code:02x}. "
-            "This extractor currently supports palette-mapped TEX files only."
-        )
-
-    if len(raw_image) != expected_size:
-        raise ValueError(
-            f"Payload size mismatch for {input_path.name}: "
-            f"expected {expected_size} bytes, got {len(raw_image)}"
-        )
-
-    return {
-        # Python types can't seem to determine whats been filtered out
-        "format_code": format_code,  # type: ignore
-        "width": width,
-        "height": height,
-        "mip_count": mip_count,
-        "raw_image": raw_image,
-    }
+from utils.tex import load_tex
 
 
 def is_palette_all_black(palette: Palette) -> bool:
@@ -102,7 +25,18 @@ def render_tex(
     palette: Palette,
     output_path: Path,
     clut_index: int,  # 0-based row index in CLUT table
-) -> None:
+) -> PILImage | None:
+    image = convert_tex_to_image(tex_data, palette, clut_index)
+
+    if image:
+        image.save(output_path)
+
+
+def convert_tex_to_image(
+    tex_data: TexData,
+    palette: Palette,
+    clut_index: int,  # 0-based row index in CLUT table
+) -> PILImage | None:
     raw_image = tex_data["raw_image"]
     width = tex_data["width"]
     height = tex_data["height"]
@@ -116,7 +50,7 @@ def render_tex(
 
     if is_palette_all_black(palette[clut_start : clut_start + 16]):
         print(f"skip: Clut index {clut_index} only has black")
-        return
+        return None
 
     # Each pixel in TEX data stores a 4-bit colour index (0-15).
     # For 0x07 (32bpp): index is in the alpha channel (byte 3 of each 4-byte pixel).
@@ -145,7 +79,7 @@ def render_tex(
 
     image = Image.new("RGBA", (width, height))
     image.putdata(pixels)
-    image.save(output_path)
+    return image
 
 
 def main() -> None:
