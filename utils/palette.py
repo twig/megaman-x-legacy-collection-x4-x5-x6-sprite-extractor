@@ -67,3 +67,10 @@ def load_col_palettes(palette_path: Path) -> Palette:
         raise ValueError("No palette blocks found in COL file")
 
     return palette
+
+
+def is_palette_all_black(palette: Palette) -> bool:
+    for swatch in palette:
+        if sum(swatch) != 0:
+            return False
+    return True

@@ -4,20 +4,11 @@ import argparse
 from pathlib import Path
 from os import makedirs
 
-from PIL import Image
-from PIL.Image import Image as PILImage
 
-from utils.types import Palette, ColourRGBA, TexData, TexFormat
+from utils.types import Palette, TexData
 from utils.debug import debug_palette_png, debug_tex_csv, debug_palette_txt
 from utils.palette import load_col_palettes
-from utils.tex import load_tex
-
-
-def is_palette_all_black(palette: Palette) -> bool:
-    for swatch in palette:
-        if sum(swatch) != 0:
-            return False
-    return True
+from utils.tex import load_tex, convert_tex_to_image
 
 
 def render_tex(
@@ -25,61 +16,11 @@ def render_tex(
     palette: Palette,
     output_path: Path,
     clut_index: int,  # 0-based row index in CLUT table
-) -> PILImage | None:
+) -> None:
     image = convert_tex_to_image(tex_data, palette, clut_index)
 
     if image:
         image.save(output_path)
-
-
-def convert_tex_to_image(
-    tex_data: TexData,
-    palette: Palette,
-    clut_index: int,  # 0-based row index in CLUT table
-) -> PILImage | None:
-    raw_image = tex_data["raw_image"]
-    width = tex_data["width"]
-    height = tex_data["height"]
-    format_code = tex_data["format_code"]
-
-    clut_start = clut_index * 16
-    if clut_start + 16 > len(palette):
-        raise ValueError(
-            f"Clut index {clut_index} out of range for palette size {len(palette)} (clut start {clut_start})"
-        )
-
-    if is_palette_all_black(palette[clut_start : clut_start + 16]):
-        print(f"skip: Clut index {clut_index} only has black")
-        return None
-
-    # Each pixel in TEX data stores a 4-bit colour index (0-15).
-    # For 0x07 (32bpp): index is in the alpha channel (byte 3 of each 4-byte pixel).
-    # For 0x12 (8bpp palette-indexed): each byte is the index directly? TBC
-    # The colour index selects a colour from one 16-entry CLUT block within the palette:
-    # final_index = clut_index*16 + colour_index.
-    # Index 0 in any CLUT is transparent. clut_index must be supplied externally
-    # (it is not encoded in the pixel data).
-    pixels: list[ColourRGBA] = []
-    for pixel_index in range(width * height):
-        if format_code == TexFormat.FORMAT_32BPP:
-            colour_index = raw_image[pixel_index * 4 + 3]  # a_index == r_index >> 4
-        elif format_code == TexFormat.FORMAT_8BPP:
-            colour_index = raw_image[pixel_index]
-        else:
-            raise Exception(f"Unsupported TEX format 0x{format_code:02x}")
-
-        final_index = clut_index * 16 + colour_index
-
-        if colour_index == 0:
-            # Transparent colour, render as Magenta with Alpha 0 for easy debugging
-            pixels.append((255, 0, 255, 0))
-        else:
-            r, g, b = palette[final_index]
-            pixels.append((r, g, b, 255))
-
-    image = Image.new("RGBA", (width, height))
-    image.putdata(pixels)
-    return image
 
 
 def main() -> None:
