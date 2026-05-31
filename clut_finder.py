@@ -19,10 +19,10 @@ from PIL import Image, ImageDraw, ImageTk
 from PIL.Image import Image as PILImage
 
 from utils.types import Palette, ColourRGB
+from utils.palette import load_col_palettes, convert_palette_to_clut
 from extract_tex_to_png import (
     load_col_palettes,
     load_tex,
-    convert_palette_to_clut,
 )
 
 
