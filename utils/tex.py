@@ -133,6 +133,8 @@ def convert_tex_to_image(
         #         format_code,
         #         "colour_index",
         #         colour_index,
+        #         "clut_index",
+        #         clut_index,
         #         "final_index",
         #         final_index,
         #         "pixel",

@@ -261,11 +261,14 @@ class CLUTFinderApp:
 
         # determine best matching clut index
         clut_index = self.matching_indexes[0][0] if len(self.matching_indexes) else 0
-
         preview_image = convert_tex_to_image(tex_data, self.palette, clut_index)
+
         if preview_image:
+            preview_image.save("test.png")
+
             self.preview_tex_image = ImageTk.PhotoImage(preview_image)
             self.tex_image.config(image=self.preview_tex_image)
+            print("Generated preview for", self.tex_file)
         else:
             print("Unable to preview", self.tex_file)
 
