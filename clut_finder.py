@@ -38,82 +38,93 @@ class CLUTFinderApp:
         self.tex_file: Path | None = None
         self.matching_indexes: list[tuple[int, float]] = []
 
+        # menu bar
+        menubar = tk.Menu(root)
+        file_menu = tk.Menu(menubar, tearoff=0)
+        file_menu.add_command(label="Open screenshot...", command=self.open_screenshot)
+        file_menu.add_command(label="Open palette...", command=self.open_palette)
+        file_menu.add_command(label="Open TEX file...", command=self.open_tex)
+        menubar.add_cascade(label="File", menu=file_menu)
+        root.config(menu=menubar)
+
         content_frame = tk.Frame(root)
         content_frame.pack(fill="both", expand=True)
         content_frame.columnconfigure(0, weight=1)
-        content_frame.columnconfigure(1, weight=0)
+        content_frame.columnconfigure(1, weight=1)
+        content_frame.columnconfigure(2, weight=0)
         content_frame.rowconfigure(0, weight=1)
 
-        self.canvas = tk.Canvas(content_frame, width=self.w, height=self.h)
+        screenshot_outer = tk.Frame(content_frame)
+        screenshot_outer.grid(row=0, column=0, sticky="nsew")
+        screenshot_outer.rowconfigure(0, weight=1)
+        screenshot_outer.columnconfigure(0, weight=1)
+
+        self.canvas = tk.Canvas(screenshot_outer, width=1, height=1)
         self.canvas.grid(row=0, column=0, sticky="nsew")
         self.canvas_image = self.canvas.create_image(
             0, 0, anchor="nw", image=self.photo
         )
+        self.canvas.config(scrollregion=(0, 0, self.w, self.h))
+        ss_vscroll = tk.Scrollbar(
+            screenshot_outer, orient="vertical", command=self.canvas.yview
+        )
+        ss_vscroll.grid(row=0, column=1, sticky="ns")
+        ss_hscroll = tk.Scrollbar(
+            screenshot_outer, orient="horizontal", command=self.canvas.xview
+        )
+        ss_hscroll.grid(row=1, column=0, sticky="ew")
+        self.canvas.config(yscrollcommand=ss_vscroll.set, xscrollcommand=ss_hscroll.set)
 
-        ui_frame = tk.Frame(content_frame)
-        ui_frame.grid(row=0, column=1, sticky="ns")
-        ui_frame.columnconfigure(0, weight=0)
-        ui_frame.columnconfigure(1, weight=0)
-        ui_frame.rowconfigure(0, weight=1)
+        tex_outer = tk.Frame(content_frame)
+        tex_outer.grid(row=0, column=1, sticky="nsew")
+        tex_outer.rowconfigure(0, weight=1)
+        tex_outer.columnconfigure(0, weight=1)
 
-        self.side_panel = tk.Frame(ui_frame, width=200)
-        self.side_panel.grid(row=0, column=0, sticky="ns")
+        self.tex_canvas = tk.Canvas(tex_outer, width=1, height=1, bg="#1a1a1a")
+        self.tex_canvas.grid(row=0, column=0, sticky="nsew")
+        tex_vscroll = tk.Scrollbar(
+            tex_outer, orient="vertical", command=self.tex_canvas.yview
+        )
+        tex_vscroll.grid(row=0, column=1, sticky="ns")
+        tex_hscroll = tk.Scrollbar(
+            tex_outer, orient="horizontal", command=self.tex_canvas.xview
+        )
+        tex_hscroll.grid(row=1, column=0, sticky="ew")
+        self.tex_canvas.config(
+            yscrollcommand=tex_vscroll.set, xscrollcommand=tex_hscroll.set
+        )
+
+        self.side_panel = tk.Frame(content_frame, width=200)
+        self.side_panel.grid(row=0, column=2, sticky="ns")
         self.side_panel.pack_propagate(False)
 
-        self.placeholder_frame = tk.Frame(ui_frame, width=220)
-        self.placeholder_frame.grid(row=0, column=1, sticky="ns")
-        self.placeholder_frame.pack_propagate(False)
-        self.tex_image = tk.Label(self.placeholder_frame)
-        self.tex_image.pack(pady=10, padx=10)
-
-        self.open_image_button = tk.Button(
+        self.save_tex_button = tk.Button(
             self.side_panel,
-            text="Open screenshot",
-            command=self.open_screenshot,
+            text="Save TEX as PNG",
+            command=self.save_tex_preview,
         )
-        self.open_image_button.pack(fill="x", pady=(5, 2), padx=10)
+        self.save_tex_button.pack(fill="x", pady=(10, 2), padx=10)
 
-        self.open_palette_button = tk.Button(
-            self.side_panel,
-            text="Open COL palette",
-            command=self.open_palette,
+        self.unique_colours_label = tk.Label(self.side_panel, text="", anchor="w")
+        self.unique_colours_label.pack(fill="x", padx=10, pady=(4, 2))
+
+        self.matches_label = tk.Label(
+            self.side_panel, text="0 matching indexes", anchor="w"
         )
-        self.open_palette_button.pack(fill="x", pady=2, padx=10)
-
-        self.open_tex_button = tk.Button(
-            self.side_panel,
-            text="Open TEX file",
-            command=self.open_tex,
-        )
-        self.open_tex_button.pack(fill="x", pady=(2, 10), padx=10)
-
-        self.hint = tk.Label(
-            self.side_panel,
-            text="Drag to select; click to clear selection.",
-            wraplength=180,
-            justify="center",
-        )
-        self.hint.pack(fill="x", padx=10)
-
-        self.status = tk.Label(self.side_panel, text="", anchor="center")
-        self.status.pack(fill="x", pady=(10, 5), padx=10)
+        self.matches_label.pack(fill="x", padx=10, pady=(0, 2))
 
         matches_frame = tk.Frame(self.side_panel)
-        matches_frame.pack(fill="both", expand=True, pady=(10, 5), padx=10)
+        matches_frame.pack(fill="both", expand=True, pady=(0, 5), padx=10)
 
         self.matches_scrollbar = tk.Scrollbar(matches_frame, orient="vertical")
-        self.matches = tk.Text(
+        self.matches = tk.Listbox(
             matches_frame,
-            width=22,
-            height=10,
-            wrap="word",
+            selectmode="single",
             yscrollcommand=self.matches_scrollbar.set,
-            bg=self.side_panel.cget("bg"),
-            bd=0,
-            relief="flat",
-            state="disabled",
+            activestyle="none",
         )
         self.matches_scrollbar.config(command=self.matches.yview)
+        self.matches.bind("<<ListboxSelect>>", self.on_match_selected)
 
         self.matches.pack(side="left", fill="both", expand=True)
         self.matches_scrollbar.pack(side="right", fill="y")
@@ -131,13 +142,13 @@ class CLUTFinderApp:
         self.canvas.bind("<ButtonRelease-1>", self.on_button_release)
 
     def on_button_press(self, event):
-        self.start_x = int(event.x)
-        self.start_y = int(event.y)
+        self.start_x = int(self.canvas.canvasx(event.x))
+        self.start_y = int(self.canvas.canvasy(event.y))
         self.moved = False
 
     def on_mouse_drag(self, event):
-        x = max(0, min(self.w - 1, int(event.x)))
-        y = max(0, min(self.h - 1, int(event.y)))
+        x = max(0, min(self.w - 1, int(self.canvas.canvasx(event.x))))
+        y = max(0, min(self.h - 1, int(self.canvas.canvasy(event.y))))
         self.moved = True
 
         # For some reason we don't have the data we need
@@ -159,8 +170,8 @@ class CLUTFinderApp:
             self.canvas.coords(self.rect_id, self.start_x, self.start_y, x, y)
 
     def on_button_release(self, event):
-        end_x = max(0, min(self.w - 1, int(event.x)))
-        end_y = max(0, min(self.h - 1, int(event.y)))
+        end_x = max(0, min(self.w - 1, int(self.canvas.canvasx(event.x))))
+        end_y = max(0, min(self.h - 1, int(self.canvas.canvasy(event.y))))
 
         # treat as click: clear selection if exists
         if not self.moved:
@@ -216,8 +227,8 @@ class CLUTFinderApp:
         self.image = image.convert("RGB")
         self.photo = ImageTk.PhotoImage(self.image)
         self.w, self.h = self.image.size
-        self.canvas.config(width=self.w, height=self.h)
         self.canvas.itemconfig(self.canvas_image, image=self.photo)
+        self.canvas.config(scrollregion=(0, 0, self.w, self.h))
         self.clear_selection()
 
     def open_palette(self):
@@ -230,6 +241,7 @@ class CLUTFinderApp:
 
         try:
             palette = load_col_palettes(Path(path))
+            self.palette = palette
             self.clut = convert_palette_to_clut(palette)
         except Exception as e:
             messagebox.showerror("Open COL palette", f"Failed to open palette: {e}")
@@ -249,7 +261,30 @@ class CLUTFinderApp:
         self.tex_file = Path(path)
         self.preview_tex()
 
-    def preview_tex(self):
+    def save_tex_preview(self):
+        if not self.tex_file or not hasattr(self, "preview_tex_image"):
+            return
+
+        default_name = self.tex_file.stem + "_preview.png"
+        path = filedialog.asksaveasfilename(
+            title="Save TEX as PNG",
+            initialfile=default_name,
+            defaultextension=".png",
+            filetypes=[("PNG images", "*.png"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+
+        try:
+            clut_index = self.matching_indexes[0][0] if self.matching_indexes else 0
+            tex_data = load_tex(self.tex_file)
+            image = convert_tex_to_image(tex_data, self.palette, clut_index)
+            if image:
+                image.save(path)
+        except Exception as e:
+            messagebox.showerror("Save TEX preview", f"Failed to save image: {e}")
+
+    def preview_tex(self, clut_index: int | None = None):
         if not self.tex_file:
             return
 
@@ -260,14 +295,21 @@ class CLUTFinderApp:
             return
 
         # determine best matching clut index
-        clut_index = self.matching_indexes[0][0] if len(self.matching_indexes) else 0
+        if clut_index is None:
+            clut_index = (
+                self.matching_indexes[0][0] if len(self.matching_indexes) else 0
+            )
         preview_image = convert_tex_to_image(tex_data, self.palette, clut_index)
 
         if preview_image:
             preview_image.save("test.png")
 
             self.preview_tex_image = ImageTk.PhotoImage(preview_image)
-            self.tex_image.config(image=self.preview_tex_image)
+            self.tex_canvas.delete("all")
+            self.tex_canvas.create_image(
+                0, 0, anchor="nw", image=self.preview_tex_image
+            )
+            self.tex_canvas.config(scrollregion=self.tex_canvas.bbox("all"))
             print("Generated preview for", self.tex_file)
         else:
             print("Unable to preview", self.tex_file)
@@ -277,9 +319,10 @@ class CLUTFinderApp:
             self.canvas.delete(self.rect_id)
             self.rect_id = None
         self.colour_set.clear()
-        self.status.config(text="")
+        self.unique_colours_label.config(text="")
+        self.matches_label.config(text="0 matching indexes")
         self.matching_indexes = []
-        self.set_matches_text("")
+        self.set_matches_list([])
 
     def process_selected_colours(self):
         # Fuzzy-matching of colour since screenshot isn't always accurate.
@@ -342,25 +385,31 @@ class CLUTFinderApp:
             reverse=True,
         )
 
-        self.status.config(text=f"""Unique colors: {len(self.colour_set)}
-
-Matching indexes: {len(filtered)}""")
-
-        self.set_matches_text(
-            "\n".join(
-                [f"#{clut_base} ({percentage}%)" for clut_base, percentage in filtered]
-            )
-        )
+        self.unique_colours_label.config(text=f"Unique colors: {len(self.colour_set)}")
+        self.matches_label.config(text=f"{len(filtered)} matching indexes")
 
         self.matching_indexes = filtered
+        self.set_matches_list(filtered)
         # Update preview if needed
         self.preview_tex()
 
-    def set_matches_text(self, text: str):
-        self.matches.config(state="normal")
-        self.matches.delete("1.0", "end")
-        self.matches.insert("1.0", text)
-        self.matches.config(state="disabled")
+    def set_matches_list(self, results: list[tuple[int, float]]):
+        self.matches.delete(0, "end")
+        for clut_index, percentage in results:
+            self.matches.insert("end", f"#{clut_index} ({percentage:.1f}%)")
+        if results:
+            self.matches.selection_set(0)
+            self.matches.activate(0)
+
+    def on_match_selected(self, event):
+        sel = self.matches.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        if idx >= len(self.matching_indexes):
+            return
+        clut_index, _ = self.matching_indexes[idx]
+        self.preview_tex(clut_index=clut_index)
 
 
 def main():
@@ -390,6 +439,8 @@ def main():
 
     root = tk.Tk()
     root.title("CLUT Finder")
+    root.minsize(640, 480)
+    root.state("zoomed")
 
     app = CLUTFinderApp(root, img, palette)
 
