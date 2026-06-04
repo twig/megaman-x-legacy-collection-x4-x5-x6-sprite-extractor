@@ -13,7 +13,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 FONT_SIZE = 8
+TEXT_PADDING = 6
 COLOUR_YELLOW = (255, 255, 0)
+COLOUR_YELLOW_50 = (255, 255, 0, 75)
 COLOUR_GREEN = (0, 255, 0)
 
 
@@ -33,49 +35,56 @@ def draw_grid(input_path: Path, grid_size: int = 16) -> None:
     label_w = int(sample_bbox[2] - sample_bbox[0])
     label_h = int(sample_bbox[3] - sample_bbox[1])
 
-    pad_left = label_w + 6
-    pad_top = label_h + 6
-    pad_right = 4
-    pad_bottom = 4
+    pad_h = label_w + TEXT_PADDING
+    pad_v = label_h + TEXT_PADDING
 
-    new_w = w + pad_left + pad_right
-    new_h = h + pad_top + pad_bottom
+    new_w = pad_h + w + pad_h
+    new_h = pad_v + h + pad_v
 
     canvas = Image.new("RGBA", (new_w, new_h), (0, 0, 0, 255))
-    canvas.paste(img, (pad_left, pad_top))
+    canvas.paste(img, (pad_h, pad_v))
 
     # Draw grid lines on a transparent overlay, then composite
     overlay = Image.new("RGBA", (new_w, new_h), (30, 30, 30, 0))
     overlay_draw = ImageDraw.Draw(overlay)
-    yellow_50 = (255, 255, 0, 128)
 
     # Vertical lines + column labels
     for col, x in enumerate(range(0, w, grid_size)):
-        cx = x + pad_left
+        cx = x + pad_h
         overlay_draw.line(
-            [(cx, pad_top), (cx, pad_top + h - 1)], fill=yellow_50, width=1
+            [(cx, pad_v), (cx, pad_v + h - 1)], fill=COLOUR_YELLOW_50, width=1
         )
         label = str(col)
         bbox = overlay_draw.textbbox((0, 0), label, font=font)
-        lw = bbox[2] - bbox[0]
-        # centre label above the line
-        tx = cx - lw // 2
-        overlay_draw.text((tx, 2), label, fill=(255, 255, 0, 220), font=font)
+        label_w = bbox[2] - bbox[0]
+        # centre label to column above the line
+        tx = cx + (grid_size // 2) - (label_w // 2)
+        overlay_draw.text(
+            (tx, 2),
+            label,
+            fill=(COLOUR_YELLOW if col % 2 == 0 else COLOUR_GREEN),
+            font=font,
+        )
 
     # Horizontal lines + row labels
     for row, y in enumerate(range(0, h, grid_size)):
-        cy = y + pad_top
+        cy = y + pad_v
         overlay_draw.line(
-            [(pad_left, cy), (pad_left + w - 1, cy)], fill=yellow_50, width=1
+            [(pad_h, cy), (pad_h + w - 1, cy)], fill=COLOUR_YELLOW_50, width=1
         )
         label = str(row)
         bbox = overlay_draw.textbbox((0, 0), label, font=font)
-        lw = bbox[2] - bbox[0]
-        lh = bbox[3] - bbox[1]
+        label_w = bbox[2] - bbox[0]
+        label_h = bbox[3] - bbox[1]
         # right-align label to the left of the image
-        tx = pad_left - lw - 3
-        ty = cy - lh // 2
-        overlay_draw.text((tx, ty), label, fill=(255, 255, 0, 220), font=font)
+        tx = pad_h - label_w - 3
+        ty = cy + (grid_size // 2) - (label_h // 2)
+        overlay_draw.text(
+            (tx, ty),
+            label,
+            fill=(COLOUR_YELLOW if row % 2 == 0 else COLOUR_GREEN),
+            font=font,
+        )
 
     canvas = Image.alpha_composite(canvas, overlay)
 
