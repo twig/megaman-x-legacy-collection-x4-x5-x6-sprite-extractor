@@ -15,10 +15,10 @@ import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageTk
+from PIL import Image, ImageTk
 from PIL.Image import Image as PILImage
 
-from utils.types import Palette, ColourRGB, ColourRGBA, TexData
+from utils.types import Palette, ColourRGB, ColourRGBA
 from utils.palette import load_col_palettes, convert_palette_to_clut
 from utils.tex import convert_tex_to_image
 from extract_tex_to_png import (
@@ -418,12 +418,15 @@ def main():
     )
     parser.add_argument("png", help="Path to PNG image to open", type=Path)
     parser.add_argument(
-        "col", help="Path to COL palette file (accepted, not required)", type=Path
+        "--palette",
+        help="Path to COL palette file (accepted, not required)",
+        type=Path,
+        default=Path(r"PC\X5\col\stage\col00_0x_eng.col"),
     )
     args = parser.parse_args()
 
     screenshot_file: Path = args.png
-    palette_file: Path = args.col
+    palette_file: Path = args.palette
 
     try:
         img = Image.open(screenshot_file)
