@@ -1,0 +1,9 @@
+TEX pixel (360,74) / Decimal value 13 / screenshot RGB(99,82,66)
+TEX pixel (360,73) / Decimal value 12 / screenshot RGB(82,66,57)
+TEX pixel (358,74) / Decimal value 11 / screenshot RGB(57,49,33)
+TEX pixel (360,52) / Decimal value 9 / screenshot RGB(24,82,0)
+
+TEX pixel (340,223) / Decimal value 8 / screenshot RGB(123,132,132)
+TEX pixel (340,227) / Decimal value 10 / screenshot RGB(58,74,74)
+TEX pixel (340,219) / Decimal value 12 / screenshot RGB(82,66,58)
+TEX pixel (341,220) / Decimal value 11 / screenshot RGB(58,49,33)
