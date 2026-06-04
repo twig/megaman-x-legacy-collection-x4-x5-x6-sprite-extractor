@@ -15,8 +15,9 @@ from PIL import Image, ImageDraw, ImageFont
 FONT_SIZE = 8
 TEXT_PADDING = 6
 COLOUR_YELLOW = (255, 255, 0)
-COLOUR_YELLOW_50 = (255, 255, 0, 75)
+COLOUR_YELLOW_75 = (255, 255, 0, 75)
 COLOUR_GREEN = (0, 255, 0)
+COLOUR_GREEN_150 = (0, 255, 0, 150)
 
 
 def draw_grid(input_path: Path, grid_size: int = 16) -> None:
@@ -52,7 +53,9 @@ def draw_grid(input_path: Path, grid_size: int = 16) -> None:
     for col, x in enumerate(range(0, w, grid_size)):
         cx = x + pad_h
         overlay_draw.line(
-            [(cx, pad_v), (cx, pad_v + h - 1)], fill=COLOUR_YELLOW_50, width=1
+            [(cx, pad_v), (cx, pad_v + h - 1)],
+            fill=COLOUR_GREEN_150 if col % 10 == 0 else COLOUR_YELLOW_75,
+            width=1,
         )
         label = str(col)
         bbox = overlay_draw.textbbox((0, 0), label, font=font)
@@ -62,7 +65,7 @@ def draw_grid(input_path: Path, grid_size: int = 16) -> None:
         overlay_draw.text(
             (tx, 2),
             label,
-            fill=(COLOUR_YELLOW if col % 2 == 0 else COLOUR_GREEN),
+            fill=(COLOUR_GREEN if col % 10 == 0 else COLOUR_YELLOW),
             font=font,
         )
 
@@ -70,7 +73,9 @@ def draw_grid(input_path: Path, grid_size: int = 16) -> None:
     for row, y in enumerate(range(0, h, grid_size)):
         cy = y + pad_v
         overlay_draw.line(
-            [(pad_h, cy), (pad_h + w - 1, cy)], fill=COLOUR_YELLOW_50, width=1
+            [(pad_h, cy), (pad_h + w - 1, cy)],
+            fill=COLOUR_GREEN_150 if row % 10 == 0 else COLOUR_YELLOW_75,
+            width=1,
         )
         label = str(row)
         bbox = overlay_draw.textbbox((0, 0), label, font=font)
@@ -82,7 +87,7 @@ def draw_grid(input_path: Path, grid_size: int = 16) -> None:
         overlay_draw.text(
             (tx, ty),
             label,
-            fill=(COLOUR_YELLOW if row % 2 == 0 else COLOUR_GREEN),
+            fill=(COLOUR_GREEN if row % 10 == 0 else COLOUR_YELLOW),
             font=font,
         )
 
