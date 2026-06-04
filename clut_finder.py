@@ -35,6 +35,7 @@ class CLUTFinderApp:
         self.palette = palette
         self.palette_file = palette_file
         self.clut = convert_palette_to_clut(palette)
+        self.clut_index = 0
         self.image = screenshot.convert("RGB")
         self.photo = ImageTk.PhotoImage(self.image)
         self.w, self.h = self.image.size
@@ -270,7 +271,7 @@ class CLUTFinderApp:
         if not self.tex_file or not hasattr(self, "preview_tex_image"):
             return
 
-        default_name = self.tex_file.stem + "_preview.png"
+        default_name = f"tex-{self.tex_file.stem}-col-{self.palette_file.stem}-clut-{self.clut_index}.png"
         path = filedialog.asksaveasfilename(
             title="Save TEX as PNG",
             initialfile=default_name,
@@ -304,12 +305,13 @@ class CLUTFinderApp:
             clut_index = (
                 self.matching_indexes[0][0] if len(self.matching_indexes) else 0
             )
+        self.clut_index = clut_index
         preview_image = convert_tex_to_image(tex_data, self.palette, clut_index)
 
         if preview_image:
-            preview_image.save(
-                f"test-{self.tex_file.stem}-col-{self.palette_file.stem}-clut-{clut_index}.png"
-            )
+            # preview_image.save(
+            #     f"test-{self.tex_file.stem}-col-{self.palette_file.stem}-clut-{clut_index}.png"
+            # )
 
             self.preview_tex_image = ImageTk.PhotoImage(preview_image)
             self.tex_canvas.delete("all")
