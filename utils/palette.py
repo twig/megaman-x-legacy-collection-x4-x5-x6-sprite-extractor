@@ -64,11 +64,10 @@ def load_col_palettes(palette_path: Path) -> Palette:
         g8 = (g << 3) | (g >> 2)
         b8 = (b << 3) | (b >> 2)
 
-        # Alpha encodes STP: 128 = semi-transparent, 255 = fully opaque.
-        # Note: STP=1 with R=G=B=0 (raw value 0x8000) is a special PSX case
-        # meaning transparent black; the pixel-level transparency check
-        # (colour_index == 0) in tex.py handles that separately.
-        alpha = 128 if stp else 255
+        # STP is a PSX semi-transparency flag; for PC rendering we always use
+        # full opacity.  Transparency is handled at the pixel level (index 0
+        # in the palette is treated as transparent in _apply_palette_to_tile).
+        alpha = 255
 
         palette.append((r8, g8, b8, alpha))
         offset += COL_BLOCK_SIZE
