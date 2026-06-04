@@ -1,0 +1,114 @@
+"""
+Extract all stage layout tables from RXC2.exe.
+
+Confirmed parameters:
+  Size table:   file offset 0x02F0B7BD — byte pairs (w, h) per stage
+  Layout data:  consecutive block starting at 0x02D98548 (Copy1, .rdata)
+  Format:       each stage = 3 consecutive layers, each layer = w*h bytes
+
+Output:
+  layouts/stXXX_wWWW_hHHH.bin   raw layout bytes (w*h*3), all 3 layers
+  layouts/stXXX_wWWW_hHHH.csv   human-readable layer-0 grid (screen_ids)
+  layouts/index.txt             summary of all stages found
+"""
+
+import struct
+from pathlib import Path
+
+EXE_PATH = Path("debug/RXC2.exe")
+OUT_DIR  = Path("layouts")
+
+# Confirmed from find_all_layouts3.py validation
+COPY1_OFFSET     = 0x02D98548   # start of packed layout data block
+SIZE_TABLE_OFF   = 0x02F0B7BD   # byte pairs (w, h) per stage
+MAX_STAGES       = 40           # upper bound; stop early if data looks invalid
+MAX_SCREEN_ID    = 250          # rough plausibility upper bound for layer 0
+
+exe = Path(EXE_PATH).read_bytes()
+print(f"Loaded {len(exe):,} bytes from {EXE_PATH}")
+
+# ── Read size table ────────────────────────────────────────────────────────────
+sizes: list[tuple[int, int]] = []
+for i in range(MAX_STAGES):
+    off = SIZE_TABLE_OFF + i * 2
+    if off + 2 > len(exe):
+        break
+    w, h = exe[off], exe[off + 1]
+    # Stop if we run into implausibly large values (signal we're past the table)
+    if w > 100 or h > 100:
+        print(f"  Size table ends at index {i} (w={w}, h={h} out of range)")
+        break
+    sizes.append((w, h))
+
+print(f"\nSize table at 0x{SIZE_TABLE_OFF:08X}: {len(sizes)} entries")
+for i, (w, h) in enumerate(sizes):
+    print(f"  [{i:2d}]  w={w:3d}  h={h:3d}  layer_size={w*h:4d}")
+
+# ── Compute cumulative offsets ─────────────────────────────────────────────────
+stage_offsets: list[tuple[int, int, int, int]] = []  # (idx, offset, w, h)
+pos = COPY1_OFFSET
+
+for i, (w, h) in enumerate(sizes):
+    layer_size = w * h
+    total      = layer_size * 3
+    if total == 0:
+        # Zero-dimension stage: no layout data in the packed block
+        stage_offsets.append((i, -1, w, h))
+        continue
+    stage_offsets.append((i, pos, w, h))
+    pos += total
+
+print(f"\nStage offsets (cumulative from 0x{COPY1_OFFSET:08X}):")
+for idx, off, w, h in stage_offsets:
+    if off == -1:
+        print(f"  [st{idx:03d}]  (no layout — w={w} or h={h} is 0)")
+    else:
+        chunk16 = exe[off:off+16].hex()
+        max_id  = max(exe[off:off+w*h]) if w*h > 0 else 0
+        print(f"  [st{idx:03d}]  0x{off:08X}  w={w}  h={h}  "
+              f"layer0_max={max_id:3d}  first16={chunk16}")
+
+# ── Extract to files ───────────────────────────────────────────────────────────
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+index_lines = ["stage_idx, file_offset_hex, width, height, layer_size, note"]
+extracted = 0
+
+for idx, off, w, h in stage_offsets:
+    layer_size = w * h
+    total      = layer_size * 3
+
+    if off == -1 or total == 0:
+        index_lines.append(f"st{idx:03d}, -, {w}, {h}, 0, no_layout")
+        continue
+
+    # Sanity check: layer 0 should have all values <= MAX_SCREEN_ID
+    layer0 = exe[off : off + layer_size]
+    layer0_max = max(layer0) if layer0 else 0
+    note = "ok"
+    if layer0_max > MAX_SCREEN_ID:
+        note = f"WARN_max={layer0_max}"
+
+    stem = f"st{idx:03d}_w{w:03d}_h{h:03d}"
+
+    # Binary: all 3 layers
+    bin_path = OUT_DIR / f"{stem}.bin"
+    raw = exe[off : off + total]
+    bin_path.write_bytes(raw)
+
+    # CSV: layer 0 grid
+    csv_path = OUT_DIR / f"{stem}_layer0.csv"
+    with csv_path.open("w") as f:
+        f.write(f"# stage={idx}  offset=0x{off:08X}  w={w}  h={h}\n")
+        for sy in range(h):
+            row = [layer0[sy * w + sx] for sx in range(w)]
+            f.write(",".join(str(v) for v in row) + "\n")
+
+    index_lines.append(f"st{idx:03d}, 0x{off:08X}, {w}, {h}, {layer_size}, {note}")
+    extracted += 1
+
+index_path = OUT_DIR / "index.txt"
+index_path.write_text("\n".join(index_lines) + "\n")
+
+print(f"\nExtracted {extracted} stages to {OUT_DIR}/")
+print(f"Index written to {index_path}")
+print("\nDone.")
