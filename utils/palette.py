@@ -40,8 +40,11 @@ def load_col_palettes(palette_path: Path) -> Palette:
     # Read BGR555 palette data from the start of the file.
     # Each 2-byte little-endian value encodes one colour:
     # MSB 15 -> 0 LSB
-    # Unused | Blue (5 bits) | Green (5 bits) | Red (5 bits)
-    # Bit 15: Unused
+    # STP    | Blue (5 bits) | Green (5 bits) | Red (5 bits)
+    # Bit 15: STP (semi-transparency processing flag)
+    #           0 = fully opaque
+    #           1 = semi-transparent (blend mode determined by the GPU primitive;
+    #               approximated as alpha=128 for software rendering)
     # Bits 10-14: Blue channel (0-31)
     # Bits 5-9:  Green channel (0-31)
     # Bits 0-4:  Red channel (0-31)
@@ -50,7 +53,8 @@ def load_col_palettes(palette_path: Path) -> Palette:
         block = palette_data[offset : offset + COL_BLOCK_SIZE]
         value = int.from_bytes(block, byteorder="little")
 
-        # Extract 5-bit channels
+        # Extract STP flag and 5-bit colour channels
+        stp = (value >> 15) & 0x1
         r = value & 0x1F
         g = (value >> 5) & 0x1F
         b = (value >> 10) & 0x1F
@@ -60,7 +64,13 @@ def load_col_palettes(palette_path: Path) -> Palette:
         g8 = (g << 3) | (g >> 2)
         b8 = (b << 3) | (b >> 2)
 
-        palette.append((r8, g8, b8))
+        # Alpha encodes STP: 128 = semi-transparent, 255 = fully opaque.
+        # Note: STP=1 with R=G=B=0 (raw value 0x8000) is a special PSX case
+        # meaning transparent black; the pixel-level transparency check
+        # (colour_index == 0) in tex.py handles that separately.
+        alpha = 128 if stp else 255
+
+        palette.append((r8, g8, b8, alpha))
         offset += COL_BLOCK_SIZE
 
     if not palette:
@@ -71,6 +81,7 @@ def load_col_palettes(palette_path: Path) -> Palette:
 
 def is_palette_all_black(palette: Palette) -> bool:
     for swatch in palette:
-        if sum(swatch) != 0:
+        r, g, b, _a = swatch
+        if r != 0 or g != 0 or b != 0:
             return False
     return True

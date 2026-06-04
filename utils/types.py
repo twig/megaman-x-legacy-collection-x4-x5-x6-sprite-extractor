@@ -3,7 +3,7 @@ from enum import IntEnum
 
 type ColourRGB = tuple[int, int, int]
 type ColourRGBA = tuple[int, int, int, int]
-type Palette = list[ColourRGB]  # List of colours
+type Palette = list[ColourRGBA]  # List of colours; alpha encodes STP: 255=opaque, 128=semi-transparent
 type CLUT = list[Palette]  # Colour lookup table, 16 colours per row
 
 

@@ -107,22 +107,22 @@ def convert_tex_to_image(
         print(f"skip: Clut index {clut_index} only has black")
         return None
 
-    # Each pixel in TEX data stores a 4-bit colour index (0-15).
-    # For 0x07 (32bpp): index is in the alpha channel (byte 3 of each 4-byte pixel).
-    # For 0x12 (8bpp palette-indexed): each byte is the index directly? TBC
-    # The colour index selects a colour from one 16-entry CLUT block within the palette:
-    # final_index = clut_index*16 + colour_index.
-    # Index 0 in any CLUT is transparent. clut_index must be supplied externally
-    # (it is not encoded in the pixel data).
+    # Each pixel in TEX data is a palette index into the active 16-entry CLUT block:
+    #   final_index = clut_index * 16 + colour_index
+    # Index 0 in any CLUT is always transparent (PSX convention).
+    # clut_index is supplied externally — it is not encoded in the pixel data.
+    #
+    # Format details:
+    #   FORMAT_32BPP (0x07): 4 bytes/pixel; palette index is stored in the alpha
+    #                        channel (byte 3). Bytes 0-2 are unused/zero.
+    #   FORMAT_8BPP  (0x12): 1 byte/pixel; the byte is the palette index directly.
     pixels: list[ColourRGBA] = []
     for pixel_index in range(width * height):
         if format_code == TexFormat.FORMAT_32BPP:
-            # [0-3] RGBA or BGRA, either way A channel is 3
-            colour_index = raw_image[pixel_index * 4 + 3]
+            colour_index = raw_image[pixel_index * 4 + 3]  # index in alpha byte
             final_index = clut_index * 16 + colour_index
         elif format_code == TexFormat.FORMAT_8BPP:
-            # TODO: make this work
-            colour_index = raw_image[pixel_index]
+            colour_index = raw_image[pixel_index]  # index is the full byte
             final_index = clut_index * 16 + colour_index
         else:
             raise Exception(f"Unsupported TEX format 0x{format_code:02x}")
@@ -142,10 +142,14 @@ def convert_tex_to_image(
         #     )
 
         if colour_index == 0:
-            # Transparent colour, render as Magenta with Alpha 0 for easy debugging
+            # Index 0 in any CLUT is always transparent (PSX convention).
             pixels.append((255, 0, 255, 0))
         else:
-            r, g, b = palette[final_index]
+            r, g, b, _stp = palette[final_index]
+            # The STP bit (stored as alpha in the palette entry) is a polygon-level
+            # blending flag, not a per-pixel alpha. It only activates semi-transparency
+            # when the *polygon* is also flagged for blending. All non-index-0 pixels
+            # on solid sprites are fully opaque regardless of STP.
             pixels.append((r, g, b, 255))
 
     image = Image.new("RGBA", (width, height))

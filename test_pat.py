@@ -12,6 +12,9 @@ print("sequence pairs", loaded.sequence_pairs)
 # print("unique frames", loaded.get_unique_frames())
 print("animation sequence", loaded.get_animation_sequence(0))
 
+# with open('pat_quads.txt', 'w') as f:
+#     f.write(pformat(loaded.quads))
+
 
 # Render a PNG preview using actual TEX tiles and a COL palette.
 try:
@@ -27,9 +30,20 @@ else:
 
     # Config — adjust as needed
     TILE = 16
-    PALETTE_PATH = Path(r"PC\X5\col\stage\col00_0x_eng.col")
+    PALETTE_PATH = Path(r"PC\X5\col\stage\col00_0x.col")
     TEX_PATH_TEMPLATE = Path(r"PC\X5\chr\stage\obj00_0a_{:03d}.tex")
     MAX_QUADS = 800
+    # Hardcoded CLUT base for obj00_0a in stage st000.
+    # quad.clut is a 2-bit *relative* offset; the absolute CLUT index is:
+    #   absolute_clut = ocl_entry.clut_base + quad.clut
+    # To resolve this properly at runtime, load the OCL table and look up the
+    # entry that corresponds to this object:
+    #
+    #   from utils.ocl import load_ocl
+    #   ocl_entries = load_ocl(Path(r"PC\X5\stage\st000\st000.ocl"))
+    #   OCL_INDEX = 39  # obj00_0a, st000 — confirmed in utils/ocl.py docs
+    #   CLUT_BASE = ocl_entries[OCL_INDEX].clut_base  # == 28
+    CLUT_BASE = 28  # ocl_entries[39].clut_base for obj00_0a / st000
 
     # Load palette once
     palette = load_col_palettes(PALETTE_PATH)
@@ -70,16 +84,17 @@ else:
 
         tile_img = None
         if tex_data:
-            # Use the quad.clut as CLUT row index for preview (relative mapping)
-            key = (q.tpage, q.clut)
+            # Resolve relative quad.clut (0–3) to absolute CLUT row via CLUT_BASE.
+            absolute_clut = CLUT_BASE + q.clut
+            key = (q.tpage, absolute_clut)
             if key not in image_cache:
                 try:
-                    tex_img = convert_tex_to_image(tex_data, palette, clut_index=q.clut)
+                    tex_img = convert_tex_to_image(tex_data, palette, clut_index=absolute_clut)
                     image_cache[key] = tex_img
                 except Exception as e:
                     image_cache[key] = None
                     print(
-                        f"convert_tex_to_image failed for tpage={q.tpage} clut={q.clut}: {e}"
+                        f"convert_tex_to_image failed for tpage={q.tpage} clut={absolute_clut}: {e}"
                     )
 
             tex_img = image_cache[key]

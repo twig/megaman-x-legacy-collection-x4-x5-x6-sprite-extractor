@@ -18,7 +18,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageTk
 from PIL.Image import Image as PILImage
 
-from utils.types import Palette, ColourRGB, TexData
+from utils.types import Palette, ColourRGB, ColourRGBA, TexData
 from utils.palette import load_col_palettes, convert_palette_to_clut
 from utils.tex import convert_tex_to_image
 from extract_tex_to_png import (
@@ -326,10 +326,10 @@ class CLUTFinderApp:
 
     def process_selected_colours(self):
         # Fuzzy-matching of colour since screenshot isn't always accurate.
-        def is_colour_match(search_colour: ColourRGB, palette_colour: ColourRGB):
+        def is_colour_match(search_colour: ColourRGB, palette_colour: ColourRGBA):
             difference = 3
             r1, g1, b1 = search_colour
-            r2, g2, b2 = palette_colour
+            r2, g2, b2, _a = palette_colour
 
             match_r = (r1 - difference) < r2 < (r1 + difference)
             match_g = (g1 - difference) < g2 < (g1 + difference)
