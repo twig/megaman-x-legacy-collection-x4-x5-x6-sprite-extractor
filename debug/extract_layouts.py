@@ -1,9 +1,12 @@
 """
-Extract all stage layout tables from RXC2.exe.
+Extract all stage layout tables from RXC2.exe (Mega Man X Legacy Collection 2 PC).
 
-Confirmed parameters:
+NOTE: All offsets and constants below are specific to Mega Man X5 in RXC2.exe.
+X4 and X6 use different offsets within the same executable.
+
+Confirmed parameters (X5 only):
   Size table:   file offset 0x02F0B7BD — byte pairs (w, h) per stage
-  Layout data:  consecutive block starting at 0x02D98548 (Copy1, .rdata)
+  Layout data:  consecutive block starting at 0x02D98548 (.rdata section)
   Format:       each stage = 3 consecutive layers, each layer = w*h bytes
 
 Output:
@@ -18,9 +21,11 @@ from pathlib import Path
 EXE_PATH = Path("debug/RXC2.exe")
 OUT_DIR  = Path("layouts")
 
-# Confirmed from find_all_layouts3.py validation
-COPY1_OFFSET     = 0x02D98548   # start of packed layout data block
-SIZE_TABLE_OFF   = 0x02F0B7BD   # byte pairs (w, h) per stage
+# ── X5-specific constants ─────────────────────────────────────────────────────
+# These offsets apply only to the X5 portion of RXC2.exe.
+# X4 and X6 have their own separate layout blocks and size tables elsewhere.
+COPY1_OFFSET     = 0x02D98548   # start of X5 packed layout data block (.rdata)
+SIZE_TABLE_OFF   = 0x02F0B7BD   # X5 size table: byte pairs (w, h) per stage
 MAX_STAGES       = 40           # upper bound; stop early if data looks invalid
 MAX_SCREEN_ID    = 250          # rough plausibility upper bound for layer 0
 
