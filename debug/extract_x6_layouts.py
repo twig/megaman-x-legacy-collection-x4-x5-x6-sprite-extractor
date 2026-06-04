@@ -10,14 +10,14 @@ Confirmed parameters (X6):
                block offset 14160)
   Stage count: 13 stages
   Stage width: 16 (all stages share the same w=16)
-  Heights:     [28, 23, 33, 43, 18, 10, 12, 11, 43, 28, 31, 12, 3]
+  Heights:     [28, 23, 33, 43, 18, 33, 43, 26, 7, 3, 1, 9, 28]
   Format:      each stage = 3 consecutive layers (layer0, layer1, layer2),
                each layer = w*h bytes
 
-All 13 heights verified by:
-  - Stages 0-3: cross-validated against OMP screen ID ranges
-  - Stages 4-12: greedy algorithm + clean stage boundaries (all "next L0 first" are 0
-    except stages 9→10 (IDs 72,73) and 10→11 (IDs 15-19) which are valid non-empty starts)
+All 13 heights verified by OMP L0_max cross-validation:
+  - Each stage's Layer 0 max ID exactly equals n_screens-1 from its OMP file
+  - OMP mapping: [st00, st02, st04a, st06a, st0ca, stsel_eng, st0g,
+                  st05x, st02x, st08x, st04x, st03x, st06x]
   - Sum constraint: 14160 = 3 * 16 * 295, sum(heights) = 295
 
 Output:
@@ -34,7 +34,11 @@ OUT_DIR  = Path("layouts_x6")
 # ── X6-specific constants ─────────────────────────────────────────────────────
 BLOCK_OFFSET = 0x02DD4000      # file offset of X6 layout block start (.rdata)
 W            = 16              # all X6 stages have width = 16
-X6_HEIGHTS   = [28, 23, 33, 43, 18, 10, 12, 11, 43, 28, 31, 12, 3]
+X6_HEIGHTS   = [28, 23, 33, 43, 18, 33, 43, 26, 7, 3, 1, 9, 28]
+X6_OMP_FILES = [
+    'st00', 'st02', 'st04a', 'st06a', 'st0ca',
+    'stsel_eng', 'st0g', 'st05x', 'st02x', 'st08x', 'st04x', 'st03x', 'st06x',
+]
 
 exe = Path(EXE_PATH).read_bytes()
 print(f"Loaded {len(exe):,} bytes from {EXE_PATH}")
@@ -55,17 +59,17 @@ print(f"  {'-'*3}  {'-'*12}  {'-'*9}  {'-'*3}  {'-'*3}  "
       f"{'-'*10}  {'-'*6}  {'-'*32}")
 
 block_pos = 0
-stage_table = []   # (idx, file_offset, block_offset, h)
+stage_table = []   # (idx, file_offset, block_offset, h, omp_name)
 
-for i, h in enumerate(X6_HEIGHTS):
+for i, (h, omp_name) in enumerate(zip(X6_HEIGHTS, X6_OMP_FILES)):
     layer_size = W * h
     file_off   = BLOCK_OFFSET + block_pos
     layer0     = exe[file_off : file_off + layer_size]
     l0_max     = max(layer0) if layer0 else 0
     first16    = exe[file_off : file_off + 16].hex()
     print(f"  [{i:3d}]  0x{file_off:08X}  {block_pos:9d}  {W:3d}  {h:3d}  "
-          f"{layer_size:10d}  {l0_max:6d}  {first16}")
-    stage_table.append((i, file_off, block_pos, h))
+          f"{layer_size:10d}  {l0_max:6d}  {omp_name:12s}  {first16}")
+    stage_table.append((i, file_off, block_pos, h, omp_name))
     block_pos += 3 * layer_size
 
 print(f"\n  Final block_pos: {block_pos} (expected {total_bytes}: "
@@ -73,10 +77,10 @@ print(f"\n  Final block_pos: {block_pos} (expected {total_bytes}: "
 
 # ── Extract to files ───────────────────────────────────────────────────────────
 OUT_DIR.mkdir(parents=True, exist_ok=True)
-index_lines = ["stage_idx, file_offset_hex, block_offset, width, height, layer_size, l0_max"]
+index_lines = ["stage_idx, file_offset_hex, block_offset, width, height, layer_size, l0_max, omp_file"]
 
 extracted = 0
-for idx, file_off, block_off, h in stage_table:
+for idx, file_off, block_off, h, omp_name in stage_table:
     layer_size = W * h
     total      = layer_size * 3
 
@@ -100,7 +104,7 @@ for idx, file_off, block_off, h in stage_table:
             f.write(",".join(str(v) for v in row) + "\n")
 
     index_lines.append(
-        f"st{idx:03d}, 0x{file_off:08X}, {block_off}, {W}, {h}, {layer_size}, {l0_max}"
+        f"st{idx:03d}, 0x{file_off:08X}, {block_off}, {W}, {h}, {layer_size}, {l0_max}, {omp_name}"
     )
     extracted += 1
 
