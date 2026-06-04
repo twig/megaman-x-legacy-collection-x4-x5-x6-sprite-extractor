@@ -98,8 +98,8 @@
 #
 #   1. Tile size — confirmed 16×16 px from binary analysis.
 #
-#   2. Full layout table — only 4 entries confirmed from CSV data.
-#      Remaining entries require the stage DAT file from the ARC archive.
+#   2. Full layout table — FULLY CONFIRMED for st000 (see LayoutTable.from_exe).
+#      Extracted directly from RXC2.exe (Mega Man X Legacy Collection 2).
 #
 #   3. OCL flags → COL file mapping — unverified for flag values 0x39, 0x3b.
 #      Pass the correct flags_to_palette dict from the caller.
@@ -112,7 +112,7 @@
 # Usage
 """
 from pathlib import Path
-from utils.omp import load_omp, render_level, render_omp, LayoutTable, LayerPreset
+from utils.omp import load_omp, render_level, render_omp, LayoutTable, LayerPreset, load_layout_from_exe
 from utils.ocl import load_ocl
 from utils.tex import load_tex
 from utils.palette import load_col_palettes
@@ -122,18 +122,12 @@ ocl = load_ocl(Path("PC/X5/stage/st000/st000.ocl"))
 tex = load_tex(Path("PC/X5/stage/st000/st000.tex"))
 col = load_col_palettes(Path("col00_0x.col"))
 
-# --- Correct level rendering (requires layout table from stage DAT/ARC) ---
-# Partial layout for st000 confirmed from omp-to-expected-tiles.csv:
-layout = LayoutTable.from_partial({
-    (0, 4): 26,
-    (4, 4): 30,
-    (0, 3): 11,
-    (8, 4): 34,
-})
+# --- Correct level rendering with the confirmed full layout table ---
+layout = load_layout_from_exe(Path("debug/RXC2.exe"), layer=0)  # st000 foreground
 img = render_level(
     omp, layout,
-    level_width_screens=16,   # adjust to actual stage dimensions
-    level_height_screens=8,
+    level_width_screens=15,
+    level_height_screens=24,
     raw_pixels=tex["raw_image"],
     tex_width=tex["width"],
     ocl_entries=ocl,
@@ -262,6 +256,38 @@ class LayoutTable:
             grid[sy][sx] = sid
         return LayoutTable(screens=grid)
 
+    @staticmethod
+    def from_bytes(data: bytes, width: int, height: int, layer: int = 0) -> "LayoutTable":
+        """
+        Parse a LayoutTable from raw layout binary data.
+
+        Layout format (confirmed from TeheManX4_Editor and st000 analysis):
+          - 3 layers stored consecutively, each layer_size = width * height bytes
+          - Each byte is one u8 screen_id (0 = empty)
+          - Indexed row-major: data[sy * width + sx + layer * width * height]
+
+        Args:
+            data:   raw bytes containing the layout data (all 3 layers)
+            width:  number of screens per row (st000: 15)
+            height: number of screen rows (st000: 24)
+            layer:  which layer to extract (0=foreground, 1=BG1, 2=BG2)
+        """
+        layer_size = width * height
+        layer_start = layer * layer_size
+        if layer_start + layer_size > len(data):
+            raise ValueError(
+                f"Layout data too small: need {layer_start + layer_size} bytes, "
+                f"got {len(data)}"
+            )
+        grid: list[list[int]] = []
+        for sy in range(height):
+            row = [
+                data[layer_start + sy * width + sx]
+                for sx in range(width)
+            ]
+            grid.append(row)
+        return LayoutTable(screens=grid)
+
 
 def load_omp(omp_path: Path) -> OmpLayer:
     """
@@ -310,6 +336,66 @@ def load_omp(omp_path: Path) -> OmpLayer:
         offset += row_size
 
     return OmpLayer(n_screens=n_screens, tiles=tiles)
+
+
+# ============================================================
+# st000 layout constants (Mega Man X Legacy Collection 2, RXC2.exe)
+# ============================================================
+# Confirmed by scanning the EXE for the 9-byte linear run 0x1A..0x22 (layer 0,
+# sy=4) and verifying all 4 known anchor entries from omp-to-expected-tiles.csv.
+#
+# Three identical copies exist in the EXE (offsets below are all valid):
+#   Copy 1:  0x02D98548  (relative offset from start of file)
+#   Copy 2:  0x02EC2D4B  ← primary (used by load_layout_from_exe default)
+#   Copy 3:  0x02ECA8B0
+#
+# Layout dimensions confirmed:
+#   width  = 15  (screens per row)
+#   height = 24  (screen rows, sy=0..23)
+#   3 layers (foreground + 2 BG), stored consecutively, each 15×24 = 360 bytes
+#
+# Anchor verification (all 4 entries confirmed from CSV):
+#   Layer 0, sy=3, sx=0 → screen_id = 11 (0x0B)  ✓
+#   Layer 0, sy=4, sx=0 → screen_id = 26 (0x1A)  ✓
+#   Layer 0, sy=4, sx=4 → screen_id = 30 (0x1E)  ✓
+#   Layer 0, sy=4, sx=8 → screen_id = 34 (0x22)  ✓
+
+ST000_LAYOUT_OFFSET = 0x02EC2D4B   # EXE file offset of the first layout byte
+ST000_LAYOUT_WIDTH  = 15
+ST000_LAYOUT_HEIGHT = 24
+ST000_LAYOUT_LAYERS = 3            # 0=foreground, 1=BG1, 2=BG2
+
+
+def load_layout_from_exe(
+    exe_path: Path,
+    offset: int = ST000_LAYOUT_OFFSET,
+    width: int = ST000_LAYOUT_WIDTH,
+    height: int = ST000_LAYOUT_HEIGHT,
+    layer: int = 0,
+) -> "LayoutTable":
+    """
+    Load a LayoutTable from the game executable (RXC2.exe for MMLC2).
+
+    Uses the confirmed st000 constants by default.  Pass different ``offset``,
+    ``width``, ``height`` to load a different stage's table.
+
+    Args:
+        exe_path: path to RXC2.exe (or the PSX EXE for other versions)
+        offset:   file offset of the first layout byte (all 3 layers)
+        width:    screens per row
+        height:   screen rows
+        layer:    0 = foreground layer (default), 1 = BG1, 2 = BG2
+    """
+    layer_size = width * height
+    total_size = layer_size * 3
+    data = exe_path.read_bytes()
+    if offset + total_size > len(data):
+        raise ValueError(
+            f"EXE too small for layout at {hex(offset)}: "
+            f"need {total_size} bytes, file has {len(data) - offset}"
+        )
+    layout_bytes = data[offset : offset + total_size]
+    return LayoutTable.from_bytes(layout_bytes, width, height, layer)
 
 
 def extract_tile_pixels(
