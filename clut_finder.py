@@ -214,7 +214,6 @@ class CLUTFinderApp:
         path = filedialog.askopenfilename(
             title="Open screenshot",
             filetypes=[("PNG images", "*.png"), ("All files", "*.*")],
-            initialdir="./screenshots",
         )
         if not path:
             return
@@ -259,7 +258,6 @@ class CLUTFinderApp:
         path = filedialog.askopenfilename(
             title="Open TEX file",
             filetypes=[("TEX files", "*.tex"), ("All files", "*.*")],
-            initialdir="./PC/X5/",
         )
         if not path:
             return
