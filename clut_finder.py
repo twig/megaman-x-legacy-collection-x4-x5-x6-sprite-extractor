@@ -28,9 +28,12 @@ from extract_tex_to_png import (
 
 
 class CLUTFinderApp:
-    def __init__(self, root: tk.Tk, screenshot: PILImage, palette: Palette):
+    def __init__(
+        self, root: tk.Tk, screenshot: PILImage, palette: Palette, palette_file: Path
+    ):
         self.root = root
         self.palette = palette
+        self.palette_file = palette_file
         self.clut = convert_palette_to_clut(palette)
         self.image = screenshot.convert("RGB")
         self.photo = ImageTk.PhotoImage(self.image)
@@ -211,6 +214,7 @@ class CLUTFinderApp:
         path = filedialog.askopenfilename(
             title="Open screenshot",
             filetypes=[("PNG images", "*.png"), ("All files", "*.*")],
+            initialdir="./screenshots",
         )
         if not path:
             return
@@ -232,17 +236,19 @@ class CLUTFinderApp:
         self.clear_selection()
 
     def open_palette(self):
-        path = filedialog.askopenfilename(
+        filepath = filedialog.askopenfilename(
             title="Open COL palette",
             filetypes=[("COL palette files", "*.col"), ("All files", "*.*")],
         )
-        if not path:
+        if not filepath:
             return
 
         try:
-            palette = load_col_palettes(Path(path))
+            path = Path(filepath)
+            palette = load_col_palettes(path)
             self.palette = palette
             self.clut = convert_palette_to_clut(palette)
+            self.palette_file = path
         except Exception as e:
             messagebox.showerror("Open COL palette", f"Failed to open palette: {e}")
             return
@@ -253,6 +259,7 @@ class CLUTFinderApp:
         path = filedialog.askopenfilename(
             title="Open TEX file",
             filetypes=[("TEX files", "*.tex"), ("All files", "*.*")],
+            initialdir="./PC/X5/",
         )
         if not path:
             return
@@ -302,7 +309,9 @@ class CLUTFinderApp:
         preview_image = convert_tex_to_image(tex_data, self.palette, clut_index)
 
         if preview_image:
-            preview_image.save("test.png")
+            preview_image.save(
+                f"test-{self.tex_file.stem}-col-{self.palette_file.stem}-clut-{clut_index}.png"
+            )
 
             self.preview_tex_image = ImageTk.PhotoImage(preview_image)
             self.tex_canvas.delete("all")
@@ -445,7 +454,7 @@ def main():
     root.minsize(640, 480)
     root.state("zoomed")
 
-    app = CLUTFinderApp(root, img, palette)
+    app = CLUTFinderApp(root, img, palette, palette_file)
 
     root.mainloop()
 
