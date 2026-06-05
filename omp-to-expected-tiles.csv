@@ -1,4 +1,4 @@
-omp_file,omp_x,omp_y,tex_file,tex_x,tex_y,col,clut
+omp_file,omp_tile_x,omp_tile_y,tex_file,tex_x,tex_y,col,clut
 PC\X5\stage\st000\st000.omp,3,69,PC\X5\stage\st000\st000.tex,19,13,PC\X5\col\stage\col00_0x.col,90
 PC\X5\stage\st000\st000.omp,4,69,PC\X5\stage\st000\st000.tex,20,13,PC\X5\col\stage\col00_0x.col,90
 PC\X5\stage\st000\st000.omp,5,69,PC\X5\stage\st000\st000.tex,21,13,PC\X5\col\stage\col00_0x.col,90

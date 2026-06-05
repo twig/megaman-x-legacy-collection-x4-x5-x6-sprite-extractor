@@ -9,6 +9,17 @@ Confirmed parameters (X5 only):
   Layout data:  consecutive block starting at 0x02D98548 (.rdata section)
   Format:       each stage = 3 consecutive layers, each layer = w*h bytes
 
+OMP verification:
+  This block contains 21 data-bearing stages and 8 zero-dimension placeholders.
+  4 stages confirmed by matching max(layer0) == OMP n_screens-1:
+    idx  0 (15x24) -> st010
+    idx  8 (5x29)  -> st030, st160
+    idx 10 (5x29)  -> st061
+    idx 13 (5x26)  -> st120
+  17 stages are UNVERIFIED: their required n_screens values are not found in
+  PC/X5/stage. They likely belong to a second layout block elsewhere in the exe
+  (21 OMP files also have no match in this block).
+
 Output:
   layouts/stXXX_wWWW_hHHH.bin   raw layout bytes (w*h*3), all 3 layers
   layouts/stXXX_wWWW_hHHH.csv   human-readable layer-0 grid (screen_ids)
@@ -28,6 +39,15 @@ COPY1_OFFSET     = 0x02D98548   # start of X5 packed layout data block (.rdata)
 SIZE_TABLE_OFF   = 0x02F0B7BD   # X5 size table: byte pairs (w, h) per stage
 MAX_STAGES       = 40           # upper bound; stop early if data looks invalid
 MAX_SCREEN_ID    = 250          # rough plausibility upper bound for layer 0
+
+# Stage indices confirmed against OMP files (max(layer0) == n_screens-1).
+# All other data-bearing indices are UNVERIFIED against this OMP set.
+CONFIRMED_OMP: dict[int, list[str]] = {
+    0:  ["st010"],
+    8:  ["st030", "st160"],
+    10: ["st061"],
+    13: ["st120"],
+}
 
 exe = Path(EXE_PATH).read_bytes()
 print(f"Loaded {len(exe):,} bytes from {EXE_PATH}")
@@ -89,9 +109,12 @@ for idx, off, w, h in stage_offsets:
     # Sanity check: layer 0 should have all values <= MAX_SCREEN_ID
     layer0 = exe[off : off + layer_size]
     layer0_max = max(layer0) if layer0 else 0
-    note = "ok"
-    if layer0_max > MAX_SCREEN_ID:
+    if idx in CONFIRMED_OMP:
+        note = "confirmed_" + "_".join(CONFIRMED_OMP[idx])
+    elif layer0_max > MAX_SCREEN_ID:
         note = f"WARN_max={layer0_max}"
+    else:
+        note = "unverified"
 
     stem = f"st{idx:03d}_w{w:03d}_h{h:03d}"
 
