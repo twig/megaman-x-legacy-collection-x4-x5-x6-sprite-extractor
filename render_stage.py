@@ -84,31 +84,31 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     # ── Block 1 — CONFIRMED ──────────────────────────────────────────────────
     # st000 uses a dedicated second copy of the layout at 0x02EC2D4B.
     # Verified by 4 anchor points from omp-to-expected-tiles.csv.
-    "st000": (0x02EC2D4B, 15, 24),  # CONFIRMED — 4-anchor verified (ST000_LAYOUT_OFFSET)
+    "st000": (0x02EC2D4B, 15, 24),  # CONFIRMED — 4-anchor verified (Intro Stage)
 
     # Block 1 idx 0  (15×24): max(layer0) == 97  → st010 n_screens=98
-    "st010": (0x02D98548, 15, 24),  # CONFIRMED — block 1 idx 0, exact max match
+    "st010": (0x02D98548, 15, 24),  # CONFIRMED — block 1 idx 0, exact max match (Crescent Grizzly)
 
     # Block 1 idx 8  (5×29):  max(layer0) == 109 → st030/st160 n_screens=110
-    "st030": (0x02D98F7A,  5, 29),  # CONFIRMED — block 1 idx 8, exact max match
-    "st160": (0x02D98F7A,  5, 29),  # CONFIRMED — block 1 idx 8, shared layout with st030
+    "st030": (0x02D98F7A,  5, 29),  # CONFIRMED — block 1 idx 8, exact max match (Tidal Whale)
+    "st160": (0x02D98F7A,  5, 29),  # CONFIRMED — block 1 idx 8, shared layout with st030 (Zero Space 1: Origin)
 
     # Block 1 idx 10 (5×29):  max(layer0) == 164 → st061 n_screens=165
-    "st061": (0x02D992B3,  5, 29),  # CONFIRMED — block 1 idx 10, exact max match
+    "st061": (0x02D992B3,  5, 29),  # CONFIRMED — block 1 idx 10, exact max match (Shining Firefly: Area 2)
 
     # Block 1 idx 13 (5×26):  max(layer0) == 208 → st120 n_screens=209
-    "st120": (0x02D9979F,  5, 26),  # CONFIRMED — block 1 idx 13, exact max match
+    "st120": (0x02D9979F,  5, 26),  # CONFIRMED — block 1 idx 13, exact max match (Zero Space 4: Birth)
 
     # ── Block 2 — UNCONFIRMED ────────────────────────────────────────────────
     # COPY2 = 0x02D9B9A4, stage idx 0 (8×29), max=8.
     # Valid for the group: st090_00/01, st100_00/01, st130 (all n_screens=9 or 16,
     # max 8 ≤ n_screens-1).  The exact per-OMP index within block 2 has not been
     # individually verified.
-    "st090_00": (0x02D9B9A4, 8, 29),  # UNCONFIRMED — block 2 idx 0 (8×29), group valid
-    "st090_01": (0x02D9B9A4, 8, 29),  # UNCONFIRMED — block 2 idx 0 (8×29), group valid
-    "st100_00": (0x02D9B9A4, 8, 29),  # UNCONFIRMED — block 2 idx 0 (8×29), group valid
-    "st100_01": (0x02D9B9A4, 8, 29),  # UNCONFIRMED — block 2 idx 0 (8×29), group valid
-    "st130":    (0x02D9B9A4, 8, 29),  # UNCONFIRMED — block 2 idx 0 (8×29), group valid
+    "st090_00": (0x02D9B9A4, 8, 29),  # UNCONFIRMED — block 2 idx 0 (8×29), group valid (Dynamo: Enigma Cannon)
+    "st090_01": (0x02D9B9A4, 8, 29),  # UNCONFIRMED — block 2 idx 0 (8×29), group valid (Dynamo: Hunter Base 1)
+    "st100_00": (0x02D9B9A4, 8, 29),  # UNCONFIRMED — block 2 idx 0 (8×29), group valid (Dynamo: Space Shuttle)
+    "st100_01": (0x02D9B9A4, 8, 29),  # UNCONFIRMED — block 2 idx 0 (8×29), group valid (Dynamo: Hunter Base 2)
+    "st130":    (0x02D9B9A4, 8, 29),  # UNCONFIRMED — block 2 idx 0 (8×29), group valid (Stage Select)
 
     # ── To add when resolved ─────────────────────────────────────────────────
     # Block 1 unverified stages (index, offset, dimensions from layouts/index.txt):
@@ -128,7 +128,19 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     #   idx 24  (20×21)  0x02D9AA6E — unverified
     #   idx 25  (20×20)  0x02D9AF5A — unverified
     #   idx 27  (5×18)   0x02D9B99B — unverified
-    # Run debug/verify_x5_heights_omp.py to match these to OMP stems.
+    # Unmatched OMP files awaiting slot assignment (run debug/verify_x5_heights_omp.py):
+    #   st020  Dark Necrobat: Area 1
+    #   st021  Dark Necrobat: Area 2
+    #   st040  Burn Dinorex: Area 1
+    #   st041  Burn Dinorex: Area 2
+    #   st050  Volt Kraken
+    #   st060  Shining Firefly: Area 1
+    #   st070  Spike Rosered
+    #   st080  Spiral Pegasus
+    #   st170  Zero Space 2: Grief
+    #   st180  Zero Space 3: Awakening
+    #   st220  Training Area
+    #   staff_eng  End Credits
 }
 
 # Status strings for reporting
