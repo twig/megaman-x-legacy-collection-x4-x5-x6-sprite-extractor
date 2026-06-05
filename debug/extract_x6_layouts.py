@@ -21,11 +21,15 @@ All 13 heights verified by OMP L0_max cross-validation:
   - Sum constraint: 14160 = 3 * 16 * 295, sum(heights) = 295
 
 Output:
-  layouts_x6/stXXX_w016_hHHH.bin        raw layout bytes (w*h*3), all 3 layers
-  layouts_x6/stXXX_w016_hHHH_layer0.csv  human-readable layer-0 grid (screen IDs)
-  layouts_x6/index.txt                   summary of all stages
+  layouts_x6/{omp_name}_w016_hHHH.bin        raw layout bytes (w*h*3), all 3 layers
+  layouts_x6/{omp_name}_w016_hHHH_layer0.csv  human-readable layer-0 grid (screen IDs)
+  layouts_x6/index.txt                        summary of all stages
+
+TODO: 11 stages not in block 1 (block 2 not yet found in RXC2.exe):
+  st01, st01x, st03, st04b, st05, st07, st07x, st08, st0cb, st0h, st0i
 """
 
+import struct
 from pathlib import Path
 
 EXE_PATH = Path("debug/RXC2.exe")
@@ -76,10 +80,19 @@ print(f"\n  Final block_pos: {block_pos} (expected {total_bytes}: "
       f"{'OK' if block_pos == total_bytes else 'MISMATCH'})")
 
 # ── Extract to files ───────────────────────────────────────────────────────────
+OMP_DIR = Path("PC/X6/stage/map")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
-index_lines = ["stage_idx, file_offset_hex, block_offset, width, height, layer_size, l0_max, omp_file"]
+
+# Remove stale index-named files from previous runs (st000_*, st001_*, etc.)
+for pattern in ("st[0-9][0-9][0-9]_*.bin", "st[0-9][0-9][0-9]_*.csv"):
+    for stale in sorted(OUT_DIR.glob(pattern)):
+        stale.unlink()
+        print(f"  Removed stale: {stale.name}")
+
+index_lines = ["omp_name, file_offset_hex, block_offset, width, height, layer_size, l0_max, n_screens"]
 
 extracted = 0
+validation_rows = []
 for idx, file_off, block_off, h, omp_name in stage_table:
     layer_size = W * h
     total      = layer_size * 3
@@ -87,7 +100,12 @@ for idx, file_off, block_off, h, omp_name in stage_table:
     layer0 = exe[file_off : file_off + layer_size]
     l0_max = max(layer0) if layer0 else 0
 
-    stem = f"st{idx:03d}_w{W:03d}_h{h:03d}"
+    # Load OMP to get n_screens for cross-validation
+    omp_data  = (OMP_DIR / f"{omp_name}.omp").read_bytes()
+    n_screens = struct.unpack_from("<I", omp_data, 8)[0] // 256
+    validation_rows.append((omp_name, l0_max, n_screens))
+
+    stem = f"{omp_name}_w{W:03d}_h{h:03d}"
 
     # Binary: all 3 layers
     bin_path = OUT_DIR / f"{stem}.bin"
@@ -97,14 +115,14 @@ for idx, file_off, block_off, h, omp_name in stage_table:
     # CSV: layer 0 grid
     csv_path = OUT_DIR / f"{stem}_layer0.csv"
     with csv_path.open("w") as f:
-        f.write(f"# stage={idx}  offset=0x{file_off:08X}  block_off={block_off}  "
+        f.write(f"# stage={omp_name}  offset=0x{file_off:08X}  block_off={block_off}  "
                 f"w={W}  h={h}\n")
         for sy in range(h):
             row = [layer0[sy * W + sx] for sx in range(W)]
             f.write(",".join(str(v) for v in row) + "\n")
 
     index_lines.append(
-        f"st{idx:03d}, 0x{file_off:08X}, {block_off}, {W}, {h}, {layer_size}, {l0_max}, {omp_name}"
+        f"{omp_name}, 0x{file_off:08X}, {block_off}, {W}, {h}, {layer_size}, {l0_max}, {n_screens}"
     )
     extracted += 1
 
@@ -113,4 +131,15 @@ index_path.write_text("\n".join(index_lines) + "\n")
 
 print(f"\nExtracted {extracted} stages to {OUT_DIR}/")
 print(f"Index written to {index_path}")
-print("\nDone.")
+
+# ── OMP cross-validation ──────────────────────────────────────────────────────
+print(f"\nOMP cross-validation (L0_max == n_screens - 1):")
+print(f"  {'omp_name':<14}  {'L0_max':>6}  {'n_scr-1':>7}  result")
+print(f"  {'-'*14}  {'-'*6}  {'-'*7}  {'-'*6}")
+all_pass = True
+for omp_name, l0_max, n_screens in validation_rows:
+    valid = (l0_max == n_screens - 1)
+    if not valid:
+        all_pass = False
+    print(f"  {omp_name:<14}  {l0_max:>6}  {n_screens-1:>7}  {'PASS' if valid else 'FAIL'}")
+print(f"\n  Overall: {'ALL PASS' if all_pass else 'FAILURES DETECTED'}")
