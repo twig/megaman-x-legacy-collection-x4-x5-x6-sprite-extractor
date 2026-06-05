@@ -7,6 +7,7 @@ Every stage in Mega Man X5 has a **layout table** — a simple grid of numbers s
 to place at that grid position.
 
 Think of it like a spreadsheet:
+
 - Columns = screen positions left to right (width **W**)
 - Rows = screen positions top to bottom (height **H**)
 - Each cell contains a **screen ID** — a number between 0 and `n_screens − 1`
@@ -35,7 +36,7 @@ The summary at the bottom shows:
   files we have extracted.
 - **21 OMP files have no layout match at all.** Their stages live in layout blocks not yet found.
   This includes the 12 regular-game stages: st020, st021, st040, st041, st050, st060, st070,
-  st080, st170, st180, st220, staff\_eng.
+  st080, st170, st180, st220, staff_eng.
 
 > **Note:** The 17 UNVERIFIED block 1 stages all need `n_screens` values (73, 100, 116 …) that
 > none of our 26 OMP files have. Block 1 cannot be the home of the 12 unresolved regular stages.
@@ -200,16 +201,17 @@ for row in range(H):
 
 **Interpreting the results:**
 
-| `Layer 0 max` result | Meaning |
-|---|---|
-| Exactly `target_max` | ✅ **Confirmed match** — this is almost certainly the right layout |
-| Less than `target_max` | 🟡 Plausible — stage may just not use all screens |
-| Greater than `target_max` | ❌ Wrong region — look elsewhere |
+| `Layer 0 max` result      | Meaning                                                            |
+| ------------------------- | ------------------------------------------------------------------ |
+| Exactly `target_max`      | ✅ **Confirmed match** — this is almost certainly the right layout |
+| Less than `target_max`    | 🟡 Plausible — stage may just not use all screens                  |
+| Greater than `target_max` | ❌ Wrong region — look elsewhere                                   |
 
 The grid should have `0` (empty) in obvious areas (e.g. the top rows for a tall vertical stage)
 and increasing numbers toward the centre.
 
 **Example of a good layer 0 grid** for a 5-column slice of a vertical stage:
+
 ```
   0    0    0    0    0
   0    0    0    0    0
@@ -219,6 +221,7 @@ and increasing numbers toward the centre.
 ```
 
 **Example of bad data** (coordinate/waypoint values, not a layout):
+
 ```
 228  247    0    0  228  247    0    0
 100   31    0    0  236  251    0    0
@@ -312,7 +315,7 @@ is correct. The script prints `CONFIRMED` or `UNCONFIRMED` next to the offset on
 If the Python scan from Step 2 finds nothing, the stage's layout lives in a completely different
 block — not the main block 1 region. This is the situation for:
 
-- **st020, st040, st041, st050, st060, st070, st080, st170, st180, st220, staff\_eng**
+- **st020, st040, st041, st050, st060, st070, st080, st170, st180, st220, staff_eng**
 
 These OMP files have `n_screens` values (56, 79, 95, 106, 114, 118, 133, 141, 221, 222) that do
 not appear anywhere in block 1 as valid `L0_max + 1` results. A separate undiscovered layout
@@ -338,60 +341,60 @@ reference for how to approach it.
 
 ## Quick reference — all known offsets
 
-| OMP stem | exe offset | W | H | Status |
-|---|---|---|---|---|
-| st000 | `0x02EC2D4B` | 15 | 24 | CONFIRMED (4-anchor) |
-| st010 | `0x02D98548` | 15 | 24 | CONFIRMED idx 0 |
-| st030 | `0x02D98F7A` | 5 | 29 | CONFIRMED idx 8 |
-| st160 | `0x02D98F7A` | 5 | 29 | CONFIRMED idx 8 (shared with st030) |
-| st061 | `0x02D992B3` | 5 | 29 | CONFIRMED idx 10 |
-| st120 | `0x02D9979F` | 5 | 26 | CONFIRMED idx 13 |
-| st090\_00 | `0x02D9B9A4` | 8 | 29 | UNCONFIRMED block 2 idx 0 |
-| st090\_01 | `0x02D9B9A4` | 8 | 29 | UNCONFIRMED block 2 idx 0 |
-| st100\_00 | `0x02D9B9A4` | 8 | 29 | UNCONFIRMED block 2 idx 0 |
-| st100\_01 | `0x02D9B9A4` | 8 | 29 | UNCONFIRMED block 2 idx 0 |
-| st130 | `0x02D9B9A4` | 8 | 29 | UNCONFIRMED block 2 idx 0 |
+| OMP stem | exe offset   | W   | H   | Status                              |
+| -------- | ------------ | --- | --- | ----------------------------------- |
+| st000    | `0x02EC2D4B` | 15  | 24  | CONFIRMED (4-anchor)                |
+| st010    | `0x02D98548` | 15  | 24  | CONFIRMED idx 0                     |
+| st030    | `0x02D98F7A` | 5   | 29  | CONFIRMED idx 8                     |
+| st160    | `0x02D98F7A` | 5   | 29  | CONFIRMED idx 8 (shared with st030) |
+| st061    | `0x02D992B3` | 5   | 29  | CONFIRMED idx 10                    |
+| st120    | `0x02D9979F` | 5   | 26  | CONFIRMED idx 13                    |
+| st090_00 | `0x02D9B9A4` | 8   | 29  | UNCONFIRMED block 2 idx 0           |
+| st090_01 | `0x02D9B9A4` | 8   | 29  | UNCONFIRMED block 2 idx 0           |
+| st100_00 | `0x02D9B9A4` | 8   | 29  | UNCONFIRMED block 2 idx 0           |
+| st100_01 | `0x02D9B9A4` | 8   | 29  | UNCONFIRMED block 2 idx 0           |
+| st130    | `0x02D9B9A4` | 8   | 29  | UNCONFIRMED block 2 idx 0           |
 
 ### Block 1 unverified (offsets and dims known, OMP match unknown)
 
-| Block 1 idx | Offset | W | H | Need n\_screens |
-|---|---|---|---|---|
-| 1 | `0x02D98980` | 10 | 25 | 145 |
-| 2 | `0x02D98C6E` | 10 | 26 | 217 |
-| 9 | `0x02D9912D` | 5 | 26 | 73 |
-| 11 | `0x02D99466` | 5 | 26 | 121 |
-| 12 | `0x02D995EC` | 5 | 29 | 186 |
-| 14 | `0x02D99925` | 5 | 29 | 202 |
-| 15 | `0x02D99AD8` | 5 | 28 | 116 |
-| 16 | `0x02D99C7C` | 5 | 27 | 24 |
-| 17 | `0x02D99E11` | 5 | 26 | 143 |
-| 20 | `0x02D99F97` | 5 | 25 | 121 |
-| 21 | `0x02D9A10E` | 10 | 24 | 143 |
-| 22 | `0x02D9A3DE` | 10 | 23 | 100 |
-| 23 | `0x02D9A690` | 15 | 22 | 123 |
-| 24 | `0x02D9AA6E` | 20 | 21 | 67 |
-| 25 | `0x02D9AF5A` | 20 | 20 | 193 |
-| 27 | `0x02D9B99B` | 5 | 18 | 10 |
+| Block 1 idx | Offset       | W   | H   | Need n_screens |
+| ----------- | ------------ | --- | --- | -------------- |
+| 1           | `0x02D98980` | 10  | 25  | 145            |
+| 2           | `0x02D98C6E` | 10  | 26  | 217            |
+| 9           | `0x02D9912D` | 5   | 26  | 73             |
+| 11          | `0x02D99466` | 5   | 26  | 121            |
+| 12          | `0x02D995EC` | 5   | 29  | 186            |
+| 14          | `0x02D99925` | 5   | 29  | 202            |
+| 15          | `0x02D99AD8` | 5   | 28  | 116            |
+| 16          | `0x02D99C7C` | 5   | 27  | 24             |
+| 17          | `0x02D99E11` | 5   | 26  | 143            |
+| 20          | `0x02D99F97` | 5   | 25  | 121            |
+| 21          | `0x02D9A10E` | 10  | 24  | 143            |
+| 22          | `0x02D9A3DE` | 10  | 23  | 100            |
+| 23          | `0x02D9A690` | 15  | 22  | 123            |
+| 24          | `0x02D9AA6E` | 20  | 21  | 67             |
+| 25          | `0x02D9AF5A` | 20  | 20  | 193            |
+| 27          | `0x02D9B99B` | 5   | 18  | 10             |
 
 These block 1 entries need OMP files with the listed `n_screens` to confirm them. None of our 26
 extracted OMP files have those values, so they cannot be confirmed from the current data set.
 
 ### OMP files with no layout block found yet
 
-| OMP stem | n\_screens | Block |
-|---|---|---|
-| st020 | 106 | Unknown block |
-| st021 | 95 | Unknown block |
-| st040 | 95 | Unknown block |
-| st041 | 114 | Unknown block |
-| st050 | 222 | Unknown block |
-| st060 | 56 | Unknown block |
-| st070 | 221 | Unknown block |
-| st080 | 118 | Unknown block |
-| st170 | 133 | Unknown block |
-| st180 | 141 | Unknown block |
-| st220 | 79 | Unknown block |
-| staff\_eng | 37 | Unknown block |
-| st140\_eng | 3 | Not found (cutscene) |
-| st141\_eng | 3 | Not found (cutscene) |
-| st150 | 3 | Not found (cutscene) |
+| OMP stem  | n_screens | Block                |
+| --------- | --------- | -------------------- |
+| st020     | 106       | Unknown block        |
+| st021     | 95        | Unknown block        |
+| st040     | 95        | Unknown block        |
+| st041     | 114       | Unknown block        |
+| st050     | 222       | Unknown block        |
+| st060     | 56        | Unknown block        |
+| st070     | 221       | Unknown block        |
+| st080     | 118       | Unknown block        |
+| st170     | 133       | Unknown block        |
+| st180     | 141       | Unknown block        |
+| st220     | 79        | Unknown block        |
+| staff_eng | 37        | Unknown block        |
+| st140_eng | 3         | Not found (cutscene) |
+| st141_eng | 3         | Not found (cutscene) |
+| st150     | 3         | Not found (cutscene) |
