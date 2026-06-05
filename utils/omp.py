@@ -51,7 +51,7 @@
 # ============================================================
 #
 #   The map layout data is NOT stored in the OMP/OCL/TEX files. It lives in
-#   the game's stage DAT file inside an ARC archive. It maps each level screen
+#   the RXC1.exe and RXC2.exe files. It maps each level screen
 #   position (sx, sy) to a screen_id (= OMP row index).
 #
 #   Supply a LayoutTable to render_level() for correct level rendering.

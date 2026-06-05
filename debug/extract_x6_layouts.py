@@ -73,7 +73,7 @@ for i, (h, omp_name) in enumerate(zip(X6_HEIGHTS, X6_OMP_FILES)):
     block_pos += 3 * layer_size
 
 print(f"\n  Final block_pos: {block_pos} (expected {total_bytes}: "
-      f"{'✓' if block_pos == total_bytes else '✗'})")
+      f"{'OK' if block_pos == total_bytes else 'MISMATCH'})")
 
 # ── Extract to files ───────────────────────────────────────────────────────────
 OUT_DIR.mkdir(parents=True, exist_ok=True)
