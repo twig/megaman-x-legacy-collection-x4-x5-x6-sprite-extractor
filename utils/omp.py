@@ -154,7 +154,7 @@ from PIL import Image
 from PIL.Image import Image as PILImage
 
 from utils.ocl import OclEntry
-from utils.types import ColourRGBA, Palette
+from utils.types import ColourRGBA, Palette, TexData
 
 OMP_MAGIC = b"OMP\x00"
 OMP_HEADER_SIZE = 12  # magic(4) + reserved(4) + n_rows(4)
@@ -456,15 +456,14 @@ def _apply_palette_to_tile(
 
 def render_omp(
     layer: OmpLayer,
-    raw_pixels: bytes | bytearray,
-    tex_width: int,
     ocl_entries: list[OclEntry],
+    tex: TexData,
+    tex_fg: TexData,
+    tex_bg: TexData,
     flags_to_palette: dict[int, Palette],
-    *,
-    fallback_tilesets: list[tuple[bytes | bytearray, int]] | None = None,
+    preset: LayerPreset = LayerPreset.MAIN,
     row_start: int = 0,
     row_end: int | None = None,
-    preset: LayerPreset = LayerPreset.MAIN,
     tile_size: int = TILE_SIZE,
 ) -> PILImage:
     """
@@ -488,6 +487,8 @@ def render_omp(
 
     Returns an RGBA PIL Image with dimensions (256 * tile_size, n_screens * tile_size).
     """
+    tex_width = tex['width']
+
     # Resolve row range from preset
     if preset == LayerPreset.BACKGROUND:
         r_start, r_end = 0, _BACKGROUND_MAX_ROW
@@ -505,7 +506,9 @@ def render_omp(
     canvas_h = n_rows * tile_size
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
 
-    tex_height = len(raw_pixels) // tex_width if tex_width > 0 else 0
+    tex_height = len(tex['raw_image']) // tex_width if tex_width > 0 else 0
+
+    tilemaps = set()
 
     def _resolve_tile(entry: OclEntry) -> list[int] | None:
         # OCL byte2 (stored as field 'clut_base'): encodes TEX tile coordinates
@@ -516,7 +519,26 @@ def render_omp(
         #   gy = (page // 8) * 256 + cordY * tile_size
         cordX = entry.clut_base & 0xF
         cordY = (entry.clut_base >> 4) & 0xF
+        # break up entry.pad into upper (tex_file_id) and lower (page) nibbles
+        tex_file_id = entry.pad >> 4
         page = entry.pad & 0xF
+
+        tilemaps.add(tex_file_id)
+
+        # tex_file_id can be {0, 1, 15}
+        raw_pixels = tex["raw_image"]
+
+        if tex_file_id == 0:
+            pass
+        elif tex_file_id == 1:
+            raw_pixels = tex_bg["raw_image"]
+            # print("_resolve_tile", cordX, cordY, "tex_file_id", tex_file_id, "page", page)
+        elif tex_file_id == 15:
+            raw_pixels = tex_fg["raw_image"]
+            print("_resolve_tile", cordX, cordY, "tex_file_id", tex_file_id, "page", page)
+        else:
+            print("Unknown tex_file_id", tex_file_id)
+
         gx = (page % 8) * 256 + cordX * tile_size
         gy = (page // 8) * 256 + cordY * tile_size
         if gx + tile_size > tex_width or gy + tile_size > tex_height:
@@ -563,19 +585,21 @@ def render_omp(
             py = canvas_row * tile_size
             canvas.paste(tile_img, (px, py), mask=tile_img)
 
+    print("tilemaps", tilemaps)
+
     return canvas
 
 
 def render_level(
     layer: OmpLayer,
+    ocl_entries: list[OclEntry],
     layout: LayoutTable,
     level_width_screens: int,
     level_height_screens: int,
-    raw_pixels: bytes | bytearray,
-    tex_width: int,
-    ocl_entries: list[OclEntry],
+    tex: TexData,
+    tex_bg: TexData,
+    tex_fg: TexData,
     flags_to_palette: dict[int, Palette],
-    *,
     tile_size: int = TILE_SIZE,
 ) -> PILImage:
     """
@@ -597,12 +621,27 @@ def render_level(
     canvas_h = level_height_screens * 16 * tile_size
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
 
-    tex_height = len(raw_pixels) // tex_width if tex_width > 0 else 0
+    tex_width = tex['width']
+    tex_height = len(tex['raw_image']) // tex_width if tex_width > 0 else 0
 
     def _resolve_tile(entry: OclEntry) -> list[int] | None:
         cordX = entry.clut_base & 0xF
         cordY = (entry.clut_base >> 4) & 0xF
+        tex_file_id = entry.pad >> 4
         page = entry.pad & 0xF
+
+        # tex_file_id can be {0, 1, 15}
+        raw_pixels = tex["raw_image"]
+
+        if tex_file_id == 0:
+            pass
+        elif tex_file_id == 1:
+            raw_pixels = tex_bg["raw_image"]
+        elif tex_file_id == 15:
+            raw_pixels = tex_fg["raw_image"]
+        else:
+            print("Unknown tex_file_id", tex_file_id)
+
         gx = (page % 8) * 256 + cordX * tile_size
         gy = (page // 8) * 256 + cordY * tile_size
         if gx + tile_size > tex_width or gy + tile_size > tex_height:

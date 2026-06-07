@@ -185,14 +185,18 @@ def main() -> None:
         stage_dir = omp_path.parent
         ocl_path = stage_dir / f"{stem}.ocl"
         tex_path = stage_dir / f"{stem}.tex"
+        tex_fg_path = stage_dir.parent / f"{stem}_ch3" / f"{stem}_ch3.tex"
+        tex_bg_path = stage_dir.parent / f"{stem}_chr256" / f"{stem}_chr256.tex"
     elif 'X6' in str(omp_path):
         stage_dir = omp_path.parent
         ocl_path = stage_dir.parent / 'cel' / f"{stem}.ocl"
         tex_path = stage_dir.parent / 'dds' / f"{stem}.tex"
+        tex_bg_path = tex_path.with_stem(f"{stem}_chr256")
+        tex_fg_path = tex_bg_path # missing??? stage_dir.parent / "f{stem}_ch3" / "f{stem}_ch3.tex"
     else:
         sys.exit(f"ERROR: Cant determine which game the OMP is from")
 
-    for p in (ocl_path, tex_path):
+    for p in (ocl_path, tex_path, tex_fg_path, tex_bg_path):
         if not p.exists():
             sys.exit(f"ERROR: Required sibling file not found: {p}")
     if not EXE_PATH.exists():
@@ -224,6 +228,8 @@ def main() -> None:
 
     print("Loading TEX...")
     tex = load_tex(tex_path)
+    tex_foreground = load_tex(tex_fg_path)
+    tex_background = load_tex(tex_bg_path)
     print(f"  width={tex['width']}  height={tex['height']}  format={tex.get('format')}")
 
     print("Loading COL palette...")
@@ -237,9 +243,10 @@ def main() -> None:
     print("Rendering OMP catalog...")
     catalog_img = render_omp(
         omp,
-        tex["raw_image"],
-        tex["width"],
         ocl,
+        tex,
+        tex_foreground,
+        tex_background,
         flags_to_palette=flags_to_palette,
         preset=LayerPreset.MAIN,
     )
@@ -264,12 +271,13 @@ def main() -> None:
         print("Rendering full level...")
         level_img = render_level(
             omp,
+            ocl,
             layout,
             level_width_screens=n_sx,
             level_height_screens=n_sy,
-            raw_pixels=tex["raw_image"],
-            tex_width=tex["width"],
-            ocl_entries=ocl,
+            tex=tex,
+            tex_bg=tex_background,
+            tex_fg=tex_foreground,
             flags_to_palette=flags_to_palette,
         )
         level_out = Path(f"{stem}_level.png")
