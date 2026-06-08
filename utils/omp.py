@@ -458,7 +458,7 @@ def render_omp(
     layer: OmpLayer,
     ocl_entries: list[OclEntry],
     tex: TexData,
-    tex_fg: TexData,
+    # tex_fg: TexData,
     tex_bg: TexData,
     flags_to_palette: dict[int, Palette],
     preset: LayerPreset = LayerPreset.MAIN,
@@ -487,8 +487,6 @@ def render_omp(
 
     Returns an RGBA PIL Image with dimensions (256 * tile_size, n_screens * tile_size).
     """
-    tex_width = tex['width']
-
     # Resolve row range from preset
     if preset == LayerPreset.BACKGROUND:
         r_start, r_end = 0, _BACKGROUND_MAX_ROW
@@ -506,10 +504,6 @@ def render_omp(
     canvas_h = n_rows * tile_size
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
 
-    tex_height = len(tex['raw_image']) // tex_width if tex_width > 0 else 0
-
-    tilemaps = set()
-
     def _resolve_tile(entry: OclEntry) -> list[int] | None:
         # OCL byte2 (stored as field 'clut_base'): encodes TEX tile coordinates
         #   cordX = byte2 & 0x0F  (low nibble)
@@ -519,33 +513,34 @@ def render_omp(
         #   gy = (page // 8) * 256 + cordY * tile_size
         cordX = entry.clut_base & 0xF
         cordY = (entry.clut_base >> 4) & 0xF
-        # break up entry.pad into upper (tex_file_id) and lower (page) nibbles
-        tex_file_id = entry.pad >> 4
         page = entry.pad & 0xF
 
-        tilemaps.add(tex_file_id)
-
-        # tex_file_id can be {0, 1, 15}
-        raw_pixels = tex["raw_image"]
-
-        if tex_file_id == 0:
-            pass
-        elif tex_file_id == 1:
-            raw_pixels = tex_bg["raw_image"]
-            # print("_resolve_tile", cordX, cordY, "tex_file_id", tex_file_id, "page", page)
-        elif tex_file_id == 15:
-            raw_pixels = tex_fg["raw_image"]
-            print("_resolve_tile", cordX, cordY, "tex_file_id", tex_file_id, "page", page)
+        # Texture routing for pages 8–15:
+        #   col=112 tiles → tex_bg (chr256): tex_bg values 0–30 land in palette
+        #     rows 176–177 which are correct for those tiles.
+        #   col≠112 tiles → tex: tex has the correct 8bpp values for those tiles
+        #     (e.g. col=48 value 48, col=128 values 25–176) that map to the right
+        #     palette entries.  tex_bg gives different values that produce wrong
+        #     colors for those tiles.
+        #   Pages 0–7 always use tex (correct 4bpp data confirmed for those pages).
+        if page < 8:
+            active_tex = tex
+        elif entry.col == 112:
+            active_tex = tex_bg
         else:
-            print("Unknown tex_file_id", tex_file_id)
+            active_tex = tex
+
+        raw_pixels = active_tex["raw_image"]
+        active_width = active_tex["width"]
+        active_height = len(raw_pixels) // active_width if active_width > 0 else 0
 
         gx = (page % 8) * 256 + cordX * tile_size
         gy = (page // 8) * 256 + cordY * tile_size
-        if gx + tile_size > tex_width or gy + tile_size > tex_height:
+        if gx + tile_size > active_width or gy + tile_size > active_height:
             return None
         result: list[int] = []
         for row in range(tile_size):
-            row_start = (gy + row) * tex_width + gx
+            row_start = (gy + row) * active_width + gx
             result.extend(raw_pixels[row_start : row_start + tile_size])
         return result
 
@@ -585,8 +580,6 @@ def render_omp(
             py = canvas_row * tile_size
             canvas.paste(tile_img, (px, py), mask=tile_img)
 
-    print("tilemaps", tilemaps)
-
     return canvas
 
 
@@ -598,7 +591,7 @@ def render_level(
     level_height_screens: int,
     tex: TexData,
     tex_bg: TexData,
-    tex_fg: TexData,
+    # tex_fg: TexData,
     flags_to_palette: dict[int, Palette],
     tile_size: int = TILE_SIZE,
 ) -> PILImage:
@@ -621,34 +614,30 @@ def render_level(
     canvas_h = level_height_screens * 16 * tile_size
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
 
-    tex_width = tex['width']
-    tex_height = len(tex['raw_image']) // tex_width if tex_width > 0 else 0
-
     def _resolve_tile(entry: OclEntry) -> list[int] | None:
         cordX = entry.clut_base & 0xF
         cordY = (entry.clut_base >> 4) & 0xF
-        tex_file_id = entry.pad >> 4
         page = entry.pad & 0xF
 
-        # tex_file_id can be {0, 1, 15}
-        raw_pixels = tex["raw_image"]
-
-        if tex_file_id == 0:
-            pass
-        elif tex_file_id == 1:
-            raw_pixels = tex_bg["raw_image"]
-        elif tex_file_id == 15:
-            raw_pixels = tex_fg["raw_image"]
+        # Texture routing for pages 8–15: see render_omp comment.
+        if page < 8:
+            active_tex = tex
+        elif entry.col == 112:
+            active_tex = tex_bg
         else:
-            print("Unknown tex_file_id", tex_file_id)
+            active_tex = tex
+
+        raw_pixels = active_tex["raw_image"]
+        active_width = active_tex["width"]
+        active_height = len(raw_pixels) // active_width if active_width > 0 else 0
 
         gx = (page % 8) * 256 + cordX * tile_size
         gy = (page // 8) * 256 + cordY * tile_size
-        if gx + tile_size > tex_width or gy + tile_size > tex_height:
+        if gx + tile_size > active_width or gy + tile_size > active_height:
             return None
         result: list[int] = []
         for row in range(tile_size):
-            row_start = (gy + row) * tex_width + gx
+            row_start = (gy + row) * active_width + gx
             result.extend(raw_pixels[row_start : row_start + tile_size])
         return result
 
