@@ -12,6 +12,7 @@ Tested with screenshots from Duckstation with scaling: billinear (sharp)
 
 import argparse
 import sys
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from pathlib import Path
@@ -50,6 +51,8 @@ class CLUTFinderApp:
         self.tex_rect_id = None
         self.tex_rect_coords: tuple[int, int, int, int] | None = None
         self.tex_moved = False
+        self._matching_task_id = 0
+        self._preview_task_id = 0
 
         # menu bar
         menubar = tk.Menu(root)
@@ -125,6 +128,9 @@ class CLUTFinderApp:
             self.side_panel, text="0 matching indexes", anchor="w"
         )
         self.matches_label.pack(fill="x", padx=10, pady=(0, 2))
+
+        self.busy_label = tk.Label(self.side_panel, text="", anchor="w", fg="#888")
+        self.busy_label.pack(fill="x", padx=10, pady=(0, 4))
 
         matches_frame = tk.Frame(self.side_panel)
         matches_frame.pack(fill="both", expand=True, pady=(0, 5), padx=10)
@@ -423,46 +429,78 @@ class CLUTFinderApp:
         if not self.tex_file:
             return
 
-        try:
-            tex_data = load_tex(self.tex_file)
-        except Exception as e:
-            messagebox.showerror("Open TEX file", f"Failed to read TEX header: {e}")
-            return
+        tex_file = self.tex_file
+        self._preview_task_id += 1
+        task_id = self._preview_task_id
 
         # determine best matching clut index
         if clut_index is None:
-            clut_index = (
-                self.matching_indexes[0][0] if len(self.matching_indexes) else 0
-            )
+            clut_index = self.matching_indexes[0][0] if len(self.matching_indexes) else 0
         self.clut_index = clut_index
-        preview_image = convert_tex_to_image(tex_data, self.palette, clut_index)
 
-        if preview_image:
-            # preview_image.save(
-            #     f"test-{self.tex_file.stem}-col-{self.palette_file.stem}-clut-{clut_index}.png"
-            # )
+        self.busy_label.config(text="Rendering TEX preview...")
+        self.tex_canvas.delete("all")
+        self.tex_canvas.create_text(
+            10,
+            10,
+            anchor="nw",
+            text="Rendering preview...",
+            fill="white",
+        )
+        self.tex_canvas.config(scrollregion=(0, 0, self.tex_w or 1, self.tex_h or 1))
 
-            self.tex_w, self.tex_h = preview_image.size
-            self.preview_tex_image = ImageTk.PhotoImage(preview_image)
-            self.tex_canvas.delete("all")
-            self.tex_canvas.create_image(
-                0, 0, anchor="nw", image=self.preview_tex_image
+        def worker():
+            preview_image = None
+            error = None
+            try:
+                tex_data = load_tex(tex_file)
+                preview_image = convert_tex_to_image(tex_data, self.palette, clut_index)
+            except Exception as exc:
+                error = exc
+
+            self.root.after(
+                0,
+                lambda: self._on_preview_ready(task_id, preview_image, clut_index, error),
             )
-            if self.tex_rect_coords is not None:
-                px0, py0, px1, py1 = self.tex_rect_coords
-                self.tex_rect_id = self.tex_canvas.create_rectangle(
-                    px0,
-                    py0,
-                    px1,
-                    py1,
-                    outline="cyan",
-                    width=2,
-                    tags=("texselrect",),
-                )
-            self.tex_canvas.config(scrollregion=self.tex_canvas.bbox("all"))
-            print("Generated preview for", self.tex_file)
-        else:
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_preview_ready(
+        self,
+        task_id: int,
+        preview_image: PILImage | None,
+        clut_index: int,
+        error: Exception | None,
+    ):
+        if task_id != self._preview_task_id:
+            return
+
+        self.busy_label.config(text="")
+        if error is not None:
+            messagebox.showerror("Open TEX file", f"Failed to read TEX header: {error}")
+            return
+
+        if not preview_image:
             print("Unable to preview", self.tex_file)
+            return
+
+        self.tex_w, self.tex_h = preview_image.size
+        self.preview_tex_image = ImageTk.PhotoImage(preview_image)
+        self.tex_canvas.delete("all")
+        self.tex_canvas.create_image(0, 0, anchor="nw", image=self.preview_tex_image)
+        if self.tex_rect_coords is not None:
+            px0, py0, px1, py1 = self.tex_rect_coords
+            self.tex_rect_id = self.tex_canvas.create_rectangle(
+                px0,
+                py0,
+                px1,
+                py1,
+                outline="cyan",
+                width=2,
+                tags=("texselrect",),
+            )
+        self.tex_canvas.config(scrollregion=self.tex_canvas.bbox("all"))
+        print("Generated preview for", self.tex_file)
 
     def clear_selection(self):
         self.clear_screenshot_selection()
@@ -470,8 +508,11 @@ class CLUTFinderApp:
         self.colour_set.clear()
         self.unique_colours_label.config(text="")
         self.matches_label.config(text="0 matching indexes")
+        self.busy_label.config(text="")
         self.matching_indexes = []
         self.set_matches_list([])
+        self._matching_task_id += 1
+        self._preview_task_id += 1
 
     def clear_screenshot_selection(self):
         if self.rect_id is not None:
@@ -491,72 +532,76 @@ class CLUTFinderApp:
         self.tex_moved = False
 
     def process_selected_colours(self):
-        # Fuzzy-matching of colour since screenshot isn't always accurate.
-        def is_colour_match(search_colour: ColourRGB, palette_colour: ColourRGBA):
-            difference = 3
-            r1, g1, b1 = search_colour
-            r2, g2, b2, _a = palette_colour
+        self._matching_task_id += 1
+        task_id = self._matching_task_id
+        selected_colours = set(self.colour_set)
 
-            match_r = (r1 - difference) < r2 < (r1 + difference)
-            match_g = (g1 - difference) < g2 < (g1 + difference)
-            match_b = (b1 - difference) < b2 < (b1 + difference)
-            return match_r and match_g and match_b
+        self.busy_label.config(text="Finding matching CLUTs...")
+        self.matches_label.config(text="Searching...")
+        self.set_matches_list([])
+        self.matching_indexes = []
 
-        # Counts the number of similar colours in selection
-        def count_fuzzy_clut_intersection(
-            palette: Palette, selected_colours: set[ColourRGB]
-        ) -> int:
-            matches = 0
+        def worker():
+            # Fuzzy-matching of colour since screenshot isn't always accurate.
+            def is_colour_match(search_colour: ColourRGB, palette_colour: ColourRGBA):
+                difference = 3
+                r1, g1, b1 = search_colour
+                r2, g2, b2, _a = palette_colour
 
-            for swatch_colour in palette:
-                for selected_colour in selected_colours:
-                    if is_colour_match(selected_colour, swatch_colour):
-                        matches += 1
+                match_r = (r1 - difference) < r2 < (r1 + difference)
+                match_g = (g1 - difference) < g2 < (g1 + difference)
+                match_b = (b1 - difference) < b2 < (b1 + difference)
+                return match_r and match_g and match_b
 
-            return matches
+            # Counts the number of similar colours in selection
+            def count_fuzzy_clut_intersection(
+                palette: Palette, selected_colours: set[ColourRGB]
+            ) -> int:
+                matches = 0
 
-        # [clut index, percentage of colour_set match]
-        found: list[tuple[int, float]] = []
+                for swatch_colour in palette:
+                    for selected_colour in selected_colours:
+                        if is_colour_match(selected_colour, swatch_colour):
+                            matches += 1
 
-        # print("colour_set", self.colour_set)
-        # print("palette", len(self.palette[32]))
-        for index, row in enumerate(self.clut):
-            match_count = count_fuzzy_clut_intersection(row, self.colour_set)
-            # print("index", index, "match", match_count)
+                return matches
 
-            # if index == 32:
-            #     from pprint import pprint
+            # [clut index, percentage of colour_set match]
+            found: list[tuple[int, float]] = []
+            for index, row in enumerate(self.clut):
+                match_count = count_fuzzy_clut_intersection(row, selected_colours)
+                if match_count:
+                    match_percent = (match_count / 16) * 100
+                    # more than 95% match is good. usually get over 100%
+                    if match_percent >= 75:
+                        found.append((index, match_percent))
 
-            #     pprint(
-            #         {
-            #             "index": index,
-            #             "row": row,
-            #             "match_count": match_count,
-            #             "colour_set": self.colour_set,
-            #         },
-            #         indent=2,
-            #     )
+            # SORT BY percent DESC
+            filtered = sorted(found, key=lambda x: x[1], reverse=True)
+            unique_count = len(selected_colours)
 
-            if match_count:
-                match_percent = (match_count / 16) * 100
+            self.root.after(
+                0,
+                lambda: self._on_matching_done(task_id, filtered, unique_count),
+            )
 
-                # more than 95% match is good. usually get over 100%
-                if match_percent >= 75:
-                    found.append((index, match_percent))
+        threading.Thread(target=worker, daemon=True).start()
 
-        # SORT BY percent DESC
-        filtered = sorted(
-            [result for result in found],
-            key=lambda x: x[1],
-            reverse=True,
-        )
+    def _on_matching_done(
+        self,
+        task_id: int,
+        filtered: list[tuple[int, float]],
+        unique_count: int,
+    ):
+        if task_id != self._matching_task_id:
+            return
 
-        self.unique_colours_label.config(text=f"Unique colors: {len(self.colour_set)}")
+        self.unique_colours_label.config(text=f"Unique colors: {unique_count}")
         self.matches_label.config(text=f"{len(filtered)} matching indexes")
+        self.busy_label.config(text="")
 
         self.matching_indexes = filtered
         self.set_matches_list(filtered)
-        # Update preview if needed
         self.preview_tex()
 
     def set_matches_list(self, results: list[tuple[int, float]]):
