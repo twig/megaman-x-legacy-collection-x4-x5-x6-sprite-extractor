@@ -266,7 +266,8 @@ class CLUTFinderApp:
 
         print(
             f"Selected screenshot grid {grid_x0},{grid_y0} to {grid_x1},{grid_y1} "
-            f"-> pixels {px0},{py0} to {px1},{py1}"
+            f"-> pixels {px0},{py0} to {px1},{py1}",
+            flush=True,
         )
 
         self.colour_set = set()
@@ -343,7 +344,8 @@ class CLUTFinderApp:
 
         print(
             f"Selected TEX grid {grid_x0},{grid_y0} to {grid_x1},{grid_y1} "
-            f"-> pixels {px0},{py0} to {px1},{py1}"
+            f"-> pixels {px0},{py0} to {px1},{py1}",
+            flush=True,
         )
 
     def open_screenshot(self):
@@ -481,7 +483,7 @@ class CLUTFinderApp:
             return
 
         if not preview_image:
-            print("Unable to preview", self.tex_file)
+            print("Unable to preview", self.tex_file, flush=True)
             return
 
         self.tex_w, self.tex_h = preview_image.size
@@ -500,7 +502,7 @@ class CLUTFinderApp:
                 tags=("texselrect",),
             )
         self.tex_canvas.config(scrollregion=self.tex_canvas.bbox("all"))
-        print("Generated preview for", self.tex_file)
+        print("Generated preview for", self.tex_file, flush=True)
 
     def clear_selection(self):
         self.clear_screenshot_selection()
@@ -642,13 +644,13 @@ def main():
     try:
         img = Image.open(screenshot_file)
     except Exception as e:
-        print(f"Failed to open image: {e}")
+        print(f"Failed to open image: {e}", flush=True)
         sys.exit(1)
 
     try:
         palette = load_col_palettes(palette_file)
     except Exception as e:
-        print(f"Failed to open palette: {e}")
+        print(f"Failed to open palette: {e}", flush=True)
         sys.exit(1)
 
     root = tk.Tk()
