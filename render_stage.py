@@ -64,6 +64,7 @@ from utils.palette import load_col_palettes
 # ── Paths ─────────────────────────────────────────────────────────────────────
 EXE_PATH = Path("RXC2.exe")
 COL_PATH = Path("PC/X5/col/stage/col00_0x.col")  # default for all stages (unresolved per-stage)
+ANIM_COL_PATH = Path("PC/X5/col/stage/st0_0.col")  # animated-tile palette (flag=0x39, e.g. crystals)
 
 # ── STAGE_LAYOUT ──────────────────────────────────────────────────────────────
 # Maps OMP stem → (exe_file_offset, width_screens, height_screens)
@@ -236,7 +237,16 @@ def main() -> None:
     col = load_col_palettes(COL_PATH)
     print(f"  {COL_PATH.name}  ({type(col).__name__})")
 
+    # animated-tile palette: flag=0x39 tiles (crystals/energy orbs) use st0_0.col
+    # with abs_clut=col (no +64 offset).  In a combined render these tiles are
+    # typically invisible in the foreground because the background layer shows
+    # through.  We still load the palette so the catalog render shows them.
+    anim_col = load_col_palettes(ANIM_COL_PATH)
+    print(f"  {ANIM_COL_PATH.name}  ({len(anim_col)//16} CLUTs, animated tiles)")
+
     flags_to_palette = {0x00: col, 0x38: col, 0x39: col, 0x3B: col}
+    # Note: flag=0x39 uses col00_0x.col (same as 0x00/0x38) with abs_clut=col+64.
+    # Sky-fill crystal tiles (OCL index 1, col==0) are suppressed inside omp.py.
 
     # ── Catalog render (always) ───────────────────────────────────────────────
     print()

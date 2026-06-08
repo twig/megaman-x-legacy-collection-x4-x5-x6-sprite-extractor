@@ -563,11 +563,14 @@ def render_omp(
             if palette is None:
                 continue  # no palette registered for this flag variant
 
+            # flag=0x39, col=0: sky-fill crystal placeholder tile — transparent in
+            # the foreground pass (the background layer is meant to show through).
+            if entry.flags == 0x39 and entry.col == 0:
+                continue
+
             raw_tile = _resolve_tile(entry)
             if raw_tile is None:
                 continue  # tile not found in TEX
-            # 8bpp formula: clut_base = byte1 (col) + 64
-            # byte2 (clut_base field) encodes cordX/cordY tile coords, not CLUT
             rgba_pixels = _apply_palette_to_tile(raw_tile, entry.col + 64, palette)
 
             tile_img = Image.new("RGBA", (tile_size, tile_size))
@@ -665,6 +668,11 @@ def render_level(
                     entry = ocl_entries[ocl_idx]
                     palette = flags_to_palette.get(entry.flags)
                     if palette is None:
+                        continue
+
+                    # flag=0x39, col=0: sky-fill crystal placeholder — transparent in
+                    # the foreground pass (background layer shows through).
+                    if entry.flags == 0x39 and entry.col == 0:
                         continue
 
                     raw_tile = _resolve_tile(entry)
