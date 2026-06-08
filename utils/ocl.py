@@ -17,10 +17,14 @@
 #   0x000C   N×4 B   Entries (one per tile slot):
 #
 #   Per-entry byte layout (confirmed):
-#     byte 0 – flags:   rendering group / variant selector
-#                         0x00 = standard stage tile
-#                         0x38 = alternate/hit-flash palette variant
-#                         0x39 = animated palette group
+#     byte 0 – tile_type:  collision / behaviour type (X4 editor: "col" / collisionType)
+#                           Bits [5:0] = collision type (0–63); bits [7:6] always 0.
+#                           Values observed: 0x00–0x3F across X4/X5/X6.
+#                           Three values carry palette-variant meaning in X5:
+#                             0x00–0x37, 0x3A, 0x3C–0x3F = standard tileset palette
+#                             0x38 = alt/hit-flash palette variant (same col file)
+#                             0x39 = animated cycling palette (st0_0.col)
+#                             0x3B = alt-area tileset palette (col00_0z.col)
 #     byte 1 – col:     palette column; abs_clut = col + 64  (confirmed)
 #     byte 2 – (named 'clut_base', legacy misnomer):
 #                       TEX tile position encoding —
@@ -80,6 +84,7 @@
 
 import struct
 from dataclasses import dataclass
+from enum import IntEnum
 from pathlib import Path
 
 OCL_MAGIC = b"OCL\x00"
@@ -87,12 +92,28 @@ OCL_HEADER_SIZE = 12  # magic(4) + version(4) + entry_count(4)
 OCL_ENTRY_SIZE = 4
 
 
+class OclPaletteGroup(IntEnum):
+    """
+    Palette variant group derived from an OCL entry's tile_type byte.
+
+    In X4/X5/X6, byte 0 of each OCL entry is the tile collision/behaviour type
+    (the X4 editor labels it "col" and extracts it as ``collisionType = val & 0x3F``
+    in Draw16xTile).  Only three tile_type values select a different palette source
+    in X5; all other collision types use STANDARD.
+
+    Use OclEntry.palette_group() to map an arbitrary tile_type to one of these.
+    """
+    STANDARD          = 0x00  # standard tileset (col00_0x.col)
+    ALT_PALETTE       = 0x38  # alt/hit-flash variant — same COL file, kept distinct
+    ANIMATED_CRYSTAL  = 0x39  # animated cycling palette (st0_0.col in X5)
+    ALT_AREA          = 0x3B  # alt-area tileset (col00_0z.col in X5)
+
+
 @dataclass
 class OclEntry:
-    flags: int      # byte 0: rendering group / variant selector
-                    #   0x00 = standard stage tile
-                    #   0x38 = alternate/hit-flash palette variant
-                    #   0x39 = animated palette group
+    tile_type: int  # byte 0: collision / behaviour type (X4 editor: "col", Draw16xTile: collisionType)
+                    #   bits [5:0] = collision type; bits [7:6] always 0.
+                    #   Three values carry X5 palette-variant meaning — see OclPaletteGroup.
     col: int        # byte 1: palette column; abs_clut = col + 64  (confirmed)
     clut_base: int  # byte 2: TEX tile coords (legacy field name — NOT a CLUT index)
                     #   cordX = clut_base & 0x0F
@@ -106,6 +127,19 @@ class OclEntry:
         Formula confirmed against omp-to-expected-tiles.csv: abs_clut = col + 64.
         """
         return self.col + 64
+
+    def palette_group(self) -> OclPaletteGroup:
+        """
+        Return the OclPaletteGroup for this entry's tile_type.
+
+        All tile_type values not explicitly listed in OclPaletteGroup map to
+        STANDARD.  This ensures every tile is rendered rather than silently
+        dropped when an unregistered collision type is encountered.
+        """
+        try:
+            return OclPaletteGroup(self.tile_type)
+        except ValueError:
+            return OclPaletteGroup.STANDARD
 
     def absolute_clut(self, relative_clut: int = 0) -> int:
         """
@@ -142,7 +176,7 @@ def load_ocl(ocl_path: Path) -> list[OclEntry]:
     for i in range(entry_count):
         offset = OCL_HEADER_SIZE + i * OCL_ENTRY_SIZE
         flags, col, clut_base, pad = data[offset : offset + OCL_ENTRY_SIZE]
-        entries.append(OclEntry(flags=flags, col=col, clut_base=clut_base, pad=pad))
+        entries.append(OclEntry(tile_type=flags, col=col, clut_base=clut_base, pad=pad))
 
     return entries
 

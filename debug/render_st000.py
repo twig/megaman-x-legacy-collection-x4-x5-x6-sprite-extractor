@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset
-from utils.ocl import load_ocl
+from utils.ocl import load_ocl, OclPaletteGroup
 from utils.tex import load_tex
 from utils.palette import load_col_palettes
 
@@ -56,7 +56,12 @@ for (sx, sy), expected, label in checks:
 
 print()
 print("Rendering full level (foreground layer)...")
-flags_to_palette = {0x00: col, 0x38: col, 0x39: col, 0x3b: col}
+flags_to_palette = {
+    OclPaletteGroup.STANDARD:         col,
+    OclPaletteGroup.ALT_PALETTE:      col,
+    OclPaletteGroup.ANIMATED_CRYSTAL: col,
+    OclPaletteGroup.ALT_AREA:         col,
+}
 img = render_level(
     omp,
     layout,

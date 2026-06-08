@@ -75,12 +75,12 @@
 #               gy = (page // 8) * 256 + cordY * 16
 #
 #   OCL flags → COL file mapping (partially confirmed, needs visual verification):
-#     0x00  col00_0x.col   standard stage tileset
-#     0x39  st0_0.col      animated crystal cycling palette
-#     0x3b  unknown        possibly col00_0z.col (alt area)
-#     0x38  col00_0x.col   variant / hit-flash palette
-#   The mapping is passed in as flags_to_palette: dict[int, Palette] so this
-#   module stays reusable across stages.
+#     OclPaletteGroup.STANDARD          col00_0x.col  standard + hit-flash (0x00, 0x38, and any
+#                                                        unregistered collision type)
+#     OclPaletteGroup.ANIMATED_CRYSTAL   st0_0.col     animated cycling palette (0x39)
+#     OclPaletteGroup.ALT_AREA           col00_0z.col  alt-area tileset (0x3B)
+#   The mapping is passed in as flags_to_palette: dict[OclPaletteGroup, Palette] so
+#   this module stays reusable across stages.
 #
 # ============================================================
 # Layer model
@@ -101,7 +101,7 @@
 #   2. Full layout table — FULLY CONFIRMED for st000 (see LayoutTable.from_exe).
 #      Extracted directly from RXC2.exe (Mega Man X Legacy Collection 2).
 #
-#   3. OCL flags → COL file mapping — unverified for flag values 0x39, 0x3b.
+#   3. OCL tile_type → COL file mapping — see OclPaletteGroup in utils/ocl.py.
 #      Pass the correct flags_to_palette dict from the caller.
 #
 #   4. Graphics pipeline (TEX pixel extraction, palette application) — assumed
@@ -131,14 +131,14 @@ img = render_level(
     raw_pixels=tex["raw_image"],
     tex_width=tex["width"],
     ocl_entries=ocl,
-    flags_to_palette={0x00: col, 0x38: col},
+    flags_to_palette={OclPaletteGroup.STANDARD: col, OclPaletteGroup.ANIMATED_CRYSTAL: col, OclPaletteGroup.ALT_AREA: col},
 )
 img.save("st000_level.png")
 
 # --- Debug: dump raw OMP screen catalog (no layout needed) ---
 dbg = render_omp(
     omp, tex["raw_image"], tex["width"], ocl,
-    flags_to_palette={0x00: col, 0x38: col},
+    flags_to_palette={OclPaletteGroup.STANDARD: col, OclPaletteGroup.ANIMATED_CRYSTAL: col, OclPaletteGroup.ALT_AREA: col},
     preset=LayerPreset.MAIN,
 )
 dbg.save("st000_catalog.png")
@@ -153,7 +153,7 @@ from pathlib import Path
 from PIL import Image
 from PIL.Image import Image as PILImage
 
-from utils.ocl import OclEntry
+from utils.ocl import OclEntry, OclPaletteGroup
 from utils.types import ColourRGBA, Palette, TexData
 
 OMP_MAGIC = b"OMP\x00"
@@ -460,7 +460,7 @@ def render_omp(
     tex: TexData,
     # tex_fg: TexData,
     tex_bg: TexData,
-    flags_to_palette: dict[int, Palette],
+    flags_to_palette: dict[OclPaletteGroup, Palette],
     preset: LayerPreset = LayerPreset.MAIN,
     row_start: int = 0,
     row_end: int | None = None,
@@ -478,7 +478,9 @@ def render_omp(
     tex_width:         TexData["width"] from the stage tileset TEX
     fallback_tilesets: optional list of (raw_pixels, tex_width) pairs (unused currently)
     ocl_entries:       list of OclEntry from load_ocl() for this stage
-    flags_to_palette:  maps OCL entry flags byte → Palette (loaded COL file).
+    flags_to_palette:  maps OclPaletteGroup → Palette. OclEntry.palette_group() maps
+                       any tile_type to one of the named groups; unregistered collision
+                       types fall back to STANDARD so no tile is silently dropped.
     row_start:         first screen_id to render (inclusive). Ignored when preset != MAIN.
     row_end:           one-past-last screen_id. None = layer.n_screens.
                        Ignored when preset != MAIN.
@@ -559,13 +561,16 @@ def render_omp(
                 continue  # out of range — skip silently
 
             entry = ocl_entries[tile_id]
-            palette = flags_to_palette.get(entry.flags)
+            palette = flags_to_palette.get(
+                entry.palette_group(),
+                flags_to_palette.get(OclPaletteGroup.STANDARD),
+            )
             if palette is None:
-                continue  # no palette registered for this flag variant
+                continue  # no palette registered at all — skip
 
-            # flag=0x39, col=0: sky-fill crystal placeholder tile — transparent in
+            # tile_type=0x39, col=0: sky-fill crystal placeholder — transparent in
             # the foreground pass (the background layer is meant to show through).
-            if entry.flags == 0x39 and entry.col == 0:
+            if entry.tile_type == 0x39 and entry.col == 0:
                 continue
 
             raw_tile = _resolve_tile(entry)
@@ -595,7 +600,7 @@ def render_level(
     tex: TexData,
     tex_bg: TexData,
     # tex_fg: TexData,
-    flags_to_palette: dict[int, Palette],
+    flags_to_palette: dict[OclPaletteGroup, Palette],
     tile_size: int = TILE_SIZE,
 ) -> PILImage:
     """
@@ -666,13 +671,16 @@ def render_level(
                         continue
 
                     entry = ocl_entries[ocl_idx]
-                    palette = flags_to_palette.get(entry.flags)
+                    palette = flags_to_palette.get(
+                        entry.palette_group(),
+                        flags_to_palette.get(OclPaletteGroup.STANDARD),
+                    )
                     if palette is None:
-                        continue
+                        continue  # no palette registered at all — skip
 
-                    # flag=0x39, col=0: sky-fill crystal placeholder — transparent in
+                    # tile_type=0x39, col=0: sky-fill crystal placeholder — transparent in
                     # the foreground pass (background layer shows through).
-                    if entry.flags == 0x39 and entry.col == 0:
+                    if entry.tile_type == 0x39 and entry.col == 0:
                         continue
 
                     raw_tile = _resolve_tile(entry)

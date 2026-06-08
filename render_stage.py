@@ -57,7 +57,7 @@ import sys
 from pathlib import Path
 
 from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset
-from utils.ocl import load_ocl
+from utils.ocl import load_ocl, OclPaletteGroup
 from utils.tex import load_tex
 from utils.palette import load_col_palettes
 
@@ -244,9 +244,14 @@ def main() -> None:
     anim_col = load_col_palettes(ANIM_COL_PATH)
     print(f"  {ANIM_COL_PATH.name}  ({len(anim_col)//16} CLUTs, animated tiles)")
 
-    flags_to_palette = {0x00: col, 0x38: col, 0x39: col, 0x3B: col}
-    # Note: flag=0x39 uses col00_0x.col (same as 0x00/0x38) with abs_clut=col+64.
-    # Sky-fill crystal tiles (OCL index 1, col==0) are suppressed inside omp.py.
+    flags_to_palette = {
+        OclPaletteGroup.STANDARD:         col,
+        OclPaletteGroup.ALT_PALETTE:      col,
+        OclPaletteGroup.ANIMATED_CRYSTAL: col,
+        OclPaletteGroup.ALT_AREA:         col,
+    }
+    # OclEntry.palette_group() maps any unregistered collision type to STANDARD,
+    # so all tiles are rendered even if their tile_type is not listed above.
 
     # ── Catalog render (always) ───────────────────────────────────────────────
     print()
