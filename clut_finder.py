@@ -28,6 +28,8 @@ from extract_tex_to_png import (
 
 
 class CLUTFinderApp:
+    GRID_SIZE = 16
+
     def __init__(
         self, root: tk.Tk, screenshot: PILImage, palette: Palette, palette_file: Path
     ):
@@ -40,7 +42,14 @@ class CLUTFinderApp:
         self.photo = ImageTk.PhotoImage(self.image)
         self.w, self.h = self.image.size
         self.tex_file: Path | None = None
+        self.tex_w = 0
+        self.tex_h = 0
         self.matching_indexes: list[tuple[int, float]] = []
+        self.tex_start_x = None
+        self.tex_start_y = None
+        self.tex_rect_id = None
+        self.tex_rect_coords: tuple[int, int, int, int] | None = None
+        self.tex_moved = False
 
         # menu bar
         menubar = tk.Menu(root)
@@ -144,72 +153,192 @@ class CLUTFinderApp:
         self.canvas.bind("<ButtonPress-1>", self.on_button_press)
         self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_button_release)
+        self.tex_canvas.bind("<ButtonPress-1>", self.on_tex_button_press)
+        self.tex_canvas.bind("<B1-Motion>", self.on_tex_mouse_drag)
+        self.tex_canvas.bind("<ButtonRelease-1>", self.on_tex_button_release)
+
+    def snap_to_grid(self, value: int) -> int:
+        return (value // self.GRID_SIZE) * self.GRID_SIZE
+
+    def _normalize_grid_coords(
+        self,
+        x0: int,
+        y0: int,
+        x1: int,
+        y1: int,
+        max_w: int,
+        max_h: int,
+    ) -> tuple[int, int, int, int, int, int, int, int]:
+        x0 = max(0, min(max_w - 1, x0))
+        x1 = max(0, min(max_w - 1, x1))
+        y0 = max(0, min(max_h - 1, y0))
+        y1 = max(0, min(max_h - 1, y1))
+
+        grid_x0 = x0 // self.GRID_SIZE
+        grid_x1 = x1 // self.GRID_SIZE
+        grid_y0 = y0 // self.GRID_SIZE
+        grid_y1 = y1 // self.GRID_SIZE
+
+        if grid_x1 < grid_x0:
+            grid_x0, grid_x1 = grid_x1, grid_x0
+        if grid_y1 < grid_y0:
+            grid_y0, grid_y1 = grid_y1, grid_y0
+
+        pixel_x0 = grid_x0 * self.GRID_SIZE
+        pixel_y0 = grid_y0 * self.GRID_SIZE
+        pixel_x1 = min(max_w - 1, ((grid_x1 + 1) * self.GRID_SIZE) - 1)
+        pixel_y1 = min(max_h - 1, ((grid_y1 + 1) * self.GRID_SIZE) - 1)
+
+        return (
+            grid_x0,
+            grid_y0,
+            grid_x1,
+            grid_y1,
+            pixel_x0,
+            pixel_y0,
+            pixel_x1,
+            pixel_y1,
+        )
 
     def on_button_press(self, event):
-        self.start_x = int(self.canvas.canvasx(event.x))
-        self.start_y = int(self.canvas.canvasy(event.y))
+        raw_x = int(self.canvas.canvasx(event.x))
+        raw_y = int(self.canvas.canvasy(event.y))
+        self.start_x = self.snap_to_grid(raw_x)
+        self.start_y = self.snap_to_grid(raw_y)
+        self.start_x = max(0, min(self.w - 1, self.start_x))
+        self.start_y = max(0, min(self.h - 1, self.start_y))
         self.moved = False
 
     def on_mouse_drag(self, event):
-        x = max(0, min(self.w - 1, int(self.canvas.canvasx(event.x))))
-        y = max(0, min(self.h - 1, int(self.canvas.canvasy(event.y))))
-        self.moved = True
-
-        # For some reason we don't have the data we need
-        if not self.start_x or not self.start_y:
+        if self.start_x is None or self.start_y is None:
             return
 
-        # update rectangle
+        x = self.snap_to_grid(int(self.canvas.canvasx(event.x)))
+        y = self.snap_to_grid(int(self.canvas.canvasy(event.y)))
+        x = max(0, min(self.w - 1, x))
+        y = max(0, min(self.h - 1, y))
+        self.moved = True
+
+        grid_x0, grid_y0, grid_x1, grid_y1, px0, py0, px1, py1 = self._normalize_grid_coords(
+            self.start_x, self.start_y, x, y, self.w, self.h
+        )
+
         if self.rect_id is None:
             self.rect_id = self.canvas.create_rectangle(
-                self.start_x,
-                self.start_y,
-                x,
-                y,
+                px0,
+                py0,
+                px1,
+                py1,
                 outline="red",
                 width=2,
                 tags=("selrect",),
             )
         else:
-            self.canvas.coords(self.rect_id, self.start_x, self.start_y, x, y)
+            self.canvas.coords(self.rect_id, px0, py0, px1, py1)
 
     def on_button_release(self, event):
-        end_x = max(0, min(self.w - 1, int(self.canvas.canvasx(event.x))))
-        end_y = max(0, min(self.h - 1, int(self.canvas.canvasy(event.y))))
+        if self.start_x is None or self.start_y is None:
+            return
 
-        # treat as click: clear selection if exists
+        end_x = self.snap_to_grid(int(self.canvas.canvasx(event.x)))
+        end_y = self.snap_to_grid(int(self.canvas.canvasy(event.y)))
+        end_x = max(0, min(self.w - 1, end_x))
+        end_y = max(0, min(self.h - 1, end_y))
+
+        # treat as click: clear screenshot selection if exists
         if not self.moved:
             if self.rect_id is not None:
-                self.clear_selection()
+                self.clear_screenshot_selection()
             return
 
-        # For some reason we don't have the data we need
-        if not self.start_x or not self.start_y:
-            return
+        grid_x0, grid_y0, grid_x1, grid_y1, px0, py0, px1, py1 = self._normalize_grid_coords(
+            self.start_x, self.start_y, end_x, end_y, self.w, self.h
+        )
 
-        # normalize bbox
-        x0 = min(self.start_x, end_x)
-        x1 = max(self.start_x, end_x)
-        y0 = min(self.start_y, end_y)
-        y1 = max(self.start_y, end_y)
+        if self.rect_id is not None:
+            self.canvas.coords(self.rect_id, px0, py0, px1, py1)
 
-        # ensure coords inside image
-        x0 = max(0, min(self.w - 1, x0))
-        x1 = max(0, min(self.w - 1, x1))
-        y0 = max(0, min(self.h - 1, y0))
-        y1 = max(0, min(self.h - 1, y1))
+        print(
+            f"Selected screenshot grid {grid_x0},{grid_y0} to {grid_x1},{grid_y1} "
+            f"-> pixels {px0},{py0} to {px1},{py1}"
+        )
 
-        # sample pixels in bbox
         self.colour_set = set()
         pixels = self.image.load()
 
-        for yy in range(y0, y1 + 1):
-            for xx in range(x0, x1 + 1):
-                # it's ok pixels is tuple, not float
+        for yy in range(py0, py1 + 1):
+            for xx in range(px0, px1 + 1):
                 r, g, b = pixels[xx, yy]  # type: ignore
                 self.colour_set.add((r, g, b))
 
         self.process_selected_colours()
+
+    def on_tex_button_press(self, event):
+        if self.tex_w == 0 or self.tex_h == 0:
+            return
+
+        raw_x = int(self.tex_canvas.canvasx(event.x))
+        raw_y = int(self.tex_canvas.canvasy(event.y))
+        self.tex_start_x = self.snap_to_grid(raw_x)
+        self.tex_start_y = self.snap_to_grid(raw_y)
+        self.tex_start_x = max(0, min(self.tex_w - 1, self.tex_start_x))
+        self.tex_start_y = max(0, min(self.tex_h - 1, self.tex_start_y))
+        self.tex_moved = False
+
+    def on_tex_mouse_drag(self, event):
+        if self.tex_start_x is None or self.tex_start_y is None:
+            return
+
+        x = self.snap_to_grid(int(self.tex_canvas.canvasx(event.x)))
+        y = self.snap_to_grid(int(self.tex_canvas.canvasy(event.y)))
+        x = max(0, min(self.tex_w - 1, x))
+        y = max(0, min(self.tex_h - 1, y))
+        self.tex_moved = True
+
+        grid_x0, grid_y0, grid_x1, grid_y1, px0, py0, px1, py1 = self._normalize_grid_coords(
+            self.tex_start_x, self.tex_start_y, x, y, self.tex_w, self.tex_h
+        )
+
+        self.tex_rect_coords = (px0, py0, px1, py1)
+        if self.tex_rect_id is None:
+            self.tex_rect_id = self.tex_canvas.create_rectangle(
+                px0,
+                py0,
+                px1,
+                py1,
+                outline="cyan",
+                width=2,
+                tags=("texselrect",),
+            )
+        else:
+            self.tex_canvas.coords(self.tex_rect_id, px0, py0, px1, py1)
+
+    def on_tex_button_release(self, event):
+        if self.tex_start_x is None or self.tex_start_y is None:
+            return
+
+        end_x = self.snap_to_grid(int(self.tex_canvas.canvasx(event.x)))
+        end_y = self.snap_to_grid(int(self.tex_canvas.canvasy(event.y)))
+        end_x = max(0, min(self.tex_w - 1, end_x))
+        end_y = max(0, min(self.tex_h - 1, end_y))
+
+        if not self.tex_moved:
+            if self.tex_rect_id is not None:
+                self.clear_tex_selection()
+            return
+
+        grid_x0, grid_y0, grid_x1, grid_y1, px0, py0, px1, py1 = self._normalize_grid_coords(
+            self.tex_start_x, self.tex_start_y, end_x, end_y, self.tex_w, self.tex_h
+        )
+
+        self.tex_rect_coords = (px0, py0, px1, py1)
+        if self.tex_rect_id is not None:
+            self.tex_canvas.coords(self.tex_rect_id, px0, py0, px1, py1)
+
+        print(
+            f"Selected TEX grid {grid_x0},{grid_y0} to {grid_x1},{grid_y1} "
+            f"-> pixels {px0},{py0} to {px1},{py1}"
+        )
 
     def open_screenshot(self):
         path = filedialog.askopenfilename(
@@ -313,25 +442,53 @@ class CLUTFinderApp:
             #     f"test-{self.tex_file.stem}-col-{self.palette_file.stem}-clut-{clut_index}.png"
             # )
 
+            self.tex_w, self.tex_h = preview_image.size
             self.preview_tex_image = ImageTk.PhotoImage(preview_image)
             self.tex_canvas.delete("all")
             self.tex_canvas.create_image(
                 0, 0, anchor="nw", image=self.preview_tex_image
             )
+            if self.tex_rect_coords is not None:
+                px0, py0, px1, py1 = self.tex_rect_coords
+                self.tex_rect_id = self.tex_canvas.create_rectangle(
+                    px0,
+                    py0,
+                    px1,
+                    py1,
+                    outline="cyan",
+                    width=2,
+                    tags=("texselrect",),
+                )
             self.tex_canvas.config(scrollregion=self.tex_canvas.bbox("all"))
             print("Generated preview for", self.tex_file)
         else:
             print("Unable to preview", self.tex_file)
 
     def clear_selection(self):
-        if self.rect_id is not None:
-            self.canvas.delete(self.rect_id)
-            self.rect_id = None
+        self.clear_screenshot_selection()
+        self.clear_tex_selection()
         self.colour_set.clear()
         self.unique_colours_label.config(text="")
         self.matches_label.config(text="0 matching indexes")
         self.matching_indexes = []
         self.set_matches_list([])
+
+    def clear_screenshot_selection(self):
+        if self.rect_id is not None:
+            self.canvas.delete(self.rect_id)
+            self.rect_id = None
+        self.start_x = None
+        self.start_y = None
+        self.moved = False
+
+    def clear_tex_selection(self):
+        if self.tex_rect_id is not None:
+            self.tex_canvas.delete(self.tex_rect_id)
+            self.tex_rect_id = None
+        self.tex_rect_coords = None
+        self.tex_start_x = None
+        self.tex_start_y = None
+        self.tex_moved = False
 
     def process_selected_colours(self):
         # Fuzzy-matching of colour since screenshot isn't always accurate.
