@@ -64,7 +64,7 @@
 #   OMP u16 ocl_idx
 #       └─▶ OCL entry [ocl_idx]          (utils/ocl.py)
 #               col: int                 palette column; abs_clut = col + 64
-#               flags: int               palette source selector (see below)
+#               tile_type: int           collision/behaviour type — maps to OclPaletteGroup
 #               clut_base (byte2): encodes cordX (low nibble) + cordY (high nibble)
 #               pad (byte3): encodes page number (low nibble)
 #       └─▶ st000.tex raw_image          (utils/tex.py, FORMAT_8BPP = 0x12)
@@ -74,7 +74,7 @@
 #               gx = (page % 8) * 256 + cordX * 16
 #               gy = (page // 8) * 256 + cordY * 16
 #
-#   OCL flags → COL file mapping (partially confirmed, needs visual verification):
+#   OCL tile_type → palette group mapping (0x38/0x39 confirmed; 0x3B unverified):
 #     OclPaletteGroup.STANDARD          col00_0x.col  standard + hit-flash (0x00, 0x38, and any
 #                                                        unregistered collision type)
 #     OclPaletteGroup.ANIMATED_CRYSTAL   st0_0.col     animated cycling palette (0x39)
@@ -108,41 +108,6 @@
 #      correct in structure; visual verification still pending.
 #
 # ============================================================
-
-# Usage
-"""
-from pathlib import Path
-from utils.omp import load_omp, render_level, render_omp, LayoutTable, LayerPreset, load_layout_from_exe
-from utils.ocl import load_ocl
-from utils.tex import load_tex
-from utils.palette import load_col_palettes
-
-omp = load_omp(Path("PC/X5/stage/st000/st000.omp"))
-ocl = load_ocl(Path("PC/X5/stage/st000/st000.ocl"))
-tex = load_tex(Path("PC/X5/stage/st000/st000.tex"))
-col = load_col_palettes(Path("col00_0x.col"))
-
-# --- Correct level rendering with the confirmed full layout table ---
-layout = load_layout_from_exe(Path("debug/RXC2.exe"), layer=0)  # st000 foreground
-img = render_level(
-    omp, layout,
-    level_width_screens=15,
-    level_height_screens=24,
-    raw_pixels=tex["raw_image"],
-    tex_width=tex["width"],
-    ocl_entries=ocl,
-    flags_to_palette={OclPaletteGroup.STANDARD: col, OclPaletteGroup.ANIMATED_CRYSTAL: col, OclPaletteGroup.ALT_AREA: col},
-)
-img.save("st000_level.png")
-
-# --- Debug: dump raw OMP screen catalog (no layout needed) ---
-dbg = render_omp(
-    omp, tex["raw_image"], tex["width"], ocl,
-    flags_to_palette={OclPaletteGroup.STANDARD: col, OclPaletteGroup.ANIMATED_CRYSTAL: col, OclPaletteGroup.ALT_AREA: col},
-    preset=LayerPreset.MAIN,
-)
-dbg.save("st000_catalog.png")
-"""
 
 
 import struct

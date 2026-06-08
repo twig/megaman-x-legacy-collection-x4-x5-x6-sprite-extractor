@@ -48,7 +48,7 @@ table the level render is skipped and only the catalog is saved.
 == COL palette ==
 
   All stages currently use col00_0x.col as the default palette for all OCL
-  flag values.  Per-stage COL file selection is unresolved; col/stage/ contains
+  palette groups.  Per-stage COL file selection is unresolved; col/stage/ contains
   per-stage files (st0_0.col … stm_0.col) whose mapping to OMP stems is unknown.
 """
 
@@ -237,10 +237,10 @@ def main() -> None:
     col = load_col_palettes(COL_PATH)
     print(f"  {COL_PATH.name}  ({type(col).__name__})")
 
-    # animated-tile palette: flag=0x39 tiles (crystals/energy orbs) use st0_0.col
-    # with abs_clut=col (no +64 offset).  In a combined render these tiles are
-    # typically invisible in the foreground because the background layer shows
-    # through.  We still load the palette so the catalog render shows them.
+    # OclPaletteGroup.ANIMATED_CRYSTAL (tile_type=0x39) tiles use st0_0.col in X5,
+    # but all groups currently map to col00_0x.col pending per-stage COL resolution.
+    # In a combined render, crystal placeholder tiles (tile_type=0x39, col=0) are
+    # suppressed inside omp.py; the background layer shows through instead.
     anim_col = load_col_palettes(ANIM_COL_PATH)
     print(f"  {ANIM_COL_PATH.name}  ({len(anim_col)//16} CLUTs, animated tiles)")
 
