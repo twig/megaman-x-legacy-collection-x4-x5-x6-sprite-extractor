@@ -394,25 +394,24 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
     Return a frozenset of OCL indices that should read pixel data from tex_bg
     (the chr256 background tileset) rather than from tex.
 
-    Across all TEX pages 1–7 and all cordY rows, the OCL table contains pairs
-    of entry groups that share a texture coordinate (page, clut_base):
-      - Group 1 (first occurrence):  reads from tex.
-      - Group 2 (different col):     reads from tex_bg.
+    Across all TEX pages 1–7 and all cordY rows, the OCL table contains groups
+    of entries that share a texture coordinate (page, clut_base):
+      - First occurrence (any col):       reads from tex.
+      - Non-first, same col as first:     reads from tex (hit-flash 0x38 variants
+                                          share the base tile's pixel data and palette).
+      - Non-first, different col:         reads from tex_bg.
+      - Sole entry at its coordinate:     reads from tex_bg (tex is empty there;
+                                          both sheets have identical data in the
+                                          cases where tex is non-empty).
 
-    A group is "blocked" if it contains a non-first entry whose col matches the
-    first entry's col AND whose tile_type == 0x38 (hit-flash alt-palette variant).
-    Blocked groups are all-tex — including any later different-col entries.
-    Same-col duplicates with other tile_types (e.g. 0x00, 0x39) do not block.
-
-    Algorithm (three passes):
+    Algorithm (two passes):
       Pass 0: count occurrences per (page, clut_base) key.
-      Pass 1: identify (page, clut_base) groups that are blocked (have a
-              same-col, tile_type==0x38 non-first entry).
-      Pass 2: mark chr256 only for non-first entries in non-blocked groups
-              whose col differs from the first entry's col.
-              Also mark standalone entries (sole entry at their key, regardless
-              of tile_type) as chr256 — their pixel data lives in tex_bg rather
-              than tex (tex is empty at those coordinates).
+      Pass 1: record the first col seen per key.
+      Pass 2: mark chr256 for —
+                sole entries (key_count == 1), and
+                non-first entries whose col differs from the first entry's col.
+              Same-col non-first entries (including type==0x38 hit-flash) are left
+              in tex naturally because the col-equality guard excludes them.
 
     Pages ≥ 8 are handled separately via col==112 in _resolve_tile.
     """
@@ -425,9 +424,8 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
         key = (page, e.clut_base)
         key_count[key] = key_count.get(key, 0) + 1
 
-    # Pass 1: find first col per group and detect tt==0x38 same-col blocking dups
+    # Pass 1: record first col per group
     first_col: dict[tuple[int, int], int] = {}
-    blocked: set[tuple[int, int]] = set()
     for e in ocl_entries:
         page = e.pad & 0xF
         if page >= 8:
@@ -435,11 +433,8 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
         key = (page, e.clut_base)
         if key not in first_col:
             first_col[key] = e.col
-        elif e.col == first_col[key] and e.tile_type == 0x38:
-            blocked.add(key)
 
-    # Pass 2: mark chr256 for second+ entries with different col in clean groups.
-    # Also mark sole-entry type==0x38 entries (no base tile in tex) as chr256.
+    # Pass 2: mark chr256 for sole entries and non-first different-col entries
     seen: set[tuple[int, int]] = set()
     chr256: set[int] = set()
     for i, e in enumerate(ocl_entries):
@@ -447,15 +442,12 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
         if page >= 8:
             continue
         key = (page, e.clut_base)
-        # Standalone entry: sole occurrence at this coord, regardless of tile_type.
-        # Its pixel data is stored in tex_bg rather than tex (tex is empty at these
-        # coordinates).  Entries where both sheets have identical data are also safe
-        # to read from tex_bg.
+        # Sole entry: pixel data lives in tex_bg (tex is empty or identical)
         if key_count[key] == 1:
             chr256.add(i)
             continue
         if key in seen:
-            if key not in blocked and e.col != first_col[key]:
+            if e.col != first_col[key]:
                 chr256.add(i)
         else:
             seen.add(key)
