@@ -67,18 +67,43 @@
 #               tile_type: int           collision/behaviour type — maps to OclPaletteGroup
 #               clut_base (byte2): encodes cordX (low nibble) + cordY (high nibble)
 #               pad (byte3): encodes page number (low nibble)
-#       └─▶ st000.tex raw_image          (utils/tex.py, FORMAT_8BPP = 0x12)
+#       └─▶ TEX raw_image  (utils/tex.py, FORMAT_8BPP = 0x12)
 #               cordX = byte2 & 0xF
 #               cordY = (byte2 >> 4) & 0xF
 #               page  = byte3 & 0xF
 #               gx = (page % 8) * 256 + cordX * 16
 #               gy = (page // 8) * 256 + cordY * 16
 #
-#   OCL tile_type → palette group mapping (0x38/0x39 confirmed; 0x3B unverified):
-#     OclPaletteGroup.STANDARD          col00_0x.col  standard + hit-flash (0x00, 0x38, and any
-#                                                        unregistered collision type)
-#     OclPaletteGroup.ANIMATED_CRYSTAL   st0_0.col     animated cycling palette (0x39)
-#     OclPaletteGroup.ALT_AREA           col00_0z.col  alt-area tileset (0x3B)
+# ============================================================
+# TEX routing (tex vs tex_bg / chr256)
+# ============================================================
+#
+#   Each stage has two tile TEX files:
+#     stXXX.tex          — standard tileset (tex)
+#     stXXX_chr256.tex   — background/chr256 tileset (tex_bg)
+#
+#   The OCL table for pages 1–7 often contains duplicate entries that share
+#   the same texture coordinate (page, clut_base) but carry different col values:
+#     - First occurrence  → tex  (standard tileset)
+#     - Later occurrences with a different col → tex_bg (chr256 tileset)
+#
+#   Blocking rule: if any non-first entry at a coordinate has the same col as
+#   the first AND tile_type == 0x38 (hit-flash alt-palette variant), all entries
+#   at that coordinate belong to tex regardless of col.
+#   Same-col entries with other tile_types (0x00, 0x39, etc.) do NOT block.
+#
+#   _build_chr256_ocl_indices() computes the frozenset of OCL indices that
+#   should read from tex_bg.  Pages 8–15 use col==112 to route to tex_bg.
+#
+# ============================================================
+# OCL tile_type → palette group mapping
+# ============================================================
+#
+#   OclPaletteGroup.STANDARD          col00_0x.col  standard + hit-flash (0x00, 0x38, and any
+#                                                     unregistered collision type)
+#   OclPaletteGroup.ANIMATED_CRYSTAL  st0_0.col     animated cycling palette (0x39)
+#   OclPaletteGroup.ALT_AREA          col00_0z.col  alt-area tileset (0x3B — unverified)
+#
 #   The mapping is passed in as flags_to_palette: dict[OclPaletteGroup, Palette] so
 #   this module stays reusable across stages.
 #
@@ -104,8 +129,9 @@
 #   3. OCL tile_type → COL file mapping — see OclPaletteGroup in utils/ocl.py.
 #      Pass the correct flags_to_palette dict from the caller.
 #
-#   4. Graphics pipeline (TEX pixel extraction, palette application) — assumed
-#      correct in structure; visual verification still pending.
+#   4. TEX routing for pages 8–15: col==112 was previously confirmed for chr256
+#      routing; all other page 8–15 entries currently use tex.  This may be
+#      incomplete — further visual verification is needed.
 #
 # ============================================================
 
