@@ -410,9 +410,9 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
               same-col, tile_type==0x38 non-first entry).
       Pass 2: mark chr256 only for non-first entries in non-blocked groups
               whose col differs from the first entry's col.
-              Also mark standalone type==0x38 entries (sole entry at their
-              key, no base tile exists in tex) as chr256 — their pixel data
-              lives in tex_bg rather than tex.
+              Also mark standalone entries (sole entry at their key, regardless
+              of tile_type) as chr256 — their pixel data lives in tex_bg rather
+              than tex (tex is empty at those coordinates).
 
     Pages ≥ 8 are handled separately via col==112 in _resolve_tile.
     """
@@ -447,9 +447,11 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
         if page >= 8:
             continue
         key = (page, e.clut_base)
-        # Standalone hit-flash entry: only occurrence at this coord and type==0x38.
-        # Its pixel data is stored in tex_bg, not tex.
-        if key_count[key] == 1 and e.tile_type == 0x38:
+        # Standalone entry: sole occurrence at this coord, regardless of tile_type.
+        # Its pixel data is stored in tex_bg rather than tex (tex is empty at these
+        # coordinates).  Entries where both sheets have identical data are also safe
+        # to read from tex_bg.
+        if key_count[key] == 1:
             chr256.add(i)
             continue
         if key in seen:
