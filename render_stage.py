@@ -1,5 +1,5 @@
 """
-Generalised stage renderer for Mega Man X4, X5 and X6 (RXC2.exe, MMLC2 PC).
+Generalised stage renderer for Mega Man X4 (RXC1.exe, MMLC1 PC), X5 and X6 (RXC2.exe, MMLC2 PC).
 
 Usage:
     python render_stage.py <path/to/stXXX.omp>
@@ -54,6 +54,7 @@ table the level render is skipped and only the catalog is saved.
 
 import argparse
 import sys
+import csv
 from pathlib import Path
 
 from PIL import ImageDraw, ImageFont
@@ -64,10 +65,10 @@ from utils.tex import load_tex
 from utils.palette import load_col_palettes
 from utils.types import GameVersion
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
+# Paths
 EXE_PATH = Path("RXC2.exe")
 
-# ── STAGE_LAYOUT ──────────────────────────────────────────────────────────────
+# Stage layout
 # Maps OMP stem → (exe_file_offset, width_screens, height_screens)
 #
 # exe_file_offset : byte offset in RXC2.exe of the first layout byte (layer 0)
@@ -85,7 +86,7 @@ EXE_PATH = Path("RXC2.exe")
 STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     # ── Block 1 — CONFIRMED ──────────────────────────────────────────────────
     # st000 uses a dedicated second copy of the layout at 0x02EC2D4B.
-    # Verified by 4 anchor points from omp-to-expected-tiles.csv.
+    # Verified by 4 anchor points from omp-to-expected-tiles-x5.csv.
     "st000": (0x02EC2D4B, 15, 24),  # CONFIRMED — 4-anchor verified (Intro Stage)
 
     # Block 1 idx 0  (15×24): max(layer0) == 97  → st010 n_screens=98
@@ -211,6 +212,32 @@ def _layout_status(stem: str) -> str:
     return "UNKNOWN"
 
 
+def get_game_files(game_version: GameVersion, omp_path: Path):
+    omp_filename = omp_path.name
+    found_row = None
+
+    # headers: game, stage, col, col_animate, ocl, tex, tex256, texch3
+    with open('game-files.csv', 'r') as csvfile:
+        reader = csv.reader(csvfile)
+
+        for row in reader:
+            if row[0] == str(game_version) and str(row[1]).endswith(omp_filename):
+                found_row = row
+                break
+
+    if not found_row:
+        return None
+
+    [game, stage, col, col_animate, ocl, tex, tex256, texch3] = found_row
+
+    return [
+        Path(f".\\PC\\X{game_version}\\{ocl}"),
+        Path(f".\\PC\\X{game_version}\\{tex}"),
+        Path(f".\\PC\\X{game_version}\\{tex256}"),
+        Path(f".\\PC\\X{game_version}\\{col}"),
+        Path(f".\\PC\\X{game_version}\\{col_animate}")
+    ]
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Render a stage OMP to PNG (level + catalog)."
@@ -234,7 +261,7 @@ def main() -> None:
     if not omp_path.exists():
         sys.exit(f"ERROR: OMP file not found: {omp_path}")
 
-    stem = omp_path.stem
+    omp_stem = omp_path.stem
 
     # Validate magic
     raw_magic = omp_path.read_bytes()[:4]
@@ -245,45 +272,19 @@ def main() -> None:
 
     if 'X4' in str(omp_path):
         game_version = GameVersion.X4
-
-        # SCR00_00.omp / ST00_00.tex / SCR00_00.ocl / col0d_01_eng.col or col00_0X_eng.col
-        stage_dir = omp_path.parent
-        ocl_path = stage_dir.parent / 'cel' / f"{stem}.ocl"
-        tex_path = stage_dir.parent / 'dds' / f"{stem.replace('SCR', 'ST')}.tex"
-        tex_bg_path = tex_path.with_stem(f"{stem}_chr256")
-        # tex_fg_path = tex_bg_path # missing??? stage_dir.parent / "f{stem}_ch3" / "f{stem}_ch3.tex"
-
-        # TODO: make it work for X4
-        col_path = stage_dir.parent / "col" / f"{stem.replace('st', 'col')}_0x.tex" # TODO: figure out mapping
-        col_path_animated = stage_dir.parent.parent / "col" / "stage" / f"{stem}.col" # animated-tile palette (flag=0x39, e.g. glowing lights)
-
-    if 'X5' in str(omp_path):
+    elif 'X5' in str(omp_path):
         game_version = GameVersion.X5
-
-        stage_dir = omp_path.parent
-        ocl_path = stage_dir / f"{stem}.ocl"
-        tex_path = stage_dir / f"{stem}.tex"
-        # tex_fg_path = stage_dir.parent / f"{stem}_ch3" / f"{stem}_ch3.tex"
-        tex_bg_path = stage_dir.parent / f"{stem}_chr256" / f"{stem}_chr256.tex"
-
-        col_path = stage_dir.parent.parent / "col" / "stage" / "col00_0x.col" # TODO: figure out mapping
-        col_path_animated = stage_dir.parent.parent / "col" / "stage" / "st0_0.col" # animated-tile palette (flag=0x39, e.g. glowing lights)
-
     elif 'X6' in str(omp_path):
         game_version = GameVersion.X6
-
-        stage_dir = omp_path.parent
-        ocl_path = stage_dir.parent / 'cel' / f"{stem}.ocl"
-        tex_path = stage_dir.parent / 'dds' / f"{stem}.tex"
-        tex_bg_path = tex_path.with_stem(f"{stem}_chr256")
-        # tex_fg_path = tex_bg_path # missing??? stage_dir.parent / "f{stem}_ch3" / "f{stem}_ch3.tex"
-
-        # TODO: make it work for X6
-        col_path = stage_dir.parent / "col" / f"{stem.replace('st', 'col')}_0x.tex" # TODO: figure out mapping
-        col_path_animated = stage_dir.parent.parent / "col" / "stage" / stem / f"{stem}.col" # animated-tile palette (flag=0x39, e.g. glowing lights)
-
     else:
         sys.exit(f"ERROR: Cant determine which game the OMP is from")
+
+    game_files = get_game_files(game_version, omp_path)
+
+    if game_files is None:
+        sys.exit(f"ERROR: No file mapping for {omp_stem} in game-files.csv")
+
+    ocl_path, tex_path, tex_bg_path, col_path, col_path_animated = game_files
 
     for p in (ocl_path, tex_path, tex_bg_path):
         if not p.exists():
@@ -293,10 +294,10 @@ def main() -> None:
     if not col_path.exists():
         sys.exit(f"ERROR: COL palette not found at {col_path}")
 
-    status = _layout_status(stem)
-    layout_entry = STAGE_LAYOUT.get(stem)
+    status = _layout_status(omp_stem)
+    layout_entry = STAGE_LAYOUT.get(omp_stem)
 
-    print(f"Stage:  {stem}")
+    print(f"Stage:  {omp_stem}")
     print(f"OMP:    {omp_path}")
     print(f"OCL:    {ocl_path}")
     print(f"TEX:    {tex_path}")
@@ -314,7 +315,7 @@ def main() -> None:
         print("  (no layout — catalog only)")
     print()
 
-    # ── Load assets ───────────────────────────────────────────────────────────
+    # Load assets
     print("Loading OMP...")
     omp = load_omp(omp_path)
     print(f"  n_screens={omp.n_screens}")
@@ -349,7 +350,7 @@ def main() -> None:
     # OclEntry.palette_group() maps any unregistered collision type to STANDARD,
     # so all tiles are rendered even if their tile_type is not listed above.
 
-    # ── Catalog render (always) ───────────────────────────────────────────────
+    # Catalog render (always)
     print()
     print("Rendering OMP catalog...")
     catalog_img = render_omp(
@@ -363,11 +364,11 @@ def main() -> None:
     )
     if args.debug:
         _debug_overlay_catalog(catalog_img, omp.n_screens)
-    catalog_out = Path(f"{stem}_catalog.png")
+    catalog_out = Path(f"{omp_stem}_catalog.png")
     catalog_img.save(catalog_out)
     print(f"  Saved {catalog_out}  ({catalog_img.width}×{catalog_img.height} px)")
 
-    # ── Level render (when layout is known and not suppressed) ────────────────
+    # Level render (when layout is known and not suppressed)
     if layout_entry and not args.catalog_only:
         offset, w, h = layout_entry
 
@@ -378,7 +379,7 @@ def main() -> None:
         n_sy = len(layout.screens)
         print(f"  {n_sx} screens wide × {n_sy} screens tall")
         if status == "UNCONFIRMED":
-            print(f"  WARNING: layout offset is UNCONFIRMED for {stem}; visual result may be incorrect.")
+            print(f"  WARNING: layout offset is UNCONFIRMED for {omp_stem}; visual result may be incorrect.")
 
         print()
         print("Rendering full level...")
@@ -395,13 +396,13 @@ def main() -> None:
         )
         if args.debug:
             _debug_overlay_level(level_img, layout, n_sx, n_sy)
-        level_out = Path(f"{stem}_level.png")
+        level_out = Path(f"{omp_stem}_level.png")
         level_img.save(level_out)
         print(f"  Saved {level_out}  ({level_img.width}×{level_img.height} px)")
 
     elif not layout_entry:
         print()
-        print(f"  Skipping level render: no layout entry for '{stem}'.")
+        print(f"  Skipping level render: no layout entry for '{omp_stem}'.")
         print("  To add one, update STAGE_LAYOUT in render_stage.py.")
 
     print()
