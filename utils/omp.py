@@ -389,7 +389,12 @@ def load_layout_from_exe(
     return LayoutTable.from_bytes(layout_bytes, width, height, layer)
 
 
-def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
+def _build_chr256_ocl_indices(
+    ocl_entries: list[OclEntry],
+    tex: "TexData",
+    tex_bg: "TexData",
+    tile_size: int = TILE_SIZE,
+) -> frozenset[int]:
     """
     Return a frozenset of OCL indices that should read pixel data from tex_bg
     (the chr256 background tileset) rather than from tex.
@@ -400,21 +405,33 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
       - Non-first, same col as first:     reads from tex (hit-flash 0x38 variants
                                           share the base tile's pixel data and palette).
       - Non-first, different col:         reads from tex_bg.
-      - Sole entry at its coordinate:     reads from tex_bg (tex is empty there;
-                                          both sheets have identical data in the
-                                          cases where tex is non-empty).
+      - Sole entry at its coordinate,
+        tex empty at that coordinate:     reads from tex_bg (pixel data lives there
+                                          rather than in tex for this entry).
+      - Sole entry, tex has data:         reads from tex as normal.
 
     Algorithm (two passes):
       Pass 0: count occurrences per (page, clut_base) key.
       Pass 1: record the first col seen per key.
       Pass 2: mark chr256 for —
-                sole entries (key_count == 1), and
+                sole entries where tex is all-zero at the coordinate, and
                 non-first entries whose col differs from the first entry's col.
               Same-col non-first entries (including type==0x38 hit-flash) are left
               in tex naturally because the col-equality guard excludes them.
 
     Pages ≥ 8 are handled separately via col==112 in _resolve_tile.
     """
+    raw_tex  = tex["raw_image"];    w_tex = tex["width"]
+    raw_bg   = tex_bg["raw_image"]; w_bg  = tex_bg["width"]
+
+    def _tex_is_empty(raw: bytes, w: int, gx: int, gy: int) -> bool:
+        """Return True if all pixels in the 16×16 tile block are zero."""
+        return not any(
+            raw[(gy + dy) * w + gx + dx]
+            for dy in range(tile_size)
+            for dx in range(tile_size)
+        )
+
     # Pass 0: count occurrences per key so standalone entries can be detected
     key_count: dict[tuple[int, int], int] = {}
     for e in ocl_entries:
@@ -434,7 +451,7 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
         if key not in first_col:
             first_col[key] = e.col
 
-    # Pass 2: mark chr256 for sole entries and non-first different-col entries
+    # Pass 2: mark chr256 for sole entries with empty tex and non-first different-col entries
     seen: set[tuple[int, int]] = set()
     chr256: set[int] = set()
     for i, e in enumerate(ocl_entries):
@@ -442,9 +459,13 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
         if page >= 8:
             continue
         key = (page, e.clut_base)
-        # Sole entry: pixel data lives in tex_bg (tex is empty or identical)
         if key_count[key] == 1:
-            chr256.add(i)
+            # Sole entry: route to tex_bg only when tex is empty at this coordinate.
+            cordX = e.clut_base & 0xF; cordY = (e.clut_base >> 4) & 0xF
+            gx = (page % 8) * 256 + cordX * tile_size
+            gy = (page // 8) * 256 + cordY * tile_size
+            if _tex_is_empty(raw_tex, w_tex, gx, gy):
+                chr256.add(i)
             continue
         if key in seen:
             if e.col != first_col[key]:
@@ -561,7 +582,7 @@ def render_omp(
     canvas_w = layer.width * tile_size
     canvas_h = n_rows * tile_size
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-    chr256_indices = _build_chr256_ocl_indices(ocl_entries)
+    chr256_indices = _build_chr256_ocl_indices(ocl_entries, tex, tex_bg, tile_size)
 
     def _resolve_tile(entry: OclEntry, ocl_idx: int) -> list[int] | None:
         # OCL byte2 (stored as field 'clut_base'): encodes TEX tile coordinates
@@ -680,7 +701,7 @@ def render_level(
     canvas_w = level_width_screens * 16 * tile_size
     canvas_h = level_height_screens * 16 * tile_size
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-    chr256_indices = _build_chr256_ocl_indices(ocl_entries)
+    chr256_indices = _build_chr256_ocl_indices(ocl_entries, tex, tex_bg, tile_size)
 
     def _resolve_tile(entry: OclEntry, ocl_idx: int) -> list[int] | None:
         cordX = entry.clut_base & 0xF
