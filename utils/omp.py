@@ -404,14 +404,27 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
     Blocked groups are all-tex — including any later different-col entries.
     Same-col duplicates with other tile_types (e.g. 0x00, 0x39) do not block.
 
-    Algorithm (two passes):
+    Algorithm (three passes):
+      Pass 0: count occurrences per (page, clut_base) key.
       Pass 1: identify (page, clut_base) groups that are blocked (have a
               same-col, tile_type==0x38 non-first entry).
       Pass 2: mark chr256 only for non-first entries in non-blocked groups
               whose col differs from the first entry's col.
+              Also mark standalone type==0x38 entries (sole entry at their
+              key, no base tile exists in tex) as chr256 — their pixel data
+              lives in tex_bg rather than tex.
 
     Pages ≥ 8 are handled separately via col==112 in _resolve_tile.
     """
+    # Pass 0: count occurrences per key so standalone entries can be detected
+    key_count: dict[tuple[int, int], int] = {}
+    for e in ocl_entries:
+        page = e.pad & 0xF
+        if page >= 8:
+            continue
+        key = (page, e.clut_base)
+        key_count[key] = key_count.get(key, 0) + 1
+
     # Pass 1: find first col per group and detect tt==0x38 same-col blocking dups
     first_col: dict[tuple[int, int], int] = {}
     blocked: set[tuple[int, int]] = set()
@@ -425,7 +438,8 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
         elif e.col == first_col[key] and e.tile_type == 0x38:
             blocked.add(key)
 
-    # Pass 2: mark chr256 for second+ entries with different col in clean groups
+    # Pass 2: mark chr256 for second+ entries with different col in clean groups.
+    # Also mark sole-entry type==0x38 entries (no base tile in tex) as chr256.
     seen: set[tuple[int, int]] = set()
     chr256: set[int] = set()
     for i, e in enumerate(ocl_entries):
@@ -433,6 +447,11 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
         if page >= 8:
             continue
         key = (page, e.clut_base)
+        # Standalone hit-flash entry: only occurrence at this coord and type==0x38.
+        # Its pixel data is stored in tex_bg, not tex.
+        if key_count[key] == 1 and e.tile_type == 0x38:
+            chr256.add(i)
+            continue
         if key in seen:
             if key not in blocked and e.col != first_col[key]:
                 chr256.add(i)
