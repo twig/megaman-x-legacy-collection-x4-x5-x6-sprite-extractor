@@ -368,51 +368,50 @@ def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
     Return a frozenset of OCL indices that should read pixel data from tex_bg
     (the chr256 background tileset) rather than from tex.
 
-    At cordY==15 (the last tile row) of each TEX page 1–7, the OCL table
-    sometimes contains two groups of entries that share a texture coordinate:
+    Across all TEX pages 1–7 and all cordY rows, the OCL table contains pairs
+    of entry groups that share a texture coordinate (page, clut_base):
       - Group 1 (first occurrence):  reads from tex.
       - Group 2 (different col):     reads from tex_bg.
 
-    However, some coordinates have an additional entry whose col value matches
-    the first occurrence (a same-col duplicate, identified by tile_type==0x38).
-    When this happens, ALL entries at that coordinate belong to tex — including
-    any later entries with a different col.
+    A group is "blocked" if it contains a non-first entry whose col matches the
+    first entry's col AND whose tile_type == 0x38 (hit-flash alt-palette variant).
+    Blocked groups are all-tex — including any later different-col entries.
+    Same-col duplicates with other tile_types (e.g. 0x00, 0x39) do not block.
 
     Algorithm (two passes):
-      Pass 1: identify (page, clut_base) groups that contain any same-col
-              duplicate (i.e. a non-first entry whose col == first entry's col).
-      Pass 2: mark chr256 only for non-first entries whose group has NO
-              same-col duplicate AND whose col differs from the first entry's col.
+      Pass 1: identify (page, clut_base) groups that are blocked (have a
+              same-col, tile_type==0x38 non-first entry).
+      Pass 2: mark chr256 only for non-first entries in non-blocked groups
+              whose col differs from the first entry's col.
 
-    For page 0 both textures contain identical pixel data at cordY==15.
-    Pages ≥ 8 are handled separately via col==112.
+    Pages ≥ 8 are handled separately via col==112 in _resolve_tile.
     """
-    # Pass 1: find first col per group and detect same-col duplicates
+    # Pass 1: find first col per group and detect tt==0x38 same-col blocking dups
     first_col: dict[tuple[int, int], int] = {}
-    groups_with_same_col_dup: set[tuple[int, int]] = set()
+    blocked: set[tuple[int, int]] = set()
     for e in ocl_entries:
         page = e.pad & 0xF
-        cordY = (e.clut_base >> 4) & 0xF
-        if page < 8 and cordY == 15:
-            key = (page, e.clut_base)
-            if key not in first_col:
-                first_col[key] = e.col
-            elif e.col == first_col[key]:
-                groups_with_same_col_dup.add(key)
+        if page >= 8:
+            continue
+        key = (page, e.clut_base)
+        if key not in first_col:
+            first_col[key] = e.col
+        elif e.col == first_col[key] and e.tile_type == 0x38:
+            blocked.add(key)
 
     # Pass 2: mark chr256 for second+ entries with different col in clean groups
     seen: set[tuple[int, int]] = set()
     chr256: set[int] = set()
     for i, e in enumerate(ocl_entries):
         page = e.pad & 0xF
-        cordY = (e.clut_base >> 4) & 0xF
-        if page < 8 and cordY == 15:
-            key = (page, e.clut_base)
-            if key in seen:
-                if key not in groups_with_same_col_dup and e.col != first_col[key]:
-                    chr256.add(i)
-            else:
-                seen.add(key)
+        if page >= 8:
+            continue
+        key = (page, e.clut_base)
+        if key in seen:
+            if key not in blocked and e.col != first_col[key]:
+                chr256.add(i)
+        else:
+            seen.add(key)
     return frozenset(chr256)
 
 
