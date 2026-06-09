@@ -93,7 +93,7 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     "st010": (0x02D98548, 15, 24),  # CONFIRMED — block 1 idx 0, exact max match (Crescent Grizzly)
 
     # Block 1 idx 8  (5×29):  max(layer0) == 109 → st030/st160 n_screens=110
-    "st030": (0x02D98F7A,  5, 29),  # CONFIRMED — block 1 idx 8, exact max match (Tidal Whale)
+    "st030": (0x02D98F7A,  5, 29),  # CONFIRMED — block 1 idx 8, exact max match (WRONG: Tidal Whale)
     "st160": (0x02D98F7A,  5, 29),  # CONFIRMED — block 1 idx 8, shared layout with st030 (Zero Space 1: Origin)
 
     # Block 1 idx 10 (5×29):  max(layer0) == 164 → st061 n_screens=165
