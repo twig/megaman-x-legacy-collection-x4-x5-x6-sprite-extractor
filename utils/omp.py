@@ -626,9 +626,10 @@ def render_omp(
             if palette is None:
                 continue  # no palette registered at all — skip
 
-            # tile_type=0x39, col=0: sky-fill crystal placeholder — transparent in
-            # the foreground pass (the background layer is meant to show through).
-            if entry.tile_type == 0x39 and entry.col == 0:
+            # pad=0xFF is the OCL sentinel value for "no TEX data" — these slots
+            # (crystal sky-fill placeholders) are transparent in the foreground pass;
+            # the background layer is meant to show through.
+            if entry.pad == 0xFF:
                 continue
 
             raw_tile = _resolve_tile(entry, tile_id)
@@ -737,9 +738,10 @@ def render_level(
                     if palette is None:
                         continue  # no palette registered at all — skip
 
-                    # tile_type=0x39, col=0: sky-fill crystal placeholder — transparent in
-                    # the foreground pass (background layer shows through).
-                    if entry.tile_type == 0x39 and entry.col == 0:
+                    # pad=0xFF is the OCL sentinel value for "no TEX data" — these slots
+                    # (crystal sky-fill placeholders) are transparent in the foreground pass;
+                    # the background layer is meant to show through.
+                    if entry.pad == 0xFF:
                         continue
 
                     raw_tile = _resolve_tile(entry, ocl_idx)
