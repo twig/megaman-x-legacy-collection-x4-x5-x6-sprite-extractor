@@ -265,8 +265,8 @@ class CLUTFinderApp:
             self.canvas.coords(self.rect_id, px0, py0, px1, py1)
 
         print(
-            f"Selected screenshot grid {grid_x0},{grid_y0} to {grid_x1},{grid_y1} "
-            f"-> pixels {px0},{py0} to {px1},{py1}",
+            f"Selected screenshot grid ({grid_x0},{grid_y0}) to ({grid_x1},{grid_y1}) "
+            f"-> pixels ({px0},{py0}) to ({px1},{py1})",
             flush=True,
         )
 
@@ -343,8 +343,8 @@ class CLUTFinderApp:
             self.tex_canvas.coords(self.tex_rect_id, px0, py0, px1, py1)
 
         print(
-            f"Selected TEX grid {grid_x0},{grid_y0} to {grid_x1},{grid_y1} "
-            f"-> pixels {px0},{py0} to {px1},{py1}",
+            f"Selected TEX grid ({grid_x0},{grid_y0}) to ({grid_x1},{grid_y1}) "
+            f"-> pixels ({px0},{py0}) to ({px1},{py1})",
             flush=True,
         )
 
