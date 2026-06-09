@@ -7,6 +7,11 @@ type Palette = list[ColourRGBA]  # List of colours; alpha encodes STP: 255=opaqu
 type CLUT = list[Palette]  # Colour lookup table, 16 colours per row
 
 
+class GameVersion(IntEnum):
+    X4 = 4
+    X5 = 5
+    X6 = 6
+
 class TexFormat(IntEnum):
     # https://github.com/RandomTBush/RTB-QuickBMS-Scripts/blob/master/Textures/CapcomMTFrameworkSwitch_TEX.bms
     FORMAT_32BPP = 0x07  # Value 7, BITPERPIX=32, BLOCKSIZE=128, ISCOMPRESSED=False

@@ -1,5 +1,5 @@
 """
-Generalised stage renderer for Mega Man X5 (RXC2.exe, MMLC2 PC).
+Generalised stage renderer for Mega Man X4, X5 and X6 (RXC2.exe, MMLC2 PC).
 
 Usage:
     python render_stage.py <path/to/stXXX.omp>
@@ -62,11 +62,10 @@ from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, 
 from utils.ocl import load_ocl, OclPaletteGroup
 from utils.tex import load_tex
 from utils.palette import load_col_palettes
+from utils.types import GameVersion
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 EXE_PATH = Path("RXC2.exe")
-COL_PATH = Path("PC/X5/col/stage/col00_0x.col")  # default for all stages (unresolved per-stage)
-ANIM_COL_PATH = Path("PC/X5/col/stage/st0_0.col")  # animated-tile palette (flag=0x39, e.g. crystals)
 
 # ── STAGE_LAYOUT ──────────────────────────────────────────────────────────────
 # Maps OMP stem → (exe_file_offset, width_screens, height_screens)
@@ -214,7 +213,7 @@ def _layout_status(stem: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Render an X5 stage OMP to PNG (level + catalog)."
+        description="Render a stage OMP to PNG (level + catalog)."
     )
     parser.add_argument("omp_file", type=Path, help="Path to the .omp file")
     parser.add_argument(
@@ -242,18 +241,47 @@ def main() -> None:
     if raw_magic != b"OMP\x00":
         sys.exit(f"ERROR: Not an OMP file (bad magic {raw_magic!r}): {omp_path}")
 
+    game_version = None
+
+    if 'X4' in str(omp_path):
+        game_version = GameVersion.X4
+
+        # SCR00_00.omp / ST00_00.tex / SCR00_00.ocl / col0d_01_eng.col or col00_0X_eng.col
+        stage_dir = omp_path.parent
+        ocl_path = stage_dir.parent / 'cel' / f"{stem}.ocl"
+        tex_path = stage_dir.parent / 'dds' / f"{stem.replace('SCR', 'ST')}.tex"
+        tex_bg_path = tex_path.with_stem(f"{stem}_chr256")
+        # tex_fg_path = tex_bg_path # missing??? stage_dir.parent / "f{stem}_ch3" / "f{stem}_ch3.tex"
+
+        # TODO: make it work for X4
+        col_path = stage_dir.parent / "col" / f"{stem.replace('st', 'col')}_0x.tex" # TODO: figure out mapping
+        col_path_animated = stage_dir.parent.parent / "col" / "stage" / f"{stem}.col" # animated-tile palette (flag=0x39, e.g. glowing lights)
+
     if 'X5' in str(omp_path):
+        game_version = GameVersion.X5
+
         stage_dir = omp_path.parent
         ocl_path = stage_dir / f"{stem}.ocl"
         tex_path = stage_dir / f"{stem}.tex"
         # tex_fg_path = stage_dir.parent / f"{stem}_ch3" / f"{stem}_ch3.tex"
         tex_bg_path = stage_dir.parent / f"{stem}_chr256" / f"{stem}_chr256.tex"
+
+        col_path = stage_dir.parent.parent / "col" / "stage" / "col00_0x.col" # TODO: figure out mapping
+        col_path_animated = stage_dir.parent.parent / "col" / "stage" / "st0_0.col" # animated-tile palette (flag=0x39, e.g. glowing lights)
+
     elif 'X6' in str(omp_path):
+        game_version = GameVersion.X6
+
         stage_dir = omp_path.parent
         ocl_path = stage_dir.parent / 'cel' / f"{stem}.ocl"
         tex_path = stage_dir.parent / 'dds' / f"{stem}.tex"
         tex_bg_path = tex_path.with_stem(f"{stem}_chr256")
         # tex_fg_path = tex_bg_path # missing??? stage_dir.parent / "f{stem}_ch3" / "f{stem}_ch3.tex"
+
+        # TODO: make it work for X6
+        col_path = stage_dir.parent / "col" / f"{stem.replace('st', 'col')}_0x.tex" # TODO: figure out mapping
+        col_path_animated = stage_dir.parent.parent / "col" / "stage" / stem / f"{stem}.col" # animated-tile palette (flag=0x39, e.g. glowing lights)
+
     else:
         sys.exit(f"ERROR: Cant determine which game the OMP is from")
 
@@ -262,15 +290,23 @@ def main() -> None:
             sys.exit(f"ERROR: Required sibling file not found: {p}")
     if not EXE_PATH.exists():
         sys.exit(f"ERROR: RXC2.exe not found at {EXE_PATH} (run from workspace root)")
-    if not COL_PATH.exists():
-        sys.exit(f"ERROR: COL palette not found at {COL_PATH}")
+    if not col_path.exists():
+        sys.exit(f"ERROR: COL palette not found at {col_path}")
 
     status = _layout_status(stem)
     layout_entry = STAGE_LAYOUT.get(stem)
 
     print(f"Stage:  {stem}")
     print(f"OMP:    {omp_path}")
+    print(f"OCL:    {ocl_path}")
+    print(f"TEX:    {tex_path}")
+    print(f"TEX BG: {tex_bg_path}")
+    print(f"COL:    {col_path}")
+    print(f"COL_A:  {col_path_animated}")
+
     print(f"Layout: {status}", end="")
+
+
     if layout_entry:
         offset, w, h = layout_entry
         print(f"  (offset=0x{offset:08X}  w={w}  h={h})")
@@ -294,15 +330,15 @@ def main() -> None:
     print(f"  width={tex['width']}  height={tex['height']}  format={tex.get('format')}")
 
     print("Loading COL palette...")
-    col = load_col_palettes(COL_PATH)
-    print(f"  {COL_PATH.name}  ({type(col).__name__})")
+    col = load_col_palettes(col_path)
+    print(f"  {col_path.name}  ({type(col).__name__})")
 
     # OclPaletteGroup.ANIMATED_CRYSTAL (tile_type=0x39) tiles use st0_0.col in X5,
     # but all groups currently map to col00_0x.col pending per-stage COL resolution.
     # In a combined render, crystal placeholder tiles (tile_type=0x39, col=0) are
     # suppressed inside omp.py; the background layer shows through instead.
-    anim_col = load_col_palettes(ANIM_COL_PATH)
-    print(f"  {ANIM_COL_PATH.name}  ({len(anim_col)//16} CLUTs, animated tiles)")
+    anim_col = load_col_palettes(col_path_animated)
+    print(f"  {col_path_animated.name}  ({len(anim_col)//16} CLUTs, animated tiles)")
 
     flags_to_palette = {
         OclPaletteGroup.STANDARD:         col,
