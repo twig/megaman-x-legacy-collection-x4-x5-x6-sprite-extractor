@@ -56,7 +56,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset
+from PIL import ImageDraw, ImageFont
+
+from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset, LayoutTable
 from utils.ocl import load_ocl, OclPaletteGroup
 from utils.tex import load_tex
 from utils.palette import load_col_palettes
@@ -148,6 +150,60 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
 _CONFIRMED_STEMS = {"st000", "st010", "st030", "st160", "st061", "st120"}
 
 
+# ── Debug overlay helpers ─────────────────────────────────────────────────────
+
+_DEBUG_LINE  = (255, 220, 0, 210)   # yellow-ish grid lines
+_DEBUG_TEXT  = (255, 220, 0, 255)   # yellow text
+_DEBUG_TEXTBG = (0, 0, 0, 170)      # semi-transparent black text background
+
+
+def _debug_overlay_catalog(img, n_screens: int, tile_size: int = 16) -> None:
+    """Draw per-screen boundary lines and screen-id labels on the catalog image."""
+    draw = ImageDraw.Draw(img, "RGBA")
+    font = ImageFont.load_default()
+    for sid in range(n_screens):
+        y = sid * tile_size
+        draw.line([(0, y), (img.width - 1, y)], fill=_DEBUG_LINE, width=1)
+        label = f"scr {sid}"
+        tw = len(label) * 6 + 2
+        draw.rectangle([0, y, tw, y + 9], fill=_DEBUG_TEXTBG)
+        draw.text((1, y), label, fill=_DEBUG_TEXT, font=font)
+
+
+def _debug_overlay_level(
+    img,
+    layout: LayoutTable,
+    level_width_screens: int,
+    level_height_screens: int,
+    tile_size: int = 16,
+) -> None:
+    """Draw screen boundary grid lines and (sx,sy)/id labels on the level image."""
+    draw = ImageDraw.Draw(img, "RGBA")
+    font = ImageFont.load_default()
+    screen_px = 16 * tile_size  # pixels per screen edge
+
+    # Grid lines
+    for sx in range(level_width_screens + 1):
+        x = sx * screen_px
+        draw.line([(x, 0), (x, img.height - 1)], fill=_DEBUG_LINE, width=1)
+    for sy in range(level_height_screens + 1):
+        y = sy * screen_px
+        draw.line([(0, y), (img.width - 1, y)], fill=_DEBUG_LINE, width=1)
+
+    # Per-screen labels
+    for sy in range(level_height_screens):
+        for sx in range(level_width_screens):
+            screen_id = layout.get(sx, sy)
+            px = sx * screen_px + 2
+            py = sy * screen_px + 2
+            sid_str = str(screen_id) if screen_id is not None else "?"
+            lines = [f"Screen ({sx},{sy}), ID #{sid_str}"]
+            tw = max(len(l) for l in lines) * 6 + 2
+            draw.rectangle([px - 1, py - 1, px + tw, py + 19], fill=_DEBUG_TEXTBG)
+            for i, line in enumerate(lines):
+                draw.text((px, py + i * 10), line, fill=_DEBUG_TEXT, font=font)
+
+
 def _layout_status(stem: str) -> str:
     if stem in _CONFIRMED_STEMS:
         return "CONFIRMED"
@@ -168,6 +224,10 @@ def main() -> None:
     parser.add_argument(
         "--catalog-only", action="store_true",
         help="Only produce the catalog PNG, skip level render",
+    )
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="Overlay screen/layer boundaries and (sx,sy)/screen-id labels on output images",
     )
     args = parser.parse_args()
 
@@ -265,6 +325,8 @@ def main() -> None:
         flags_to_palette=flags_to_palette,
         preset=LayerPreset.MAIN,
     )
+    if args.debug:
+        _debug_overlay_catalog(catalog_img, omp.n_screens)
     catalog_out = Path(f"{stem}_catalog.png")
     catalog_img.save(catalog_out)
     print(f"  Saved {catalog_out}  ({catalog_img.width}×{catalog_img.height} px)")
@@ -295,6 +357,8 @@ def main() -> None:
             # tex_fg=tex_foreground,
             flags_to_palette=flags_to_palette,
         )
+        if args.debug:
+            _debug_overlay_level(level_img, layout, n_sx, n_sy)
         level_out = Path(f"{stem}_level.png")
         level_img.save(level_out)
         print(f"  Saved {level_out}  ({level_img.width}×{level_img.height} px)")
