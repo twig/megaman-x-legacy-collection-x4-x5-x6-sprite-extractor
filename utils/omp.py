@@ -363,6 +363,59 @@ def load_layout_from_exe(
     return LayoutTable.from_bytes(layout_bytes, width, height, layer)
 
 
+def _build_chr256_ocl_indices(ocl_entries: list[OclEntry]) -> frozenset[int]:
+    """
+    Return a frozenset of OCL indices that should read pixel data from tex_bg
+    (the chr256 background tileset) rather than from tex.
+
+    At cordY==15 (the last tile row) of each TEX page 1–7, the OCL table
+    sometimes contains two groups of entries that share a texture coordinate:
+      - Group 1 (first occurrence):  reads from tex.
+      - Group 2 (different col):     reads from tex_bg.
+
+    However, some coordinates have an additional entry whose col value matches
+    the first occurrence (a same-col duplicate, identified by tile_type==0x38).
+    When this happens, ALL entries at that coordinate belong to tex — including
+    any later entries with a different col.
+
+    Algorithm (two passes):
+      Pass 1: identify (page, clut_base) groups that contain any same-col
+              duplicate (i.e. a non-first entry whose col == first entry's col).
+      Pass 2: mark chr256 only for non-first entries whose group has NO
+              same-col duplicate AND whose col differs from the first entry's col.
+
+    For page 0 both textures contain identical pixel data at cordY==15.
+    Pages ≥ 8 are handled separately via col==112.
+    """
+    # Pass 1: find first col per group and detect same-col duplicates
+    first_col: dict[tuple[int, int], int] = {}
+    groups_with_same_col_dup: set[tuple[int, int]] = set()
+    for e in ocl_entries:
+        page = e.pad & 0xF
+        cordY = (e.clut_base >> 4) & 0xF
+        if page < 8 and cordY == 15:
+            key = (page, e.clut_base)
+            if key not in first_col:
+                first_col[key] = e.col
+            elif e.col == first_col[key]:
+                groups_with_same_col_dup.add(key)
+
+    # Pass 2: mark chr256 for second+ entries with different col in clean groups
+    seen: set[tuple[int, int]] = set()
+    chr256: set[int] = set()
+    for i, e in enumerate(ocl_entries):
+        page = e.pad & 0xF
+        cordY = (e.clut_base >> 4) & 0xF
+        if page < 8 and cordY == 15:
+            key = (page, e.clut_base)
+            if key in seen:
+                if key not in groups_with_same_col_dup and e.col != first_col[key]:
+                    chr256.add(i)
+            else:
+                seen.add(key)
+    return frozenset(chr256)
+
+
 def extract_tile_pixels(
     raw_pixels: bytes | bytearray,
     tex_width: int,
@@ -470,8 +523,9 @@ def render_omp(
     canvas_w = layer.width * tile_size
     canvas_h = n_rows * tile_size
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+    chr256_indices = _build_chr256_ocl_indices(ocl_entries)
 
-    def _resolve_tile(entry: OclEntry) -> list[int] | None:
+    def _resolve_tile(entry: OclEntry, ocl_idx: int) -> list[int] | None:
         # OCL byte2 (stored as field 'clut_base'): encodes TEX tile coordinates
         #   cordX = byte2 & 0x0F  (low nibble)
         #   cordY = (byte2 >> 4) & 0x0F  (high nibble)
@@ -482,16 +536,17 @@ def render_omp(
         cordY = (entry.clut_base >> 4) & 0xF
         page = entry.pad & 0xF
 
-        # Texture routing for pages 8–15:
-        #   col=112 tiles → tex_bg (chr256): tex_bg values 0–30 land in palette
+        # Texture routing:
+        #   Pages 0–7: tex holds valid 8bpp tile data in general.
+        #     Exception: at cordY==15 (the last tile row of a page), some OCL
+        #     entries are "second occurrences" that share coordinates with an
+        #     earlier entry but come from the chr256 background tileset instead.
+        #     These are identified by _build_chr256_ocl_indices() and use tex_bg.
+        #   Pages 8–15, col=112: tex_bg (chr256) — values 0–30 land in palette
         #     rows 176–177 which are correct for those tiles.
-        #   col≠112 tiles → tex: tex has the correct 8bpp values for those tiles
-        #     (e.g. col=48 value 48, col=128 values 25–176) that map to the right
-        #     palette entries.  tex_bg gives different values that produce wrong
-        #     colors for those tiles.
-        #   Pages 0–7 always use tex (correct 4bpp data confirmed for those pages).
+        #   Pages 8–15, col≠112: tex has the correct 8bpp values for those tiles.
         if page < 8:
-            active_tex = tex
+            active_tex = tex_bg if ocl_idx in chr256_indices else tex
         elif entry.col == 112:
             active_tex = tex_bg
         else:
@@ -538,7 +593,7 @@ def render_omp(
             if entry.tile_type == 0x39 and entry.col == 0:
                 continue
 
-            raw_tile = _resolve_tile(entry)
+            raw_tile = _resolve_tile(entry, tile_id)
             if raw_tile is None:
                 continue  # tile not found in TEX
             rgba_pixels = _apply_palette_to_tile(raw_tile, entry.col + 64, palette)
@@ -586,15 +641,16 @@ def render_level(
     canvas_w = level_width_screens * 16 * tile_size
     canvas_h = level_height_screens * 16 * tile_size
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+    chr256_indices = _build_chr256_ocl_indices(ocl_entries)
 
-    def _resolve_tile(entry: OclEntry) -> list[int] | None:
+    def _resolve_tile(entry: OclEntry, ocl_idx: int) -> list[int] | None:
         cordX = entry.clut_base & 0xF
         cordY = (entry.clut_base >> 4) & 0xF
         page = entry.pad & 0xF
 
-        # Texture routing for pages 8–15: see render_omp comment.
+        # Texture routing: see render_omp for full explanation.
         if page < 8:
-            active_tex = tex
+            active_tex = tex_bg if ocl_idx in chr256_indices else tex
         elif entry.col == 112:
             active_tex = tex_bg
         else:
@@ -648,7 +704,7 @@ def render_level(
                     if entry.tile_type == 0x39 and entry.col == 0:
                         continue
 
-                    raw_tile = _resolve_tile(entry)
+                    raw_tile = _resolve_tile(entry, ocl_idx)
                     if raw_tile is None:
                         continue
 
