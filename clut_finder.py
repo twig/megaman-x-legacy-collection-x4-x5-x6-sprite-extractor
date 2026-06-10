@@ -32,17 +32,17 @@ class CLUTFinderApp:
     GRID_SIZE = 16
 
     def __init__(
-        self, root: tk.Tk, screenshot: PILImage, palette: Palette, palette_file: Path
+        self, root: tk.Tk, screenshot: PILImage, palette: Palette, palette_file: Path, tex_file: Path | None
     ):
         self.root = root
         self.palette = palette
         self.palette_file = palette_file
         self.clut = convert_palette_to_clut(palette)
-        self.clut_index = 0
+        self.clut_index = -1
         self.image = screenshot.convert("RGB")
         self.photo = ImageTk.PhotoImage(self.image)
         self.w, self.h = self.image.size
-        self.tex_file: Path | None = None
+        self.tex_file: Path | None = tex_file
         self.tex_w = 0
         self.tex_h = 0
         self.matching_indexes: list[tuple[int, float]] = []
@@ -171,6 +171,9 @@ class CLUTFinderApp:
         self.tex_canvas.bind("<ButtonPress-1>", self.on_tex_button_press)
         self.tex_canvas.bind("<B1-Motion>", self.on_tex_mouse_drag)
         self.tex_canvas.bind("<ButtonRelease-1>", self.on_tex_button_release)
+
+        if self.tex_file:
+            self.preview_tex()
 
     def snap_to_grid(self, value: int) -> int:
         return (value // self.GRID_SIZE) * self.GRID_SIZE
@@ -456,6 +459,11 @@ class CLUTFinderApp:
         # determine best matching clut index
         if clut_index is None:
             clut_index = self.matching_indexes[0][0] if len(self.matching_indexes) else 0
+
+        # nothing to do
+        if clut_index == self.clut_index:
+            return
+
         self.clut_index = clut_index
 
         self.busy_label.config(text="Rendering TEX preview...")
@@ -570,7 +578,7 @@ class CLUTFinderApp:
         def worker():
             # Fuzzy-matching of colour since screenshot isn't always accurate.
             def is_colour_match(search_colour: ColourRGB, palette_colour: ColourRGBA):
-                difference = 3
+                difference = 5
                 r1, g1, b1 = search_colour
                 r2, g2, b2, _a = palette_colour
 
@@ -596,11 +604,16 @@ class CLUTFinderApp:
             found: list[tuple[int, float]] = []
             for index, row in enumerate(self.clut):
                 match_count = count_fuzzy_clut_intersection(row, selected_colours)
+
                 if match_count:
-                    match_percent = (match_count / 16) * 100
-                    # more than 95% match is good. usually get over 100%
-                    if match_percent >= 75:
+                    match_percent = (match_count / len(selected_colours)) * 100
+                    if match_percent >= 50:
                         found.append((index, match_percent))
+
+                # if index == 66 or index == 67:
+                #     print(f"#{index}", "matches", match_count)
+                #     print("row", len(row), row)
+                #     print("sel", len(selected_colours), selected_colours)
 
             # SORT BY percent DESC
             filtered = sorted(found, key=lambda x: x[1], reverse=True)
@@ -656,14 +669,21 @@ def main():
     parser.add_argument("png", help="Path to PNG image to open", type=Path)
     parser.add_argument(
         "--palette",
-        help="Path to COL palette file (accepted, not required)",
+        help="Path to COL palette file (optional)",
         type=Path,
         default=Path(r"PC\X5\col\stage\col00_0x_eng.col"),
+    )
+    parser.add_argument(
+        "--tex",
+        help="Path to TEX file (accepted, not required)",
+        type=Path,
+        default=None,
     )
     args = parser.parse_args()
 
     screenshot_file: Path = args.png
     palette_file: Path = args.palette
+    tex_file: Path | None = args.tex
 
     try:
         img = Image.open(screenshot_file)
@@ -682,7 +702,7 @@ def main():
     root.minsize(640, 480)
     root.state("zoomed")
 
-    app = CLUTFinderApp(root, img, palette, palette_file)
+    app = CLUTFinderApp(root, img, palette, palette_file, tex_file)
 
     root.mainloop()
 
