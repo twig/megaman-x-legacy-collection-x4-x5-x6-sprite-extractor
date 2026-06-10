@@ -114,12 +114,21 @@ class CLUTFinderApp:
         self.side_panel.grid(row=0, column=2, sticky="ns")
         self.side_panel.pack_propagate(False)
 
+        self.is_clut_locked = tk.BooleanVar(value=False)
+        self.lock_clut_check = tk.Checkbutton(
+            self.side_panel,
+            text="Lock current CLUT index",
+            variable=self.is_clut_locked,
+            command=self.on_lock_clut_toggled,
+        )
+        self.lock_clut_check.pack(fill="x", padx=10, pady=(10, 2))
+
         self.save_tex_button = tk.Button(
             self.side_panel,
             text="Save TEX as PNG",
             command=self.save_tex_preview,
         )
-        self.save_tex_button.pack(fill="x", pady=(10, 2), padx=10)
+        self.save_tex_button.pack(fill="x", pady=(0, 2), padx=10)
 
         self.unique_colours_label = tk.Label(self.side_panel, text="", anchor="w")
         self.unique_colours_label.pack(fill="x", padx=10, pady=(4, 2))
@@ -419,13 +428,22 @@ class CLUTFinderApp:
             return
 
         try:
-            clut_index = self.matching_indexes[0][0] if self.matching_indexes else 0
             tex_data = load_tex(self.tex_file)
-            image = convert_tex_to_image(tex_data, self.palette, clut_index)
+            image = convert_tex_to_image(tex_data, self.palette, self.clut_index)
             if image:
                 image.save(path)
         except Exception as e:
             messagebox.showerror("Save TEX preview", f"Failed to save image: {e}")
+
+    def on_lock_clut_toggled(self):
+        if self.is_clut_locked.get():
+            self.unique_colours_label.config(text=f"Unique colors: {len(self.colour_set)}")
+            self.matches_label.config(text=f"CLUT locked at #{self.clut_index}")
+            self.busy_label.config(text="")
+            return
+
+        if self.colour_set:
+            self.process_selected_colours()
 
     def preview_tex(self, clut_index: int | None = None):
         if not self.tex_file:
@@ -534,6 +552,12 @@ class CLUTFinderApp:
         self.tex_moved = False
 
     def process_selected_colours(self):
+        if self.is_clut_locked.get():
+            self.unique_colours_label.config(text=f"Unique colors: {len(self.colour_set)}")
+            self.matches_label.config(text=f"CLUT locked at #{self.clut_index}")
+            self.busy_label.config(text="")
+            return
+
         self._matching_task_id += 1
         task_id = self._matching_task_id
         selected_colours = set(self.colour_set)
