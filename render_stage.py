@@ -84,21 +84,26 @@ EXE_PATH = Path("RXC2.exe")
 # Block 2 size table: SIZE_TABLE_2   = 0x02E8DF71  (4-byte entries: w, h, f1, f2)
 
 STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
-    # ── Block 1 — CONFIRMED ──────────────────────────────────────────────────
+    # --- presentable
     # st000 uses a dedicated second copy of the layout at 0x02EC2D4B.
     # Verified by 4 anchor points from omp-to-expected-tiles-x5.csv.
-    "st000": (0x02EC2D4B, 15, 24),  # CONFIRMED (Intro Stage)
+    "st000": (0x02EC2D4B, 15, 24),  # CONFIRMED (Intro Stage all)
+    # "st000": (0x02EC2D78, 15, 17),  # CONFIRMED (Intro Stage - part 1 flat)
+    # "st000": (0x02EC2D5F, 4, 3),  # CONFIRMED (Intro Stage - part 2 tower)
 
-    # idx 0  (15×24): max(layer0) == 97  → st010 n_screens=98
-    "st010": (0x02D98548, 15, 24),  # CONFIRMED (Crescent Grizzly)
+    "st010": (0x02D98528, 39, 3),  # DONE (Crescent Grizzly)
 
-    # idx  1  (10×25)  0x02D98980
-    "st020": (0x02D98980, 10, 25), # LIKELY (Dark Necrobat: Area 1)
-    # idx  22  (10×26)  0x02D98C6E
-    "st021": (0x02D9A3DE, 10, 23), # CONFIRMED (Dark Necrobat: Area 2)
+    # idx 22 0x02D9A3DE, 10, 23
+    "st020": (0x02D9A407, 32, 5), # CONFIRMED (Dark Necrobat: Area 1)
+    "st021": (0x02D9A404, 25, 6), # CONFIRMED (Dark Necrobat: Area 2)
+
+    # --- unconfirmed
 
     # idx 8  (5×29):  max(layer0) == 109 → st030/st160 n_screens=110
-    "st030": (0x02D98F7A,  5, 25),  # UNCONFIRMED (Tidal Whale)
+    # "st030": (0x02D98F7A,  5, 25),  # UNCONFIRMED (Tidal Whale)
+    # "st030": (0x02D9912D,  5, 26),  # maybe? (Tidal Whale)
+    "st030": (0x02D9A407, 22, 15),  # UNCONFIRMED (Tidal Whale)
+    # "st030": (0x02D99AD8, 5, 28),  # UNCONFIRMED (Tidal Whale)
 
     # idx  9  (5×26)   0x02D9912D
     "st040": (0x02D9912D,  5, 26), # CONFIRMED (Burn Dinorex: Area 1)
@@ -158,10 +163,10 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
 
     # ── To add when resolved ─────────────────────────────────────────────────
     # Block 1 unverified stages (index, offset, dimensions from layouts/index.txt):
-    #   idx  2  (10×26)  0x02D98C6E — unverified
-    #   idx 12  (5×29)   0x02D995EC — unverified
-    #   idx 24  (20×21)  0x02D9AA6E — unverified
-    #   idx 25  (20×20)  0x02D9AF5A — unverified
+
+
+
+
     # Unmatched OMP files awaiting slot assignment (run debug/verify_x5_heights_omp.py):
     #   st060  Shining Firefly: Area 1
     #   st160  Zero Space 1: Origin
@@ -392,6 +397,26 @@ def main() -> None:
         print()
         print(f"Loading layout from RXC2.exe (layer {args.layer})...")
         layout = load_layout_from_exe(EXE_PATH, offset=offset, width=w, height=h, layer=args.layer)
+
+        #---
+        # offset = 2486
+        # w = 24
+        # h = 8
+
+        # exe_path = Path('layouts_rxc2.bin')
+        # layer_size = w * h
+        # total_size = layer_size * 3
+        # data = exe_path.read_bytes()
+        # if offset + total_size > len(data):
+        #     raise ValueError(
+        #         f"EXE too small for layout at {hex(offset)}: "
+        #         f"need {total_size} bytes, file has {len(data) - offset}"
+        #     )
+        # layout_bytes = data[offset : offset + total_size]
+        # layout = LayoutTable.from_bytes(layout_bytes, w, h, args.layer)
+        # print(f"total size {total_size} > {offset+total_size}")
+        #---
+
         n_sx = len(layout.screens[0]) if layout.screens else 0
         n_sy = len(layout.screens)
         print(f"  {n_sx} screens wide × {n_sy} screens tall")
