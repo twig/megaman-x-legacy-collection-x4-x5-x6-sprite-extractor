@@ -93,7 +93,6 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
 
     "st010": (0x02D98528, 39, 3),  # DONE (Crescent Grizzly)
 
-    # idx 22 0x02D9A3DE, 10, 23
     "st020": (0x02D9A407, 32, 5), # CONFIRMED (Dark Necrobat: Area 1)
     "st021": (0x02D9A404, 25, 6), # CONFIRMED (Dark Necrobat: Area 2)
 
