@@ -94,23 +94,18 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     # "st000": (0x02EC2D78, 15, 17),  # WITHIN RANGE (Intro Stage - part 1 flat)
     # "st000": (0x02EC2D5F, 4, 3),  # LOOKS RIGHT (Intro Stage - part 2 tower)
 
-    "st010": (0x02D98528, 39, 3),  # DONE (Crescent Grizzly)
+    "st010": (0x02D98528, 39, 8),  # DONE (Crescent Grizzly)
 
     "st020": (0x02D9A407, 32, 5), # WITHIN RANGE (Dark Necrobat: Area 1)
     "st021": (0x02D9A404, 25, 6), # WITHIN RANGE (Dark Necrobat: Area 2)
 
+    "st030": (0x02D9A407, 22, 15),  # WITHIN RANGE (Tidal Whale)
+
+    "st040": (0x02D9A3DE, 23, 10), # WITHIN RANGE (Burn Dinorex: Area 1)
+    # "st040": (0x02D9A690, 22, 15), # WITHIN RANGE (Burn Dinorex: Area 1)
+    "st041": (0x02D9A3DE, 24, 10), # WITHIN RANGE (Burn Dinorex: Area 2)
+
     # --- unconfirmed
-
-    # idx 8  (5×29):  max(layer0) == 109 → st030/st160 n_screens=110
-    # "st030": (0x02D98F7A,  5, 25),  # UNCONFIRMED (Tidal Whale)
-    # "st030": (0x02D9912D,  5, 26),  # maybe? (Tidal Whale)
-    "st030": (0x02D9A407, 22, 15),  # UNCONFIRMED (Tidal Whale)
-    # "st030": (0x02D99AD8, 5, 28),  # UNCONFIRMED (Tidal Whale)
-
-    # idx  9  (5×26)   0x02D9912D
-    "st040": (0x02D9912D,  5, 26), # CONFIRMED (Burn Dinorex: Area 1)
-    # idx 10 (5×29):  max(layer0) == 164 → st061 n_screens=165
-    "st041": (0x02D992B3,  5, 29), # LIKELY (Burn Dinorex: Area 2)
 
     # idx 11  (5×26)   0x02D99466
     "st050": (0x02D99466,  5, 26), # CONFIRMED (Volt Kraken)
