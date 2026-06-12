@@ -276,102 +276,9 @@ def main() -> None:
     args = parser.parse_args()
 
     omp_path: Path = args.omp_file.resolve()
-    if not omp_path.exists():
-        sys.exit(f"ERROR: OMP file not found: {omp_path}")
 
     omp_stem = omp_path.stem
-
-    # Validate magic
-    raw_magic = omp_path.read_bytes()[:4]
-    if raw_magic != b"OMP\x00":
-        sys.exit(f"ERROR: Not an OMP file (bad magic {raw_magic!r}): {omp_path}")
-
-    game_version = None
-
-    if 'X4' in str(omp_path):
-        game_version = GameVersion.X4
-    elif 'X5' in str(omp_path):
-        game_version = GameVersion.X5
-    elif 'X6' in str(omp_path):
-        game_version = GameVersion.X6
-    else:
-        sys.exit(f"ERROR: Cant determine which game the OMP is from")
-
-    game_files = get_game_files(game_version, omp_path)
-
-    if game_files is None:
-        sys.exit(f"ERROR: No file mapping for {omp_stem} in game-files.csv")
-
-    ocl_path, tex_path, tex_bg_path, col_path, col_path_animated = game_files
-
-    for p in (ocl_path, tex_path):
-        if not p.exists():
-            sys.exit(f"ERROR: Required sibling file not found: {p}")
-    if not EXE_PATH.exists():
-        sys.exit(f"ERROR: RXC2.exe not found at {EXE_PATH} (run from workspace root)")
-    if not col_path.exists():
-        sys.exit(f"ERROR: COL palette not found at {col_path}")
-
-    layout_entry = STAGE_LAYOUT.get(omp_stem)
-
-    print(f"Stage:  {omp_stem}")
-    print(f"OMP:    {omp_path}")
-    print(f"OCL:    {ocl_path}")
-    print(f"TEX:    {tex_path}")
-    print(f"TEX BG: {tex_bg_path}")
-    print(f"COL:    {col_path}")
-    print(f"COL_A:  {col_path_animated}")
-
-    if layout_entry:
-        offset, w, h = layout_entry
-        print(f"  (offset=0x{offset:08X}  w={w}  h={h})")
-    else:
-        print("  (no layout — catalog only)")
-    print()
-
-    # Load assets
-    print("Loading OMP...")
-    omp = load_omp(omp_path)
-    print(f"  n_screens={omp.n_screens}")
-
-    print("Loading OCL...")
-    ocl = load_ocl(ocl_path)
-    print(f"  n_entries={len(ocl)}")
-
-    print("Loading TEX...")
-    tex = load_tex(tex_path)
-    # tex_foreground = load_tex(tex_fg_path)
-    if tex_bg_path and tex_bg_path.exists():
-        tex_background = load_tex(tex_bg_path)
-    else:
-        print(f"  WARNING: background TEX not found at {tex_bg_path}, using main TEX as fallback.")
-        tex_background = tex
-
-    print(f"  width={tex['width']}  height={tex['height']}  format={tex.get('format')}")
-
-    print("Loading COL palette...")
-    col = load_col_palettes(col_path)
-    print(f"  {col_path.name}  ({type(col).__name__})")
-
-    # OclPaletteGroup.ANIMATED_CRYSTAL (tile_type=0x39) tiles use st0_0.col in X5,
-    # but all groups currently map to col00_0x.col pending per-stage COL resolution.
-    # In a combined render, crystal placeholder tiles (tile_type=0x39, col=0) are
-    # suppressed inside omp.py; the background layer shows through instead.
-    if col_path_animated and col_path_animated.exists():
-        anim_col = load_col_palettes(col_path_animated)
-        # print(f"  {col_path_animated.name}  ({len(anim_col)//16} CLUTs, animated tiles)")
-    else:
-        print(f"  WARNING: animated COL palette not found at {col_path_animated}, using static palette as fallback.")
-        anim_col = None
-
-    flags_to_palette = {
-        OclPaletteGroup.STANDARD:         col,
-        OclPaletteGroup.ALT_PALETTE:      col,
-        OclPaletteGroup.ANIMATED_CRYSTAL: col,
-        OclPaletteGroup.ALT_AREA:         col,
-    }
-    # OclEntry.palette_group() maps any unregistered collision type to STANDARD,
-    # so all tiles are rendered even if their tile_type is not listed above.
+    [omp, ocl, tex, tex_background, flags_to_palette] = preload_related_files(omp_path)
 
     # Catalog render
     if not args.skip_catalog:
@@ -392,9 +299,13 @@ def main() -> None:
         catalog_img.save(catalog_out)
         print(f"  Saved {catalog_out}  ({catalog_img.width}×{catalog_img.height} px)")
 
+    layout_entry = STAGE_LAYOUT.get(omp_stem)
+
     # Level render (when layout is known and not suppressed)
     if layout_entry and not args.skip_stage:
         offset, w, h = layout_entry
+        print(f"  (offset=0x{offset:08X}  w={w}  h={h})")
+        print()
 
         print()
         print(f"Loading layout from RXC2.exe (layer {args.layer})...")
@@ -442,13 +353,97 @@ def main() -> None:
         level_img.save(level_out)
         print(f"  Saved {level_out}  ({level_img.width}×{level_img.height} px)")
 
-    elif not layout_entry:
-        print()
-        print(f"  Skipping level render: no layout entry for '{omp_stem}'.")
-        print("  To add one, update STAGE_LAYOUT in render_stage.py.")
 
-    print()
-    print("Done.")
+def preload_related_files(omp_path: Path):
+    if not omp_path.exists():
+        raise FileNotFoundError(f"ERROR: OMP file not found: {omp_path}")
+
+    omp_stem = omp_path.stem
+
+    # Validate magic
+    raw_magic = omp_path.read_bytes()[:4]
+    if raw_magic != b"OMP\x00":
+        raise ValueError(f"ERROR: Not an OMP file (bad magic {raw_magic!r}): {omp_path}")
+
+    game_version = None
+
+    if 'X4' in str(omp_path):
+        game_version = GameVersion.X4
+    elif 'X5' in str(omp_path):
+        game_version = GameVersion.X5
+    elif 'X6' in str(omp_path):
+        game_version = GameVersion.X6
+    else:
+        raise ValueError(f"ERROR: Cant determine which game the OMP is from")
+
+    game_files = get_game_files(game_version, omp_path)
+
+    if game_files is None:
+        raise ValueError(f"ERROR: No file mapping for {omp_stem} in game-files.csv")
+
+    ocl_path, tex_path, tex_bg_path, col_path, col_path_animated = game_files
+
+    for p in (ocl_path, tex_path):
+        if not p.exists():
+            raise FileNotFoundError(f"ERROR: Required sibling file not found: {p}")
+    if not EXE_PATH.exists():
+        raise FileNotFoundError(f"ERROR: RXC2.exe not found at {EXE_PATH} (run from workspace root)")
+    if not col_path.exists():
+        raise FileNotFoundError(f"ERROR: COL palette not found at {col_path}")
+
+    print(f"Stage:  {omp_stem}")
+    print(f"OMP:    {omp_path}")
+    print(f"OCL:    {ocl_path}")
+    print(f"TEX:    {tex_path}")
+    print(f"TEX BG: {tex_bg_path}")
+    print(f"COL:    {col_path}")
+    print(f"COL_A:  {col_path_animated}")
+
+    # Load assets
+    print("Loading OMP...")
+    omp = load_omp(omp_path)
+    print(f"  n_screens={omp.n_screens}")
+
+    print("Loading OCL...")
+    ocl = load_ocl(ocl_path)
+    print(f"  n_entries={len(ocl)}")
+
+    print("Loading TEX...")
+    tex = load_tex(tex_path)
+    # tex_foreground = load_tex(tex_fg_path)
+    if tex_bg_path and tex_bg_path.exists():
+        tex_background = load_tex(tex_bg_path)
+    else:
+        print(f"  WARNING: background TEX not found at {tex_bg_path}, using main TEX as fallback.")
+        tex_background = tex
+
+    print(f"  width={tex['width']}  height={tex['height']}  format={tex.get('format')}")
+
+    print("Loading COL palette...")
+    col = load_col_palettes(col_path)
+    print(f"  {col_path.name}  ({type(col).__name__})")
+
+    # OclPaletteGroup.ANIMATED_CRYSTAL (tile_type=0x39) tiles use st0_0.col in X5,
+    # but all groups currently map to col00_0x.col pending per-stage COL resolution.
+    # In a combined render, crystal placeholder tiles (tile_type=0x39, col=0) are
+    # suppressed inside omp.py; the background layer shows through instead.
+    if col_path_animated and col_path_animated.exists():
+        anim_col = load_col_palettes(col_path_animated)
+        # print(f"  {col_path_animated.name}  ({len(anim_col)//16} CLUTs, animated tiles)")
+    else:
+        print(f"  WARNING: animated COL palette not found at {col_path_animated}, using static palette as fallback.")
+        anim_col = None
+
+    # OclEntry.palette_group() maps any unregistered collision type to STANDARD,
+    # so all tiles are rendered even if their tile_type is not listed above.
+    flags_to_palette = {
+        OclPaletteGroup.STANDARD:         col,
+        OclPaletteGroup.ALT_PALETTE:      col,
+        OclPaletteGroup.ANIMATED_CRYSTAL: col,
+        OclPaletteGroup.ALT_AREA:         col,
+    }
+
+    return [omp, ocl, tex, tex_background, flags_to_palette]
 
 
 if __name__ == "__main__":
