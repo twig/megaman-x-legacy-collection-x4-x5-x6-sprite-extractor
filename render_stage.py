@@ -5,8 +5,8 @@ Usage:
     python render_stage.py <path/to/stXXX.omp>
 
 Outputs (written to current working directory):
-    {stem}_catalog.png  — raw OMP screen catalog (always produced)
-    {stem}_level.png    — full level render using Layer 0 (only when layout is known)
+    {stem}_catalog.png  — raw OMP screen catalog (skipped with --skip-catalog)
+    {stem}_level.png    — full level render using Layer 0 (only when layout is known; skipped with --skip-stage)
 
 The script derives the OCL and TEX files from the same directory as the OMP.
 Layout parameters are looked up from the STAGE_LAYOUT table below, which is
@@ -84,17 +84,20 @@ EXE_PATH = Path("RXC2.exe")
 # Block 2 size table: SIZE_TABLE_2   = 0x02E8DF71  (4-byte entries: w, h, f1, f2)
 
 STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
+    # DONE = accurate render of stage (offset and dimensions look correct)
+    # LOOKS RIGHT = looks DONE but has some questionable parts (eg. st000 layout has multiple dimensions?)
+    # WITHIN RANGE = most parts of stage recognisable (offset/dimensions not quite right)
     # --- presentable
     # st000 uses a dedicated second copy of the layout at 0x02EC2D4B.
     # Verified by 4 anchor points from omp-to-expected-tiles-x5.csv.
-    "st000": (0x02EC2D4B, 15, 24),  # CONFIRMED (Intro Stage all)
-    # "st000": (0x02EC2D78, 15, 17),  # CONFIRMED (Intro Stage - part 1 flat)
-    # "st000": (0x02EC2D5F, 4, 3),  # CONFIRMED (Intro Stage - part 2 tower)
+    "st000": (0x02EC2D4B, 15, 24),  # WITHIN RANGE (Intro Stage all)
+    # "st000": (0x02EC2D78, 15, 17),  # WITHIN RANGE (Intro Stage - part 1 flat)
+    # "st000": (0x02EC2D5F, 4, 3),  # LOOKS RIGHT (Intro Stage - part 2 tower)
 
     "st010": (0x02D98528, 39, 3),  # DONE (Crescent Grizzly)
 
-    "st020": (0x02D9A407, 32, 5), # CONFIRMED (Dark Necrobat: Area 1)
-    "st021": (0x02D9A404, 25, 6), # CONFIRMED (Dark Necrobat: Area 2)
+    "st020": (0x02D9A407, 32, 5), # WITHIN RANGE (Dark Necrobat: Area 1)
+    "st021": (0x02D9A404, 25, 6), # WITHIN RANGE (Dark Necrobat: Area 2)
 
     # --- unconfirmed
 
@@ -264,8 +267,12 @@ def main() -> None:
         help="Layout layer to render (0=foreground, 1=BG1, 2=BG2; default: 0)",
     )
     parser.add_argument(
-        "--catalog-only", action="store_true",
+        "--skip-stage", action="store_true",
         help="Only produce the catalog PNG, skip level render",
+    )
+    parser.add_argument(
+        "--skip-catalog", action="store_true",
+        help="Skip catalog PNG generation",
     )
     parser.add_argument(
         "--debug", action="store_true",
@@ -371,26 +378,27 @@ def main() -> None:
     # OclEntry.palette_group() maps any unregistered collision type to STANDARD,
     # so all tiles are rendered even if their tile_type is not listed above.
 
-    # Catalog render (always)
-    print()
-    print("Rendering OMP catalog...")
-    catalog_img = render_omp(
-        omp,
-        ocl,
-        tex,
-        # tex_foreground,
-        tex_background,
-        flags_to_palette=flags_to_palette,
-        preset=LayerPreset.MAIN,
-    )
-    if args.debug:
-        _debug_overlay_catalog(catalog_img, omp.n_screens)
-    catalog_out = Path(f"{omp_stem}_catalog.png")
-    catalog_img.save(catalog_out)
-    print(f"  Saved {catalog_out}  ({catalog_img.width}×{catalog_img.height} px)")
+    # Catalog render
+    if not args.skip_catalog:
+        print()
+        print("Rendering OMP catalog...")
+        catalog_img = render_omp(
+            omp,
+            ocl,
+            tex,
+            # tex_foreground,
+            tex_background,
+            flags_to_palette=flags_to_palette,
+            preset=LayerPreset.MAIN,
+        )
+        if args.debug:
+            _debug_overlay_catalog(catalog_img, omp.n_screens)
+        catalog_out = Path(f"{omp_stem}_catalog.png")
+        catalog_img.save(catalog_out)
+        print(f"  Saved {catalog_out}  ({catalog_img.width}×{catalog_img.height} px)")
 
     # Level render (when layout is known and not suppressed)
-    if layout_entry and not args.catalog_only:
+    if layout_entry and not args.skip_stage:
         offset, w, h = layout_entry
 
         print()
