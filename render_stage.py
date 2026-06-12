@@ -108,7 +108,8 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     # --- unconfirmed
 
     # idx 11  (5×26)   0x02D99466
-    "st050": (0x02D99466,  5, 26), # CONFIRMED (Volt Kraken)
+    # "st050": (0x02D992B3, 29, 10), # CONFIRMED (Volt Kraken)
+    "st050": (0x02D99508, 44, 7), # CONFIRMED (Volt Kraken)
 
     # Why is this shared with above?
     "st060": (0x02D992B3,  5, 29),  # UNCONFIRMED (Shining Firefly: Area 1)

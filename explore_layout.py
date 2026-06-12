@@ -481,10 +481,10 @@ class LayoutExplorer(tk.Tk):
 def main() -> None:
     parser = argparse.ArgumentParser(description="Interactive stage layout binary explorer.")
     parser.add_argument("omp_file", type=Path, help="Path to the .omp file")
-    parser.add_argument("layout_bin", type=Path, help="Path to the binary layout file")
+    parser.add_argument("--layouts", type=Path, help="Path to the binary layout file", default="layouts_rxc2.bin")
     args = parser.parse_args()
 
-    app = LayoutExplorer(args.omp_file.resolve(), args.layout_bin.resolve())
+    app = LayoutExplorer(args.omp_file.resolve(), args.layouts.resolve())
     app.mainloop()
 
 
