@@ -1,0 +1,5 @@
+python .\render_stage.py PC\X5\stage\st000\st000.omp --skip-catalog --output-dir progress-baseline
+python .\render_stage.py PC\X5\stage\st010\st010.omp --skip-catalog --output-dir progress-baseline
+python .\render_stage.py PC\X5\stage\st020\st020.omp --skip-catalog --output-dir progress-baseline
+python .\render_stage.py PC\X5\stage\st021\st021.omp --skip-catalog --output-dir progress-baseline
+python .\render_stage.py PC\X5\stage\st050\st050.omp --skip-catalog --output-dir progress-baseline

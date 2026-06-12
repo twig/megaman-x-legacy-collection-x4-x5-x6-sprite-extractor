@@ -271,12 +271,18 @@ def main() -> None:
         help="Skip catalog PNG generation",
     )
     parser.add_argument(
+        "--output-dir", type=Path, help="Directory to save output images (default: current working directory)",
+        default=Path.cwd(),
+    )
+    parser.add_argument(
         "--debug", action="store_true",
         help="Overlay screen/layer boundaries and (sx,sy)/screen-id labels on output images",
     )
     args = parser.parse_args()
 
     omp_path: Path = args.omp_file.resolve()
+    output_dir: Path = args.output_dir.resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     omp_stem = omp_path.stem
     [omp, ocl, tex, tex_background, flags_to_palette] = preload_related_files(omp_path)
@@ -296,7 +302,7 @@ def main() -> None:
         )
         if args.debug:
             _debug_overlay_catalog(catalog_img, omp.n_screens)
-        catalog_out = Path(f"{omp_stem}_catalog.png")
+        catalog_out = output_dir / f"{omp_stem}_catalog.png"
         catalog_img.save(catalog_out)
         print(f"  Saved {catalog_out}  ({catalog_img.width}×{catalog_img.height} px)")
 
@@ -350,7 +356,7 @@ def main() -> None:
         )
         if args.debug:
             _debug_overlay_level(level_img, layout, n_sx, n_sy)
-        level_out = Path(f"{omp_stem}_level.png")
+        level_out = output_dir / Path(f"{omp_stem}_level.png")
         level_img.save(level_out)
         print(f"  Saved {level_out}  ({level_img.width}×{level_img.height} px)")
 
