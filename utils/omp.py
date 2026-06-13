@@ -986,8 +986,11 @@ def render_omp(
             if raw_id == 0:
                 continue  # transparent
 
-            # Bit 15 = flip_h flag; bits [0:13] = actual tile/OCL index
-            flip_h = bool(raw_id & 0x8000)
+            # Bits 14-15 are flags used by the game engine (e.g. collision layer
+            # selection, animation triggers). They are NOT visual flip flags —
+            # OCL entries already contain pre-oriented pixel data.  Mask them off
+            # to get the true OCL index (consistent with TeheManX4_Editor's
+            # `id &= 0x3FFF` in Draw16xTile).
             tile_id = raw_id & 0x3FFF
 
             if tile_id >= len(ocl_entries):
@@ -1015,9 +1018,6 @@ def render_omp(
 
             tile_img = Image.new("RGBA", (tile_size, tile_size))
             tile_img.putdata(rgba_pixels)
-
-            if flip_h:
-                tile_img = tile_img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
 
             px = col_idx * tile_size
             py = canvas_row * tile_size
@@ -1100,7 +1100,7 @@ def render_level(
                     if raw_id == 0:
                         continue  # transparent
 
-                    flip_h = bool(raw_id & 0x8000)
+                    # Bits 14-15 are engine flags, not visual flip signals — mask off.
                     ocl_idx = raw_id & 0x3FFF
 
                     if ocl_idx >= len(ocl_entries):
@@ -1129,9 +1129,6 @@ def render_level(
 
                     tile_img = Image.new("RGBA", (tile_size, tile_size))
                     tile_img.putdata(rgba_pixels)
-
-                    if flip_h:
-                        tile_img = tile_img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
 
                     # level tile position (lx, ly)
                     lx = sx * 16 + wx
