@@ -1,4 +1,4 @@
-# OMP file format — Stage tile-screen catalog
+﻿# OMP file format — Stage tile-screen catalog
 #
 # The OMP file is a catalog of screen data for a single stage layer (the main
 # platform/collision layer). Each ROW in the OMP represents one complete 16×16
@@ -538,6 +538,25 @@ def _build_chr256_ocl_indices(
             return False
         return _no_lg_min - CHR256_INDEX_GAP_THRESHOLD <= idx <= _no_lg_max + CHR256_INDEX_GAP_THRESHOLD
 
+    # Pass 1d: compute the set of texture pages that host at least one no-large-gap
+    # group member.  Sole entries where tex!=tex_bg are only classified as chr256 when
+    # their texture page belongs to this set.
+    #
+    # Rationale: the chr256 background batch occupies a contiguous block of OCL
+    # indices; its tile coordinates spread across specific pages (e.g. pages 0-2 in
+    # st041).  Sole entries on OTHER pages are foreground tiles that merely happen to
+    # differ from the background texture at the same coordinates.  Gating by page
+    # membership cleanly separates the two classes without requiring a tighter
+    # CHR256_INDEX_GAP_THRESHOLD that could break other stages.
+    #
+    # Stages with no no-LG groups have _pages_with_no_lg = set(), but those stages
+    # also have _in_chr256_region always returning False, so the page gate is moot.
+    _pages_with_no_lg: set[int] = {
+        key[0]
+        for key, idxs in group_indices.items()
+        if len(idxs) >= 2 and not group_has_large_gap[key]
+    }
+
     # Pass 2: mark chr256 for entries that belong to the chr256 batch.
     h_tex = len(raw_tex) // w_tex
     h_bg  = len(raw_bg)  // w_bg
@@ -602,7 +621,7 @@ def _build_chr256_ocl_indices(
             if _tex_is_empty(raw_tex, w_tex, gx, gy):
                 if not _gate_tex_empty or _in_chr256_region(i):
                     chr256.add(i)
-            elif _tiles_differ(gx, gy) and _in_chr256_region(i):
+            elif _tiles_differ(gx, gy) and _in_chr256_region(i) and page in _pages_with_no_lg:
                 chr256.add(i)
             continue
         if key in seen:
