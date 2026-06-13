@@ -1001,10 +1001,11 @@ def render_omp(
             if palette is None:
                 continue  # no palette registered at all — skip
 
-            # pad=0xFF is the OCL sentinel value for "no TEX data" — these slots
-            # (crystal sky-fill placeholders) are transparent in the foreground pass;
-            # the background layer is meant to show through.
-            if entry.pad == 0xFF:
+            # Any non-zero pad high nibble signals a foreground-transparent slot:
+            #   pad=0xFF (high=0xF): crystal sky-fill placeholder ("no TEX data")
+            #   pad=0x10 (high=0x1): background-layer-only tile (e.g. st070/st000)
+            # In both cases the background layer is meant to show through.
+            if entry.pad & 0xF0:
                 continue
 
             raw_tile = _resolve_tile(entry, tile_id)
@@ -1113,10 +1114,11 @@ def render_level(
                     if palette is None:
                         continue  # no palette registered at all — skip
 
-                    # pad=0xFF is the OCL sentinel value for "no TEX data" — these slots
-                    # (crystal sky-fill placeholders) are transparent in the foreground pass;
-                    # the background layer is meant to show through.
-                    if entry.pad == 0xFF:
+                    # Any non-zero pad high nibble signals a foreground-transparent slot:
+                    #   pad=0xFF (high=0xF): crystal sky-fill placeholder ("no TEX data")
+                    #   pad=0x10 (high=0x1): background-layer-only tile (e.g. st070/st000)
+                    # In both cases the background layer is meant to show through.
+                    if entry.pad & 0xF0:
                         continue
 
                     raw_tile = _resolve_tile(entry, ocl_idx)
