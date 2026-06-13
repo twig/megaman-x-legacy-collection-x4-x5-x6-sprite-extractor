@@ -111,12 +111,11 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
 
     "st070": (0x02D98548, 24, 14), # IN RANGE (Spike Rosered)
 
+    "st080": (0x02D99A7D, 19, 13), # IN RANGE (Spiral Pegasus)
+
     # --- unconfirmed
     # idx 13 (5×26):  max(layer0) == 208 → st120 n_screens=209
     "st120": (0x02D9979F,  5, 26),  # CONFIRMED — block 1 idx 13, exact max match (Zero Space 4: Birth)
-
-    # idx 15  (5×28)   0x02D99AD8
-    "st080": (0x02D99AD8,  5, 28), # CONFIRMED (Spiral Pegasus)
 
     # idx 16  (5×27)   0x02D99C7C
     "st170": (0x02D99C7C,  5, 27), # CONFIRMED (Zero Space 2: Grief)
