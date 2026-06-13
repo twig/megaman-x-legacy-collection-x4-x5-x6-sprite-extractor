@@ -86,6 +86,7 @@ EXE_PATH = Path("RXC2.exe")
 STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     # DONE = accurate render of stage (offset and dimensions look correct)
     # ALMOST = tiles and layout complete, offset/dimensions not quite right
+    # IN RANGE = we got some tiles and layout data
     # --- presentable
     # st000 uses a dedicated second copy of the layout at 0x02EC2D4B.
     # Verified by 4 anchor points from omp-to-expected-tiles-x5.csv.
@@ -106,14 +107,13 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     "st050": (0x02D99508, 44, 7), # ALMOST (Volt Kraken)
 
     "st060": (0x02D992B3, 29, 15), # ALMOST (Shining Firefly: Area 1)
-    "st061": (0x02D9A690, 22, 15), # ALMOST (Shining Firefly: Area 2)
+    "st061": (0x02D9A690, 22, 13), # ALMOST (Shining Firefly: Area 2)
+
+    "st070": (0x02D98548, 24, 14), # IN RANGE (Spike Rosered)
 
     # --- unconfirmed
     # idx 13 (5×26):  max(layer0) == 208 → st120 n_screens=209
     "st120": (0x02D9979F,  5, 26),  # CONFIRMED — block 1 idx 13, exact max match (Zero Space 4: Birth)
-
-    # idx 14  (5×29)   0x02D99925
-    "st070": (0x02D99925,  5, 29), # CONFIRMED (Spike Rosered)
 
     # idx 15  (5×28)   0x02D99AD8
     "st080": (0x02D99AD8,  5, 28), # CONFIRMED (Spiral Pegasus)
