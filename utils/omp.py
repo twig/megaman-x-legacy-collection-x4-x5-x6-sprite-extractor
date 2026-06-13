@@ -404,45 +404,44 @@ def _build_chr256_ocl_indices(
       - First occurrence (any col):       reads from tex.
       - Non-first, same col as first:     reads from tex (hit-flash 0x38 variants
                                           share the base tile's pixel data and palette).
-      - Non-first, different col, small index gap (< CHR256_INDEX_GAP_THRESHOLD):
-                                          reads from tex.  These are stage-palette
-                                          variants occupying the same OCL index batch
-                                          as their first occurrence; they share tile
-                                          pixel data with the first entry.
-      - Non-first, different col, large index gap (≥ CHR256_INDEX_GAP_THRESHOLD):
-                                          reads from tex_bg.  These appear in a
-                                          separate, later OCL batch and reference a
-                                          genuinely different tile stored in tex_bg.
+      - Non-first, different col, group HAS a large-gap entry (≥ THRESHOLD):
+          - This entry's gap from first < THRESHOLD:  reads from tex (stage-palette
+            variant in the same OCL batch as the first occurrence; shares pixel data).
+          - This entry's gap from first ≥ THRESHOLD:  reads from tex_bg (chr256
+            entry in a separate, later OCL batch).
+      - Non-first, different col, group has NO large-gap entry:
+                                          reads from tex_bg.  When all entries in a
+                                          group are close together (no large-gap chr256
+                                          variant exists), the whole group represents
+                                          a chr256 background tile with palette variants.
       - Sole entry at its coordinate,
         tex empty at that coordinate:     reads from tex_bg (pixel data lives there
                                           rather than in tex for this entry).
       - Sole entry, tex has data:         reads from tex as normal.
 
-    Index-gap rationale (confirmed for X5 st050 and st000):
-      The OCL table is structured in two distinct index ranges: stage-palette entries
-      at low indices (all within ~240 positions of their first occurrence) and chr256
-      background entries at high indices (always ≥ 1298 positions after the first).
-      A threshold of CHR256_INDEX_GAP_THRESHOLD = 500 cleanly separates the two
-      groups with no overlap.  For stages where the small-gap entries have identical
-      pixel data in tex and tex_bg, routing them to tex has no visual effect.
+    Index-gap rationale (confirmed for X5 st050, st030, st000):
+      Groups with both a stage-palette batch AND a chr256 batch always have a large
+      index gap (≥ 500) separating the two batches.  Groups whose entries are all
+      close together belong entirely to chr256.  A threshold of
+      CHR256_INDEX_GAP_THRESHOLD = 500 cleanly separates the two kinds of group.
 
-    Algorithm (two passes):
+    Algorithm (three passes):
       Pass 0: count occurrences per (page, clut_base) key.
-      Pass 1: record the first col and first OCL index seen per key.
+      Pass 1: record the first col seen per key and collect all OCL indices per key.
+      Pass 1b: for each multi-entry key, determine whether the group contains a
+               large-gap entry (max consecutive-index gap ≥ CHR256_INDEX_GAP_THRESHOLD).
       Pass 2: mark chr256 for —
-                sole entries where tex is all-zero at the coordinate, and
-                non-first entries whose col differs from the first entry's col
-                AND whose OCL index is far from the first (≥ CHR256_INDEX_GAP_THRESHOLD).
-              Same-col non-first entries (including type==0x38 hit-flash) are left
-              in tex naturally because the col-equality guard excludes them.
+                sole entries where tex is all-zero at the coordinate;
+                non-first different-col entries whose gap from first ≥ THRESHOLD; and
+                non-first different-col entries in groups that have NO large-gap entry.
+              Same-col non-first entries are always left in tex.
 
     Pages ≥ 8 are handled separately via col==112 in _resolve_tile.
     """
-    # Minimum OCL-index gap between a first occurrence and a non-first entry for
-    # the non-first entry to be classified as chr256 (background tileset).
-    # Entries closer than this threshold are stage-palette variants sharing the
-    # same tile pixel data as the first occurrence and must read from tex.
-    # Confirmed for X5 st050 and st000: small-gap max = 239, large-gap min = 1298.
+    # Minimum index gap within a group that signals a split between the stage-palette
+    # batch (tex) and the chr256 background batch (tex_bg).
+    # Confirmed for X5 st050, st030, st000: stage-palette max gap ≤ 341;
+    # chr256 batch min gap ≥ 739.  500 gives a safe margin between the two.
     CHR256_INDEX_GAP_THRESHOLD = 500
 
     raw_tex  = tex["raw_image"];    w_tex = tex["width"]
@@ -465,9 +464,9 @@ def _build_chr256_ocl_indices(
         key = (page, e.clut_base)
         key_count[key] = key_count.get(key, 0) + 1
 
-    # Pass 1: record first col and first OCL index per group
+    # Pass 1: record first col per key and collect all OCL indices per key.
     first_col: dict[tuple[int, int], int] = {}
-    first_idx: dict[tuple[int, int], int] = {}
+    group_indices: dict[tuple[int, int], list[int]] = {}
     for i, e in enumerate(ocl_entries):
         page = e.pad & 0xF
         if page >= 8:
@@ -475,10 +474,24 @@ def _build_chr256_ocl_indices(
         key = (page, e.clut_base)
         if key not in first_col:
             first_col[key] = e.col
-            first_idx[key] = i
+            group_indices[key] = []
+        group_indices[key].append(i)
+
+    # Pass 1b: for each multi-entry group, determine if any consecutive pair of
+    # indices spans ≥ CHR256_INDEX_GAP_THRESHOLD (indicating a tex/chr256 split).
+    group_has_large_gap: dict[tuple[int, int], bool] = {}
+    for key, idxs in group_indices.items():
+        if len(idxs) < 2:
+            group_has_large_gap[key] = False
+            continue
+        sorted_idxs = sorted(idxs)
+        group_has_large_gap[key] = any(
+            b - a >= CHR256_INDEX_GAP_THRESHOLD
+            for a, b in zip(sorted_idxs, sorted_idxs[1:])
+        )
 
     # Pass 2: mark chr256 for sole entries with empty tex and non-first different-col
-    # entries that are far enough from their first occurrence (≥ CHR256_INDEX_GAP_THRESHOLD).
+    # entries that belong to the chr256 batch.
     seen: set[tuple[int, int]] = set()
     chr256: set[int] = set()
     for i, e in enumerate(ocl_entries):
@@ -495,8 +508,15 @@ def _build_chr256_ocl_indices(
                 chr256.add(i)
             continue
         if key in seen:
-            if e.col != first_col[key] and (i - first_idx[key]) >= CHR256_INDEX_GAP_THRESHOLD:
-                chr256.add(i)
+            if e.col != first_col[key]:
+                if not group_has_large_gap[key]:
+                    # All entries are in the same close batch → whole group is chr256.
+                    chr256.add(i)
+                else:
+                    # Group is split: large-gap entries are chr256, small-gap are tex.
+                    fi = group_indices[key][0]
+                    if (i - fi) >= CHR256_INDEX_GAP_THRESHOLD:
+                        chr256.add(i)
         else:
             seen.add(key)
     return frozenset(chr256)
