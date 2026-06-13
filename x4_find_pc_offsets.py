@@ -1,6 +1,4 @@
 """
-find_x4_pc_offsets.py
-
 Search RXC1.exe (Mega Man X Legacy Collection 1 PC) for Mega Man X4 stage layout
 data by binary-matching PSX layout layer-0 bytes against the PC executable.
 
@@ -9,8 +7,8 @@ Verification rule (same as X5 research in RXC2.exe):
   where n_screens = struct.unpack_from("<I", omp_data, 8)[0] // 256
 
 Inputs:
-  X4-psx/layouts/*.bin          PSX layout dumps (from extract_x4_psx_layouts.py)
-  X4-psx/layouts/index.json     metadata: index, stem, w, h per stage
+  PSX/X4/layouts/*.bin          PSX layout dumps (from x4_extract_psx_layouts.py)
+  PSX/X4/layouts/index.json     metadata: index, stem, w, h per stage
   PC/X4/stage/map/SCR*.omp      PC OMP files for n_screens verification
   RXC1.exe                      PC executable to search
 
@@ -22,10 +20,10 @@ import struct
 from pathlib import Path
 
 PC_EXE    = Path("RXC1.exe")
-BIN_DIR   = Path("X4-psx/layouts")
+BIN_DIR   = Path("PSX/X4/layouts")
 OMP_DIR   = Path("PC/X4/stage/map")
 META_PATH = BIN_DIR / "index.json"
-OUT_PY    = Path("x4_pc_layout_offsets.py")
+OUT_PY    = Path("x4_pc_mmxlc1_layout_offsets.py")
 
 # Minimum layer-0 bytes to attempt a search (small needles get too many false positives)
 MIN_SEARCH_BYTES = 50
@@ -80,7 +78,7 @@ def main() -> None:
     print(f"  {len(exe):,} bytes\n")
 
     if not META_PATH.exists():
-        print(f"Missing {META_PATH} — run extract_x4_psx_layouts.py first.")
+        print(f"Missing {META_PATH} — run x4_extract_psx_layouts.py first.")
         return
 
     meta: list[dict] = json.loads(META_PATH.read_text())
@@ -193,8 +191,6 @@ def main() -> None:
 def _write_output_py(strict: dict[str, dict], compat: dict[str, dict]) -> None:
     lines = [
         '"""',
-        "x4_pc_layout_offsets.py",
-        "",
         "Mega Man X4 stage layout offsets in RXC1.exe (Mega Man X Legacy Collection 1 PC).",
         "Each offset points to the first byte of layer 0 (the foreground layer).",
         "Full layout block = w * h * 3 bytes (3 consecutive layers, each w*h screen IDs).",

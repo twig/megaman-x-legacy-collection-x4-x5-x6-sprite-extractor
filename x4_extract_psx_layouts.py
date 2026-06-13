@@ -1,6 +1,4 @@
 """
-extract_x4_psx_layouts.py
-
 Extract all stage layout tables from the Mega Man X4 PSX executable (SLUS_005.61).
 
 Layout data format (ported from TeheManX4_Editor/Level.cs → ExtractLevelData):
@@ -15,16 +13,16 @@ Index mapping (from GetIndex() in Level.cs):
   STD_1_xU.ARC → index 27  (special case)
 
 Output:
-  X4-psx/layouts/{STEM}.bin    raw layout bytes (w*h*3)
-  X4-psx/layouts/index.json    metadata: index, stem, w, h, size, cpu_ptr, file_offset
+  PSX/X4/layouts/{STEM}.bin    raw layout bytes (w*h*3)
+  PSX/X4/layouts/index.json    metadata: index, stem, w, h, size, cpu_ptr, file_offset
 """
 
 import json
 import struct
 from pathlib import Path
 
-PSX_PATH = Path("X4-psx/SLUS_005.61")
-OUT_DIR  = Path("X4-psx/layouts")
+PSX_PATH = Path("PSX/X4/SLUS_005.61")
+OUT_DIR  = Path("PSX/X4/layouts")
 
 LAYOUT_DATA_PTRS_OFF = 0x1007DC   # table of LE uint32 CPU pointers, one per index
 LAYOUT_SIZE_OFF      = 0x100864   # table of (w, h) byte pairs, one per index

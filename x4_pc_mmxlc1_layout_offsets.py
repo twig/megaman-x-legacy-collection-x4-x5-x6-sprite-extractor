@@ -1,13 +1,11 @@
 """
-x4_pc_layout_offsets.py
-
 Mega Man X4 stage layout offsets in RXC1.exe (Mega Man X Legacy Collection 1 PC).
 Each offset points to the first byte of layer 0 (the foreground layer).
 Full layout block = w * h * 3 bytes (3 consecutive layers, each w*h screen IDs).
 
 Verification levels:
-  verified  — max(exe[pc_offset : pc_offset + w*h]) == n_screens - 1
-  compat    — exact PSX bytes found in PC exe; PC OMP has more screens
+  verified  ï¿½ max(exe[pc_offset : pc_offset + w*h]) == n_screens - 1
+  compat    ï¿½ exact PSX bytes found in PC exe; PC OMP has more screens
               (Legacy Collection expanded the OMP but kept the same layout data)
 
 n_screens comes from PC/X4/stage/map/SCR*.omp (uint32LE @ byte 8 // 256)
