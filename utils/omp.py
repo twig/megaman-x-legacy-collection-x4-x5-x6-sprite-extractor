@@ -416,21 +416,22 @@ def _build_chr256_ocl_indices(
                                           group are close together (no large-gap chr256
                                           variant exists), the whole group represents
                                           a chr256 background tile with palette variants.
-      - Sole entry at its coordinate,
-        tex empty at that coordinate:     reads from tex_bg (pixel data lives there
-                                          rather than in tex for this entry).
-      - Sole entry, tex has data but pixels in tex and tex_bg differ:
-                                          reads from tex_bg.  The tex coordinate
-                                          is occupied by a different foreground tile;
-                                          the canonical pixels for this chr256 entry
-                                          live in tex_bg.
-      - Sole entry, tex has data matching tex_bg: reads from tex (no visible
-                                          difference, entry is in the foreground
-                                          OCL batch).
-      - First occurrence of a no-large-gap multi-entry group:
-                                          reads from tex_bg.  When the whole group has
-                                          no large-gap chr256 variant, every entry
-                                          (including the first) is a chr256 tile.
+      - Sole entry, tex empty:            reads from tex_bg.
+      - Sole entry, tex has data matching tex_bg (same=True):
+                                          reads from tex (routing doesn't matter).
+      - Sole entry, tex has data differing from tex_bg AND index within the
+        chr256-batch region (within CHR256_INDEX_GAP_THRESHOLD of any no-large-gap
+        group entry):                     reads from tex_bg (the canonical pixels
+                                          for this background tile live there).
+      - Sole entry, tex has data differing from tex_bg AND index OUTSIDE the
+        chr256-batch region:              reads from tex.  These are foreground-only
+                                          palette variants that follow the last
+                                          multi-entry group in the OCL table and
+                                          are never part of the chr256 batch.
+      - Page ≥ 8, col ≠ 0/112:           reads from tex (handled entirely in
+                                          _resolve_tile; _build_chr256_ocl_indices
+                                          does not process pages ≥ 8).
+                                          col=0 and col=112 → tex_bg in _resolve_tile.
 
     Index-span rationale (confirmed for X5 st010, st030, st050, st000):
       All-chr256 groups have a total index span (last − first) well under 500.
@@ -445,13 +446,16 @@ def _build_chr256_ocl_indices(
       Pass 1: record the first col seen per key and collect all OCL indices per key.
       Pass 1b: for each multi-entry key, determine whether the group contains a
                large-gap entry (max consecutive-index gap ≥ CHR256_INDEX_GAP_THRESHOLD).
+      Pass 1c: compute the chr256-batch region from no-large-gap group indices
+               (used to gate the sole-entry tex≠tex_bg rule).
       Pass 2: mark chr256 for —
-                sole entries where tex is all-zero or pixels in tex differ from tex_bg;
+                sole entries where tex is empty;
+                sole entries where tex ≠ tex_bg AND index within chr256-batch region;
                 all entries of no-large-gap groups (first and non-first, any col);
                 non-first different-col entries in large-gap groups whose gap from
                 first ≥ THRESHOLD.
-              Same-col non-first entries in large-gap groups, and different-col
-              non-first entries with small gap, remain in tex.
+              Pages ≥ 8 are skipped here; their routing is done in _resolve_tile
+              via col=0/112 indicators.
 
     Pages ≥ 8 are handled separately via col==112 in _resolve_tile.
     """
@@ -512,8 +516,29 @@ def _build_chr256_ocl_indices(
             sorted_idxs[-1] - sorted_idxs[0] >= CHR256_INDEX_GAP_THRESHOLD
         )
 
-    # Pass 2: mark chr256 for sole entries with empty/mismatched tex and non-first
-    # different-col entries that belong to the chr256 batch.
+    # Pass 1c: compute the overall index range spanned by all no-large-gap groups.
+    # This range [no_lg_min − THRESHOLD, no_lg_max + THRESHOLD] defines the
+    # "chr256 batch region".  Sole entries where tex≠tex_bg are only chr256 when
+    # their OCL index falls inside this region; sole entries outside it (e.g. a run
+    # of foreground-only palette variants that follow the last large-span group's
+    # first occurrence) stay in tex.
+    _no_lg_indices: set[int] = set()
+    for key, idxs in group_indices.items():
+        if len(idxs) >= 2 and not group_has_large_gap[key]:
+            _no_lg_indices.update(idxs)
+    if _no_lg_indices:
+        _no_lg_min = min(_no_lg_indices)
+        _no_lg_max = max(_no_lg_indices)
+    else:
+        _no_lg_min = _no_lg_max = -1
+
+    def _in_chr256_region(idx: int) -> bool:
+        """Return True if idx is within CHR256_INDEX_GAP_THRESHOLD of the no-LG group range."""
+        if _no_lg_min < 0:
+            return False
+        return _no_lg_min - CHR256_INDEX_GAP_THRESHOLD <= idx <= _no_lg_max + CHR256_INDEX_GAP_THRESHOLD
+
+    # Pass 2: mark chr256 for entries that belong to the chr256 batch.
     h_tex = len(raw_tex) // w_tex
     h_bg  = len(raw_bg)  // w_bg
 
@@ -537,14 +562,17 @@ def _build_chr256_ocl_indices(
             continue
         key = (page, e.clut_base)
         if key_count[key] == 1:
-            # Sole entry: route to tex_bg when tex is empty, or when both textures
-            # have data but differ (the canonical pixels live in tex_bg for chr256
-            # background tiles that happen to share a coordinate with a foreground
-            # tile in the TEX sheet).
+            # Sole entry: route to tex_bg when tex is empty at this coordinate.
+            # Also route to tex_bg when tex has data that differs from tex_bg,
+            # but ONLY if the index lies within the chr256-batch region (close to
+            # any no-large-gap group entry).  Sole entries outside that region
+            # are foreground-only palette variants and must stay in tex.
             cordX = e.clut_base & 0xF; cordY = (e.clut_base >> 4) & 0xF
             gx = (page % 8) * 256 + cordX * tile_size
             gy = (page // 8) * 256 + cordY * tile_size
-            if _tex_is_empty(raw_tex, w_tex, gx, gy) or _tiles_differ(gx, gy):
+            if _tex_is_empty(raw_tex, w_tex, gx, gy):
+                chr256.add(i)
+            elif _tiles_differ(gx, gy) and _in_chr256_region(i):
                 chr256.add(i)
             continue
         if key in seen:
@@ -691,17 +719,14 @@ def render_omp(
         page = entry.pad & 0xF
 
         # Texture routing:
-        #   Pages 0–7: tex holds valid 8bpp tile data in general.
-        #     Exception: at cordY==15 (the last tile row of a page), some OCL
-        #     entries are "second occurrences" that share coordinates with an
-        #     earlier entry but come from the chr256 background tileset instead.
-        #     These are identified by _build_chr256_ocl_indices() and use tex_bg.
-        #   Pages 8–15, col=112: tex_bg (chr256) — values 0–30 land in palette
-        #     rows 176–177 which are correct for those tiles.
-        #   Pages 8–15, col≠112: tex has the correct 8bpp values for those tiles.
+        #   Pages 0–7: _build_chr256_ocl_indices() decides; chr256 entries use tex_bg.
+        #   Pages 8–15, col=112: always tex_bg (standard chr256 palette indicator).
+        #   Pages 8–15, col=0: tex_bg (col=0 is the chr256 indicator used in stages
+        #     that do not use col=112, e.g. st040).
+        #   Pages 8–15, other col: tex.
         if page < 8:
             active_tex = tex_bg if ocl_idx in chr256_indices else tex
-        elif entry.col == 112:
+        elif entry.col in (0, 112) or ocl_idx in chr256_indices:
             active_tex = tex_bg
         else:
             active_tex = tex
@@ -806,7 +831,7 @@ def render_level(
         # Texture routing: see render_omp for full explanation.
         if page < 8:
             active_tex = tex_bg if ocl_idx in chr256_indices else tex
-        elif entry.col == 112:
+        elif entry.col in (0, 112) or ocl_idx in chr256_indices:
             active_tex = tex_bg
         else:
             active_tex = tex
