@@ -85,38 +85,30 @@ EXE_PATH = Path("RXC2.exe")
 
 STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     # DONE = accurate render of stage (offset and dimensions look correct)
-    # LOOKS RIGHT = looks DONE but has some questionable parts (eg. st000 layout has multiple dimensions?)
-    # WITHIN RANGE = most parts of stage recognisable (offset/dimensions not quite right)
+    # ALMOST = tiles and layout complete, offset/dimensions not quite right
     # --- presentable
     # st000 uses a dedicated second copy of the layout at 0x02EC2D4B.
     # Verified by 4 anchor points from omp-to-expected-tiles-x5.csv.
-    "st000": (0x02EC2D4B, 15, 24),  # WITHIN RANGE (Intro Stage all)
-    # "st000": (0x02EC2D78, 15, 17),  # WITHIN RANGE (Intro Stage - part 1 flat)
-    # "st000": (0x02EC2D5F, 4, 3),  # LOOKS RIGHT (Intro Stage - part 2 tower)
+    "st000": (0x02EC2D4B, 15, 24),  # ALMOST (Intro Stage all)
+    # "st000": (0x02EC2D78, 15, 17),  # ALMOST (Intro Stage - part 1 flat)
+    # "st000": (0x02EC2D5F, 4, 3),  # ALMOST (Intro Stage - part 2 tower)
 
     "st010": (0x02D98528, 39, 8),  # DONE (Crescent Grizzly)
 
-    "st020": (0x02D9A407, 32, 5), # WITHIN RANGE (Dark Necrobat: Area 1)
-    "st021": (0x02D9A404, 25, 6), # WITHIN RANGE (Dark Necrobat: Area 2)
+    "st020": (0x02D9A407, 32, 5), # ALMOST (Dark Necrobat: Area 1)
+    "st021": (0x02D9A404, 25, 6), # ALMOST (Dark Necrobat: Area 2)
 
-    "st030": (0x02D9A407, 22, 15),  # WITHIN RANGE (Tidal Whale)
+    "st030": (0x02D9A407, 22, 15),  # ALMOST (Tidal Whale)
 
-    "st040": (0x02D9A3DE, 23, 10), # WITHIN RANGE (Burn Dinorex: Area 1)
-    # "st040": (0x02D9A690, 22, 15), # WITHIN RANGE (Burn Dinorex: Area 1)
-    "st041": (0x02D9A3DE, 24, 10), # WITHIN RANGE (Burn Dinorex: Area 2)
+    "st040": (0x02D9A3DE, 23, 10), # ALMOST (Burn Dinorex: Area 1)
+    "st041": (0x02D9A3DE, 24, 10), # ALMOST (Burn Dinorex: Area 2)
+
+    "st050": (0x02D99508, 44, 7), # ALMOST (Volt Kraken)
+
+    "st060": (0x02D992B3, 29, 15), # ALMOST (Shining Firefly: Area 1)
+    "st061": (0x02D9A690, 22, 15), # ALMOST (Shining Firefly: Area 2)
 
     # --- unconfirmed
-
-    # idx 11  (5×26)   0x02D99466
-    # "st050": (0x02D992B3, 29, 10), # CONFIRMED (Volt Kraken)
-    "st050": (0x02D99508, 44, 7), # CONFIRMED (Volt Kraken)
-
-    # Why is this shared with above?
-    "st060": (0x02D992B3,  5, 29),  # UNCONFIRMED (Shining Firefly: Area 1)
-
-    #   idx 23  (15×22)  0x02D9A690
-    "st061": (0x02D9A690, 15, 22), # CONFIRMED (Shining Firefly: Area 2)
-
     # idx 13 (5×26):  max(layer0) == 208 → st120 n_screens=209
     "st120": (0x02D9979F,  5, 26),  # CONFIRMED — block 1 idx 13, exact max match (Zero Space 4: Birth)
 
