@@ -660,6 +660,68 @@ def _build_chr256_ocl_indices(
                 # but only when tex_bg has tile data at these coordinates.
                 if group_bg_has_data[key]:
                     chr256.add(i)
+    # Record the page<8 chr256 maximum index before adding any page>=8 entries.
+    # Used by Pass 3b as the proximity anchor so that page>=8 sole-entry proximity
+    # is always measured against the page<8 batch max (not inflated by Pass 3a).
+    _chr256_max_pg_lt8 = max(chr256) if chr256 else -1
+
+    # Pass 3a: page>=8 multi-member small-span groups.
+    # When a (page, clut_base) group on page>=8 has:
+    #   - 2+ OCL entries
+    #   - total span (max_idx - min_idx) < CHR256_INDEX_GAP_THRESHOLD
+    #   - at least one member with col in (0, 112)  [chr256 palette indicator]
+    #   - tex_bg has non-empty pixel data at those coordinates
+    # then ALL members of the group belong to the chr256 (background) batch.
+    #
+    # This handles stages like st041 where page>=8 chr256 tiles come in pairs:
+    # a col=0 normal-palette entry and a col=16 alt-palette entry pointing to the
+    # same pixel coordinates.  The col=32/96 groups in st030 are excluded because
+    # they contain no col=0/112 member (they are foreground palette variants).
+    _pg8_groups: dict[tuple[int, int], list[int]] = {}
+    for i, e in enumerate(ocl_entries):
+        page = e.pad & 0xF
+        if page < 8:
+            continue
+        key = (page, e.clut_base)
+        if key not in _pg8_groups:
+            _pg8_groups[key] = []
+        _pg8_groups[key].append(i)
+
+    for key, idxs in _pg8_groups.items():
+        if len(idxs) < 2:
+            continue
+        sorted_g = sorted(idxs)
+        if sorted_g[-1] - sorted_g[0] >= CHR256_INDEX_GAP_THRESHOLD:
+            continue
+        if not any(ocl_entries[j].col in (0, 112) for j in idxs):
+            continue
+        page_k, clut_k = key
+        cordX_k = clut_k & 0xF; cordY_k = (clut_k >> 4) & 0xF
+        gx_k = (page_k % 8) * 256 + cordX_k * tile_size
+        gy_k = (page_k // 8) * 256 + cordY_k * tile_size
+        if _tex_is_empty(raw_bg, w_bg, gx_k, gy_k):
+            continue
+        # Only add members whose col is NOT the standard-palette marker (0 or 112).
+        # In groups with mixed col values (e.g. col=0 foreground + col=16 background),
+        # the col=0 member is the foreground tile sharing the same pixel coordinates;
+        # it must stay in tex.  The col=0/112 members are handled independently by
+        # Pass 3b's proximity check.
+        chr256.update(j for j in idxs if ocl_entries[j].col not in (0, 112))
+
+    # Pass 3b: page>=8 sole entries — col=0/112 proximity check.
+    # A sole page>=8 col-0/112 entry is chr256 when:
+    #   (a) no chr256 batch region was detected (_no_lg_min < 0, e.g. st000), OR
+    #   (b) the entry's OCL index is within CHR256_INDEX_GAP_THRESHOLD of the
+    #       highest page<8 chr256 index (_chr256_max_pg_lt8).
+    # Using the page<8-only max (not the post-3a max) keeps the proximity anchor
+    # stable and avoids unintended cascading additions.
+    for i, e in enumerate(ocl_entries):
+        if (e.pad & 0xF) < 8:
+            continue
+        if e.col not in (0, 112):
+            continue
+        if _no_lg_min < 0 or (_chr256_max_pg_lt8 >= 0 and i - _chr256_max_pg_lt8 <= CHR256_INDEX_GAP_THRESHOLD):
+            chr256.add(i)
     return frozenset(chr256)
 
 
@@ -791,7 +853,7 @@ def render_omp(
         #   Pages 8–15, other col: tex.
         if page < 8:
             active_tex = tex_bg if ocl_idx in chr256_indices else tex
-        elif entry.col in (0, 112) or ocl_idx in chr256_indices:
+        elif ocl_idx in chr256_indices:
             active_tex = tex_bg
         else:
             active_tex = tex
@@ -896,7 +958,7 @@ def render_level(
         # Texture routing: see render_omp for full explanation.
         if page < 8:
             active_tex = tex_bg if ocl_idx in chr256_indices else tex
-        elif entry.col in (0, 112) or ocl_idx in chr256_indices:
+        elif ocl_idx in chr256_indices:
             active_tex = tex_bg
         else:
             active_tex = tex
