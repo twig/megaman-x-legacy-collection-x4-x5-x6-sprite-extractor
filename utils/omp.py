@@ -136,6 +136,7 @@
 # ============================================================
 
 
+import bisect
 import struct
 from dataclasses import dataclass
 from enum import IntEnum
@@ -613,6 +614,52 @@ def _build_chr256_ocl_indices(
     # If both conditions are met, sole-entry tex_empty is gated by _in_chr256_region.
     _gate_tex_empty = _has_sole_diff
 
+    # Pass 1e: identify same-col large-gap groups whose first occurrence (fi) is
+    # immediately adjacent to a confirmed no-LG chr256 group on the same page.
+    # When a large-gap same-col group sits right next to the chr256 batch (distance
+    # from fi to nearest no-LG index ≤ _NOLG_DIST_THRESHOLD), both normal and
+    # hit-flash variants belong to the background batch (e.g. st061 page=0 groups).
+    # Empirically verified: adds 61 entries for st061 and 0 for all other stages.
+    _NOLG_DIST_THRESHOLD = 20
+    _per_page_nolg_sorted: dict[int, list[int]] = {}
+    for _key, _idxs in group_indices.items():
+        if len(_idxs) >= 2 and not group_has_large_gap[_key] and group_bg_has_data[_key]:
+            _per_page_nolg_sorted.setdefault(_key[0], []).extend(_idxs)
+    for _pg in _per_page_nolg_sorted:
+        _per_page_nolg_sorted[_pg] = sorted(set(_per_page_nolg_sorted[_pg]))
+
+    def _min_dist_to_nolg(fi: int, page: int) -> int:
+        """Min OCL-index distance from fi to the nearest no-LG member on the same page."""
+        _pg_idxs = _per_page_nolg_sorted.get(page)
+        if not _pg_idxs:
+            return 2 ** 31
+        pos = bisect.bisect_left(_pg_idxs, fi)
+        d: list[int] = []
+        if pos < len(_pg_idxs):
+            d.append(abs(_pg_idxs[pos] - fi))
+        if pos > 0:
+            d.append(abs(_pg_idxs[pos - 1] - fi))
+        return min(d)
+
+    _lg_samecol_chr256_keys: set[tuple[int, int]] = set()
+    for _key, _idxs in group_indices.items():
+        _sorted_g = sorted(_idxs)
+        if _sorted_g[-1] - _sorted_g[0] < CHR256_INDEX_GAP_THRESHOLD:
+            continue  # not a large-gap group
+        if len({ocl_entries[j].col for j in _idxs}) > 1:
+            continue  # mixed-col group — handled by different-col rule
+        _page_k, _clut_k = _key
+        _cordX_k = _clut_k & 0xF
+        _cordY_k = (_clut_k >> 4) & 0xF
+        _gx_k = (_page_k % 8) * 256 + _cordX_k * tile_size
+        _gy_k = (_page_k // 8) * 256 + _cordY_k * tile_size
+        if _tex_is_empty(raw_bg, w_bg, _gx_k, _gy_k):
+            continue  # tex_bg empty — not a background tile
+        if not _tiles_differ(_gx_k, _gy_k):
+            continue  # identical pixels in both textures — routing is irrelevant
+        if _min_dist_to_nolg(_sorted_g[0], _page_k) <= _NOLG_DIST_THRESHOLD:
+            _lg_samecol_chr256_keys.add(_key)
+
     seen: set[tuple[int, int]] = set()
     chr256: set[int] = set()
     for i, e in enumerate(ocl_entries):
@@ -649,9 +696,16 @@ def _build_chr256_ocl_indices(
                 fi = group_indices[key][0]
                 if (i - fi) >= CHR256_INDEX_GAP_THRESHOLD:
                     chr256.add(i)
-            # Same-col entries in large-gap groups remain in tex: they are
-            # hit-flash/palette variants that share pixel data with the first
-            # occurrence and always lie within the tex OCL batch.
+            else:
+                # Same-col entries in large-gap groups normally remain in tex (they
+                # are hit-flash/palette variants that share pixel data with the first
+                # occurrence and lie within the tex OCL batch).
+                # Exception: if the group was identified in Pass 1e as a same-col
+                # large-gap group whose fi is adjacent to the no-LG chr256 batch on
+                # the same page, the whole group belongs to the background batch
+                # (e.g. st061 page=0 col=3/4/5/6/7/10 groups).
+                if key in _lg_samecol_chr256_keys:
+                    chr256.add(i)
         else:
             seen.add(key)
             if not group_has_large_gap[key]:
@@ -660,6 +714,11 @@ def _build_chr256_ocl_indices(
                 # but only when tex_bg has tile data at these coordinates.
                 if group_bg_has_data[key]:
                     chr256.add(i)
+            elif key in _lg_samecol_chr256_keys:
+                # First occurrence of a same-col large-gap group identified in
+                # Pass 1e as adjacent to the no-LG chr256 batch on the same page:
+                # this entry belongs to the background batch, not the tex batch.
+                chr256.add(i)
     # Record the page<8 chr256 maximum index before adding any page>=8 entries.
     # Used by Pass 3b as the proximity anchor so that page>=8 sole-entry proximity
     # is always measured against the page<8 batch max (not inflated by Pass 3a).
