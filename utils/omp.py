@@ -554,6 +554,34 @@ def _build_chr256_ocl_indices(
             for dx in range(tile_size)
         )
 
+    # Gate for the tex_empty sole-entry rule.
+    #
+    # When a stage has BOTH no-LG groups (giving a well-defined chr256 region) AND
+    # sole entries where tex≠tex_bg (sole_diff entries), the tex_empty check must
+    # also be restricted to the chr256 region.  Without the gate, transparent
+    # foreground slots that happen to share a tex_bg coordinate with unrelated
+    # background data would incorrectly read from tex_bg.
+    #
+    # Stages with no sole_diff entries (e.g. st050, st010) have tex_empty sole
+    # entries only in the chr256 batch, so no gating is needed.  Stages with no
+    # no-LG groups (e.g. st000) have no defined region, so no gating either.
+    _has_sole_diff = _no_lg_min >= 0 and any(
+        (e.pad & 0xF) < 8
+        and key_count.get((e.pad & 0xF, e.clut_base), 0) == 1
+        and not _tex_is_empty(
+            raw_tex, w_tex,
+            (e.pad & 0xF) % 8 * 256 + (e.clut_base & 0xF) * tile_size,
+            (e.pad & 0xF) // 8 * 256 + ((e.clut_base >> 4) & 0xF) * tile_size,
+        )
+        and _tiles_differ(
+            (e.pad & 0xF) % 8 * 256 + (e.clut_base & 0xF) * tile_size,
+            (e.pad & 0xF) // 8 * 256 + ((e.clut_base >> 4) & 0xF) * tile_size,
+        )
+        for e in ocl_entries
+    )
+    # If both conditions are met, sole-entry tex_empty is gated by _in_chr256_region.
+    _gate_tex_empty = _has_sole_diff
+
     seen: set[tuple[int, int]] = set()
     chr256: set[int] = set()
     for i, e in enumerate(ocl_entries):
@@ -562,16 +590,18 @@ def _build_chr256_ocl_indices(
             continue
         key = (page, e.clut_base)
         if key_count[key] == 1:
-            # Sole entry: route to tex_bg when tex is empty at this coordinate.
-            # Also route to tex_bg when tex has data that differs from tex_bg,
-            # but ONLY if the index lies within the chr256-batch region (close to
-            # any no-large-gap group entry).  Sole entries outside that region
-            # are foreground-only palette variants and must stay in tex.
+            # Sole entry: route to tex_bg when tex is empty at this coordinate,
+            # and to tex_bg when tex has data that differs from tex_bg but only
+            # within the chr256-batch region.
+            # When _gate_tex_empty is active (stage has both no-LG groups and
+            # sole_diff entries), the tex_empty rule is also restricted to the
+            # chr256 region to avoid routing transparent foreground slots to tex_bg.
             cordX = e.clut_base & 0xF; cordY = (e.clut_base >> 4) & 0xF
             gx = (page % 8) * 256 + cordX * tile_size
             gy = (page // 8) * 256 + cordY * tile_size
             if _tex_is_empty(raw_tex, w_tex, gx, gy):
-                chr256.add(i)
+                if not _gate_tex_empty or _in_chr256_region(i):
+                    chr256.add(i)
             elif _tiles_differ(gx, gy) and _in_chr256_region(i):
                 chr256.add(i)
             continue
