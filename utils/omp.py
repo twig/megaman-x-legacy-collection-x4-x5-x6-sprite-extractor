@@ -791,6 +791,44 @@ def _build_chr256_ocl_indices(
             continue
         if _no_lg_min < 0 or (_chr256_max_pg_lt8 >= 0 and abs(i - _chr256_max_pg_lt8) <= CHR256_INDEX_GAP_THRESHOLD):
             chr256.add(i)
+
+    # Pass 3c: page>=8 large-span different-col groups.
+    # When a (page, clut_base) group on page>=8 has:
+    #   - 2+ OCL entries
+    #   - total span (max_idx - min_idx) >= CHR256_INDEX_GAP_THRESHOLD (large gap)
+    #   - mixed cols: at least one entry has a col different from the first occurrence
+    #   - tex_bg has non-empty pixel data at those coordinates
+    # then entries whose gap from the first occurrence >= CHR256_INDEX_GAP_THRESHOLD
+    # AND whose col differs from the first col belong to the chr256 background batch.
+    #
+    # Mirrors the page<8 large-gap different-col rule from Pass 2 (applied to page>=8).
+    # Fixes stages like st080 where page=11 tile coordinates appear twice: once with
+    # a foreground col (e.g. col=32 or col=64) and once with a background col
+    # (e.g. col=80 or col=96), with a span of 922+ between them.  The background
+    # (higher-index, different-col) entry must read from tex_bg.
+    #
+    # Same-col entries in large-span page>=8 groups are left in tex regardless of
+    # their gap (they are hit-flash/palette variants sharing the tex tile data).
+    for key, idxs in _pg8_groups.items():
+        if len(idxs) < 2:
+            continue
+        sorted_g = sorted(idxs)
+        if sorted_g[-1] - sorted_g[0] < CHR256_INDEX_GAP_THRESHOLD:
+            continue  # small span — already handled by Pass 3a
+        fi = sorted_g[0]
+        fc = ocl_entries[fi].col
+        if all(ocl_entries[j].col == fc for j in sorted_g):
+            continue  # all same col — no chr256 batch split
+        page_k, clut_k = key
+        cordX_k = clut_k & 0xF; cordY_k = (clut_k >> 4) & 0xF
+        gx_k = (page_k % 8) * 256 + cordX_k * tile_size
+        gy_k = (page_k // 8) * 256 + cordY_k * tile_size
+        if _tex_is_empty(raw_bg, w_bg, gx_k, gy_k):
+            continue  # no background pixel data — not a chr256 tile
+        for j in sorted_g:
+            if (j - fi) >= CHR256_INDEX_GAP_THRESHOLD and ocl_entries[j].col > fc:
+                chr256.add(j)
+
     return frozenset(chr256)
 
 
