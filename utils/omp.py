@@ -516,6 +516,18 @@ def _build_chr256_ocl_indices(
             sorted_idxs[-1] - sorted_idxs[0] >= CHR256_INDEX_GAP_THRESHOLD
         )
 
+    # Pass 1b½: for each group, check whether the chr256 (tex_bg) texture has tile
+    # data at the group's coordinates.  Groups where tex_bg is empty at those
+    # coordinates are foreground tile batches — they must not be routed to tex_bg
+    # even if their OCL indices form a close cluster (no-LG group by span alone).
+    group_bg_has_data: dict[tuple[int, int], bool] = {}
+    for key in group_indices:
+        page_k, clut_k = key
+        cordX_k = clut_k & 0xF; cordY_k = (clut_k >> 4) & 0xF
+        gx_k = (page_k % 8) * 256 + cordX_k * tile_size
+        gy_k = (page_k // 8) * 256 + cordY_k * tile_size
+        group_bg_has_data[key] = not _tex_is_empty(raw_bg, w_bg, gx_k, gy_k)
+
     # Pass 1c: compute the overall index range spanned by all no-large-gap groups.
     # This range [no_lg_min − THRESHOLD, no_lg_max + THRESHOLD] defines the
     # "chr256 batch region".  Sole entries where tex≠tex_bg are only chr256 when
@@ -524,7 +536,7 @@ def _build_chr256_ocl_indices(
     # first occurrence) stay in tex.
     _no_lg_indices: set[int] = set()
     for key, idxs in group_indices.items():
-        if len(idxs) >= 2 and not group_has_large_gap[key]:
+        if len(idxs) >= 2 and not group_has_large_gap[key] and group_bg_has_data[key]:
             _no_lg_indices.update(idxs)
     if _no_lg_indices:
         _no_lg_min = min(_no_lg_indices)
@@ -554,7 +566,7 @@ def _build_chr256_ocl_indices(
     _pages_with_no_lg: set[int] = {
         key[0]
         for key, idxs in group_indices.items()
-        if len(idxs) >= 2 and not group_has_large_gap[key]
+        if len(idxs) >= 2 and not group_has_large_gap[key] and group_bg_has_data[key]
     }
 
     # Pass 2: mark chr256 for entries that belong to the chr256 batch.
@@ -621,14 +633,16 @@ def _build_chr256_ocl_indices(
             if _tex_is_empty(raw_tex, w_tex, gx, gy):
                 if not _gate_tex_empty or _in_chr256_region(i):
                     chr256.add(i)
-            elif _tiles_differ(gx, gy) and _in_chr256_region(i) and page in _pages_with_no_lg:
+            elif _tiles_differ(gx, gy) and _in_chr256_region(i) and page in _pages_with_no_lg and not _tex_is_empty(raw_bg, w_bg, gx, gy):
                 chr256.add(i)
             continue
         if key in seen:
             if not group_has_large_gap[key]:
                 # All entries in this group are in the same close batch → the
-                # whole group is chr256, regardless of col.
-                chr256.add(i)
+                # whole group is chr256, but only when tex_bg has tile data here
+                # (foreground groups can also form close-index clusters).
+                if group_bg_has_data[key]:
+                    chr256.add(i)
             elif e.col != first_col[key]:
                 # Large-gap group, different col: check whether this entry is
                 # in the chr256 batch (large gap) or the tex batch (small gap).
@@ -642,8 +656,10 @@ def _build_chr256_ocl_indices(
             seen.add(key)
             if not group_has_large_gap[key]:
                 # First occurrence of an all-close (no-large-gap) group: the whole
-                # group belongs to the chr256 batch, including this first entry.
-                chr256.add(i)
+                # group belongs to the chr256 batch, including this first entry —
+                # but only when tex_bg has tile data at these coordinates.
+                if group_bg_has_data[key]:
+                    chr256.add(i)
     return frozenset(chr256)
 
 
