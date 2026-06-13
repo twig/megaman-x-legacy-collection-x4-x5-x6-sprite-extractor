@@ -774,12 +774,22 @@ def _build_chr256_ocl_indices(
     #       highest page<8 chr256 index (_chr256_max_pg_lt8).
     # Using the page<8-only max (not the post-3a max) keeps the proximity anchor
     # stable and avoids unintended cascading additions.
+    #
+    # The proximity check uses abs() (bilateral) rather than a one-sided comparison.
+    # A one-sided check (i - max <= THRESHOLD) would admit foreground col=112 tiles
+    # that happen to appear far BEFORE the chr256 batch — their small OCL index
+    # satisfies the one-sided inequality even when they are thousands of positions
+    # away from the batch maximum (e.g. st070 page=11 col=112 tiles at OCL 1392–1460
+    # with _chr256_max_pg_lt8=5101: 1392 - 5101 = -3709 ≤ 500, incorrectly included).
+    # The bilateral check rejects any entry whose distance to the batch max exceeds
+    # THRESHOLD from either side, ensuring only tiles genuinely adjacent to the
+    # end of the chr256 batch are included.
     for i, e in enumerate(ocl_entries):
         if (e.pad & 0xF) < 8:
             continue
         if e.col not in (0, 112):
             continue
-        if _no_lg_min < 0 or (_chr256_max_pg_lt8 >= 0 and i - _chr256_max_pg_lt8 <= CHR256_INDEX_GAP_THRESHOLD):
+        if _no_lg_min < 0 or (_chr256_max_pg_lt8 >= 0 and abs(i - _chr256_max_pg_lt8) <= CHR256_INDEX_GAP_THRESHOLD):
             chr256.add(i)
     return frozenset(chr256)
 
