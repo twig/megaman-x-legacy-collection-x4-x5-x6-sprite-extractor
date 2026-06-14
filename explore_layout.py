@@ -2,7 +2,8 @@
 Interactive stage layout binary explorer GUI.
 
 Usage:
-    python explore_layout.py <omp_file> <layout_binary_file>
+    python explore_layout.py <omp_file> [--layouts layouts_rxc2.bin]
+    python explore_layout.py <omp_file> --exe RXC2.exe --base-offset 0x02D98548
 
 Left slider   — byte offset into the binary layout file (0 … file size)
 Top slider    — level_width_screens (1 … 300)
@@ -10,6 +11,8 @@ Right slider  — level_height_screens (1 … 300)
 
 The main area shows the rendered level produced by render_level().
 Tick "Debug overlay" to draw the screen-grid and (sx,sy)/id labels.
+
+Offset entry accepts both decimal (49676619) and hex (0x02EC2D4B) values.
 """
 
 import argparse
@@ -25,6 +28,7 @@ from PIL import ImageTk
 
 from utils.omp import render_level, LayoutTable
 from render_stage import preload_related_files, _debug_overlay_level
+from utils.types import GameVersion
 
 
 # ── Layout loader ─────────────────────────────────────────────────────────────
@@ -54,13 +58,14 @@ def load_layout_from_binary(
 # ── Main application ──────────────────────────────────────────────────────────
 
 class LayoutExplorer(tk.Tk):
-    def __init__(self, omp_path: Path, bin_path: Path) -> None:
+    def __init__(self, omp_path: Path, bin_path: Path, base_offset: int = 0) -> None:
         super().__init__()
 
         self.omp_path = omp_path
         self.bin_path = bin_path
         self.bin_data = bin_path.read_bytes()
         self.bin_size = len(self.bin_data)
+        self.base_offset = max(0, min(base_offset, self.bin_size - 1))
 
         self.title(f"Layout Explorer — {omp_path.name}  |  {bin_path.name}")
         self.state("zoomed")  # maximise on Windows
@@ -96,10 +101,10 @@ class LayoutExplorer(tk.Tk):
         # ── Left panel: offset slider ─────────────────────────────────────────
         left = ttk.Frame(self, padding=(4, 4, 0, 4))
         left.grid(row=0, column=0, rowspan=2, sticky="ns")
-        left.rowconfigure(2, weight=1)
+        left.rowconfigure(3, weight=1)
 
         ttk.Label(left, text="Offset").grid(row=0, column=0, pady=(0, 2))
-        self.offset_entry_var = tk.StringVar(value="0")
+        self.offset_entry_var = tk.StringVar(value=str(self.base_offset))
         offset_spin = tk.Spinbox(
             left,
             from_=0,
@@ -110,11 +115,16 @@ class LayoutExplorer(tk.Tk):
             justify="center",
             command=self._on_offset_entry,
         )
-        offset_spin.grid(row=1, column=0, pady=(0, 4))
+        offset_spin.grid(row=1, column=0, pady=(0, 2))
         offset_spin.bind("<Return>", self._on_offset_entry)
         offset_spin.bind("<FocusOut>", self._on_offset_entry)
 
-        self.offset_var = tk.IntVar(value=0)
+        self.offset_hex_var = tk.StringVar(value=f"0x{self.base_offset:08X}")
+        hex_entry = ttk.Entry(left, textvariable=self.offset_hex_var, width=12,
+                              justify="center", state="readonly")
+        hex_entry.grid(row=2, column=0, pady=(0, 4))
+
+        self.offset_var = tk.IntVar(value=self.base_offset)
         self.offset_slider = ttk.Scale(
             left,
             from_=0,
@@ -123,7 +133,7 @@ class LayoutExplorer(tk.Tk):
             variable=self.offset_var,
             command=self._on_slider_change,
         )
-        self.offset_slider.grid(row=2, column=0, sticky="ns")
+        self.offset_slider.grid(row=3, column=0, sticky="ns")
         self.offset_slider.bind(
             "<ButtonPress-1>",
             lambda e: self._trough_jump(e, self.offset_slider, self.offset_var,
@@ -131,7 +141,7 @@ class LayoutExplorer(tk.Tk):
                                         0, max(self.bin_size - 1, 0)),
         )
 
-        ttk.Label(left, text=f"max: {self.bin_size - 1}", width=12).grid(row=3, column=0, pady=(4, 0))
+        ttk.Label(left, text=f"max: {self.bin_size - 1}", width=12).grid(row=4, column=0, pady=(4, 0))
 
         # ── Top panel: width slider + debug checkbox ──────────────────────────
         top = ttk.Frame(self, padding=(4, 4, 4, 0))
@@ -336,16 +346,18 @@ class LayoutExplorer(tk.Tk):
         self.width_entry_var.set(str(w))
         self.height_entry_var.set(str(h))
         self.offset_entry_var.set(str(off))
+        self.offset_hex_var.set(f"0x{off:08X}")
         self._schedule_render()
 
     def _on_offset_entry(self, _=None) -> None:
         try:
-            val = int(self.offset_entry_var.get())
+            val = int(self.offset_entry_var.get(), 0)  # accepts decimal and 0x… hex
             val = max(0, min(val, self.bin_size - 1))
         except ValueError:
             val = int(self.offset_var.get())
         self.offset_entry_var.set(str(val))
         self.offset_var.set(val)
+        self.offset_hex_var.set(f"0x{val:08X}")
         self._schedule_render()
 
     def _on_width_entry(self, _=None) -> None:
@@ -394,7 +406,7 @@ class LayoutExplorer(tk.Tk):
                 break
 
         self._render_cancel = threading.Event()
-        self.status_var.set(f"Rendering  offset={offset}  w={w}  h={h} …")
+        self.status_var.set(f"Rendering  offset={offset} (0x{offset:X})  w={w}  h={h} …")
 
         cancel_token = self._render_cancel
         t = threading.Thread(
@@ -458,7 +470,7 @@ class LayoutExplorer(tk.Tk):
                 self._raw_img = img
                 self._display_image()
                 self.status_var.set(
-                    f"OK  offset={offset}  w={w}  h={h}  "
+                    f"OK  offset={offset} (0x{offset:X})  w={w}  h={h}  "
                     f"({img.width}×{img.height} px)"
                 )
             elif kind == "error":
@@ -478,13 +490,50 @@ class LayoutExplorer(tk.Tk):
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+COPY1_OFFSET_X4 = 0x00B60D08  # X4 first layout block start in RXC1.exe (ST00_00)
+COPY1_OFFSET_X5 = 0x02D98548  # X5 block 1 layout start in RXC2.exe
+COPY1_OFFSET_X6 = 0x02DD4000  # X6 block 1 layout start in RXC2.exe
+
+_EXE_BASE_OFFSETS: dict[GameVersion, int] = {
+    GameVersion.X4: COPY1_OFFSET_X4,
+    GameVersion.X5: COPY1_OFFSET_X5,
+    GameVersion.X6: COPY1_OFFSET_X6,
+}
+
+
+_EXE_NAMES: dict[GameVersion, str] = {
+    GameVersion.X4: "RXC1.exe",
+    GameVersion.X5: "RXC2.exe",
+    GameVersion.X6: "RXC2.exe",
+}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Interactive stage layout binary explorer.")
     parser.add_argument("omp_file", type=Path, help="Path to the .omp file")
-    parser.add_argument("--layouts", type=Path, help="Path to the binary layout file", default="layouts_rxc2.bin")
+    parser.add_argument(
+        "--game", type=int, choices=[4, 5, 6], default=5,
+        help="Game version: 4 = X4, 5 = X5 (default), 6 = X6",
+    )
+    parser.add_argument(
+        "--exe", type=Path, default=None,
+        help="Game EXE path (default: RXC1.exe for X4, RXC2.exe for X5/X6)",
+    )
+    parser.add_argument(
+        "--layouts", type=Path, default=None,
+        help="Override: use a binary layout file instead of the EXE (starts at offset 0)",
+    )
     args = parser.parse_args()
 
-    app = LayoutExplorer(args.omp_file.resolve(), args.layouts.resolve())
+    if args.layouts is not None:
+        bin_path = args.layouts
+        base_offset = 0
+    else:
+        game = GameVersion(args.game)
+        bin_path = args.exe if args.exe is not None else Path(_EXE_NAMES[game])
+        base_offset = _EXE_BASE_OFFSETS[game]
+
+    app = LayoutExplorer(args.omp_file.resolve(), bin_path.resolve(), base_offset=base_offset)
     app.mainloop()
 
 

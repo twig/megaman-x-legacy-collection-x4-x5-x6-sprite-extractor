@@ -113,6 +113,11 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
 
     "st080": (0x02D99A7D, 19, 13), # IN RANGE (Spiral Pegasus)
 
+    "st090_00": (0x02D98697, 2, 3),  # DONE (Dynamo: Enigma Cannon)
+    "st090_01": (0x02D98697, 2, 3),  # DONE (Dynamo: Hunter Base 1)
+    "st100_00": (0x02D9852F, 2, 4),  # DONE (Dynamo: Space Shuttle)
+    "st100_01": (0x02D98697, 2, 3),  # DONE (Dynamo: Hunter Base 2)
+
     # --- unconfirmed
     # idx 13 (5×26):  max(layer0) == 208 → st120 n_screens=209
     "st120": (0x02D9979F,  5, 26),  # CONFIRMED — block 1 idx 13, exact max match (Zero Space 4: Birth)
@@ -139,16 +144,6 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     #   idx 25  (20×20)  0x02D9AF5A
     "st260": (0x02D9AF5A, 20, 20), # UNCONFIRMED — block 1 idx 25, exact max match (Some Stage Name)
 
-
-    # ── Block 2 — UNCONFIRMED ────────────────────────────────────────────────
-    # COPY2 = 0x02D9B9A4, stage idx 0 (8×29), max=8.
-    # Valid for the group: st090_00/01, st100_00/01, st130 (all n_screens=9 or 16,
-    # max 8 ≤ n_screens-1).  The exact per-OMP index within block 2 has not been
-    # individually verified.
-    "st090_00": (0x02D9B9A4, 8, 29),  # CONFIRMED (Dynamo: Enigma Cannon)
-    "st090_01": (0x02D9B9A4, 8, 29),  # CONFIRMED (Dynamo: Hunter Base 1)
-    "st100_00": (0x02D9B9A4, 8, 29),  # CONFIRMED (Dynamo: Space Shuttle)
-    "st100_01": (0x02D9B9A4, 8, 29),  # CONFIRMED (Dynamo: Hunter Base 2)
 
     # ── To add when resolved ─────────────────────────────────────────────────
     # Block 1 unverified stages (index, offset, dimensions from layouts/index.txt):

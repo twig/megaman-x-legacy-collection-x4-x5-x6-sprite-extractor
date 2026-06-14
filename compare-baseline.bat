@@ -10,3 +10,7 @@ python .\render_stage.py PC\X5\stage\st060\st060.omp --skip-catalog --output-dir
 python .\render_stage.py PC\X5\stage\st061\st061.omp --skip-catalog --output-dir progress-baseline
 python .\render_stage.py PC\X5\stage\st070\st070.omp --skip-catalog --output-dir progress-baseline
 python .\render_stage.py PC\X5\stage\st080\st080.omp --skip-catalog --output-dir progress-baseline
+python .\render_stage.py PC\X5\stage\st090_00\st090_00.omp --skip-catalog --output-dir progress-baseline
+python .\render_stage.py PC\X5\stage\st090_01\st090_01.omp --skip-catalog --output-dir progress-baseline
+python .\render_stage.py PC\X5\stage\st100_00\st100_00.omp --skip-catalog --output-dir progress-baseline
+python .\render_stage.py PC\X5\stage\st100_01\st100_01.omp --skip-catalog --output-dir progress-baseline
