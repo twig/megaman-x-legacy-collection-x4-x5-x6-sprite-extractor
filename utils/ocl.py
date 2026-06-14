@@ -107,6 +107,7 @@ class OclPaletteGroup(IntEnum):
     ALT_PALETTE       = 0x38  # alt/hit-flash variant — same COL file, kept distinct
     ANIMATED_CRYSTAL  = 0x39  # animated cycling palette (st0_0.col in X5)
     ALT_AREA          = 0x3B  # alt-area tileset (col00_0z.col in X5)
+    UNKNOWN           = 0xFF  # sentinel for unregistered collision types (never a real tile_type)
 
 
 @dataclass
@@ -139,7 +140,7 @@ class OclEntry:
         try:
             return OclPaletteGroup(self.tile_type)
         except ValueError:
-            return OclPaletteGroup.STANDARD
+            return OclPaletteGroup.UNKNOWN
 
     def absolute_clut(self, relative_clut: int = 0) -> int:
         """

@@ -338,26 +338,34 @@ def preload_related_files(omp_path: Path):
     # OclEntry.palette_group() maps any unregistered collision type to STANDARD,
     # so all tiles are rendered even if their tile_type is not listed above.
 
-    if game_version == GameVersion.X6 and anim_col is not None:
-        # X6 STANDARD palette fix: CLUTs 64-82 replaced by per-stage anim_col CLUTs 0-18.
-        # col00_0x has blank placeholders at 64-82; stXX.col has the real stage colors.
-        patched: list = list(col)
+    if game_version == GameVersion.X6:
+        # X6 palette fix: col00_0x CLUTs 64-82 (col values 0-18) are blank placeholders.
+        # The real stage colors for STANDARD tiles with col 0-18 live at col+96
+        # (CLUTs 96-114) in the same file.  For STANDARD col ≥19 the data at col+64
+        # (CLUTs 83+) is already correct.
+        #
+        # Non-STANDARD tile types (ALT_PALETTE, ANIMATED_CRYSTAL, ALT_AREA, UNKNOWN)
+        # always reference col+96 regardless of col value.
+        #
+        # hybrid: copy CLUTs 96-114 into positions 64-82; col≥19 unchanged.
+        #         Used for STANDARD tiles only.
+        # alt_pal: shift the entire palette 32 CLUTs left so the col+64 lookup in
+        #          _apply_palette_to_tile effectively becomes col+96.
+        #          Used for all non-STANDARD tile types.
+        hybrid: list = list(col)
         for i in range(19):
             for j in range(16):
-                patched[(64 + i) * 16 + j] = anim_col[i * 16 + j]
+                hybrid[(64 + i) * 16 + j] = col[(96 + i) * 16 + j]
 
-        # X6 ALT_PALETTE (tile_type=0x38) uses offset col+96 instead of col+64.
-        # ALT_PALETTE col=N always pairs with STANDARD col=N+32, both targeting the
-        # same CLUT: N+96 == (N+32)+64. Build alt_pal by shifting col00_0x by 32 CLUTs
-        # so that the +64 lookup in _apply_palette_to_tile effectively becomes +96.
-        _shift = 32 * 16  # 32 CLUTs × 16 entries each
+        _shift = 32 * 16
         alt_pal: list = col[_shift:] + [(0, 0, 0, 0)] * _shift
 
         flags_to_palette = {
-            OclPaletteGroup.STANDARD:         patched,
+            OclPaletteGroup.STANDARD:         hybrid,
             OclPaletteGroup.ALT_PALETTE:      alt_pal,
-            OclPaletteGroup.ANIMATED_CRYSTAL: patched,
-            OclPaletteGroup.ALT_AREA:         patched,
+            OclPaletteGroup.ANIMATED_CRYSTAL: alt_pal,
+            OclPaletteGroup.ALT_AREA:         alt_pal,
+            OclPaletteGroup.UNKNOWN:          alt_pal,
         }
     else:
         flags_to_palette = {
@@ -365,6 +373,7 @@ def preload_related_files(omp_path: Path):
             OclPaletteGroup.ALT_PALETTE:      col,
             OclPaletteGroup.ANIMATED_CRYSTAL: col,
             OclPaletteGroup.ALT_AREA:         col,
+            OclPaletteGroup.UNKNOWN:          col,
         }
 
     return [omp, ocl, tex, tex_background, flags_to_palette, game_version]
