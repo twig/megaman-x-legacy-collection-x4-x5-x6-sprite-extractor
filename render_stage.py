@@ -122,34 +122,21 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     "st170": (0x02D99CBA, 20, 17), # ALMOST (Zero Space 2: Grief)
     "st180": (0x02D99CBA, 19, 24), # ALMOST (Zero Space 3: Awakening)
 
-    "st220": (0x02D99F7D, 9, 11), # IN RANGE (Training Area) colours look wrong
+    "st130":    (0x02D9869C, 6, 3),  # ALMOST DONE (Stage Select)
+    "st220": (0x02D99F7D, 9, 11), # ALMOST DONE (Training Area)
+    "staff_eng": (0x02D9852F, 10, 6), # IN RANGE (End Credits) with incorrect colours
 
-    # --- unconfirmed
-    #   idx 21  (10×24)  0x02D9A10E
-    "staff_eng": (0x02D9A10E, 10, 24), # CONFIRMED (End Credits) with incorrect colours
+    # unmapped
+    # st140_eng
+    # st141_eng
+    # st150
+    # st160
 
-    #   idx 27  (5×18)   0x02D9B99B
-    "st130":    (0x02D9B99B, 5, 18),  # CONFIRMED (Stage Select)
-
-    # ---
     #   idx 24  (20×21)  0x02D9AA6E
-    "st250": (0x02D9AA6E, 20, 21), # UNCONFIRMED — block 1 idx 24, exact max match (Some Stage Name)
+    # "st250": (0x02D9AA6E, 20, 21), # UNCONFIRMED — block 1 idx 24, exact max match (Some Stage Name)
 
     #   idx 25  (20×20)  0x02D9AF5A
-    "st260": (0x02D9AF5A, 20, 20), # UNCONFIRMED — block 1 idx 25, exact max match (Some Stage Name)
-
-
-    # ── To add when resolved ─────────────────────────────────────────────────
-    # Block 1 unverified stages (index, offset, dimensions from layouts/index.txt):
-
-
-
-
-    # Unmatched OMP files awaiting slot assignment (run debug/verify_x5_heights_omp.py):
-    #   st060  Shining Firefly: Area 1
-    #   st160  Zero Space 1: Origin
-    #   st170  Zero Space 2: Grief
-    #   st180  Zero Space 3: Awakening
+    # "st260": (0x02D9AF5A, 20, 20), # UNCONFIRMED — block 1 idx 25, exact max match (Some Stage Name)
 }
 
 
