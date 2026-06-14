@@ -136,6 +136,39 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st140_eng": (0x02D98695, 2, 1), # DONE (Title screen)
         "st141_eng": (0x02D98695, 2, 1), # DONE (Player Select screen)
         "st150": (0x02D98695, 2, 1), # DONE (Gameplay Report screen)
+    },
+    # MIX OF SCANNED AND DUMMY VALUES
+    # X6 Block 1 — COPY1_OFFSET = 0x02DD4000, all W=16, sequential, 14160 bytes total
+    # Heights from x6_extract_psx_layouts.py _BLOCK1_HEIGHTS; offsets computed sequentially.
+    # Verification: max(layer0) == n_screens-1 expected; run explore_layout.py to confirm each.
+    # Block 2 — offsets are GUESSES starting from block 1 end (0x02DD7750).
+    # Heights estimated from PSX n_screens where available, otherwise h=28.
+    # Use explore_layout.py --exe RXC2.exe --base-offset <offset> to verify.
+    "X6": {
+        "st00":      (0x02DD4000, 28, 16),  # UNCONFIRMED (Intro)
+        "st01":      (0x02DD7750, 28, 16),  # GUESS
+        "st01x":     (0x02DD7C90,  3, 16),  # GUESS (PSX n_screens=47 → h≈3)
+        "st02":      (0x02DD4540, 23, 16),  # UNCONFIRMED
+        "st02x":     (0x02DD6E50,  7, 16),  # UNCONFIRMED
+        "st03":      (0x02DD7D20, 13, 16),  # GUESS (PSX n_screens=204 → h≈13)
+        "st03x":     (0x02DD7060,  9, 16),  # UNCONFIRMED
+        "st04a":     (0x02DD4990, 33, 16),  # UNCONFIRMED
+        "st04b":     (0x02DD7F90, 28, 16),  # GUESS
+        "st04x":     (0x02DD7030,  1, 16),  # UNCONFIRMED
+        "st05":      (0x02DD84D0, 28, 16),  # GUESS
+        "st05x":     (0x02DD6970, 26, 16),  # UNCONFIRMED
+        "st06a":     (0x02DD4FC0, 43, 16),  # UNCONFIRMED
+        "st06x":     (0x02DD7210, 28, 16),  # UNCONFIRMED
+        "st07":      (0x02DD8A10, 28, 16),  # GUESS
+        "st07x":     (0x02DD8F50,  7, 16),  # GUESS (similar to st02x)
+        "st08":      (0x02DD90A0, 28, 16),  # GUESS
+        "st08x":     (0x02DD6FA0,  3, 16),  # UNCONFIRMED
+        "st0ca":     (0x02DD57D0, 18, 16),  # UNCONFIRMED
+        "st0cb":     (0x02DD95E0, 18, 16),  # GUESS (similar to st0ca)
+        "st0g":      (0x02DD6160, 43, 16),  # UNCONFIRMED
+        "st0h":      (0x02DD9940, 20, 16),  # GUESS
+        "st0i":      (0x02DD9D00, 20, 16),  # GUESS
+        "stsel_eng": (0x02DD5B30, 33, 16),  # UNCONFIRMED
     }
 }
 
