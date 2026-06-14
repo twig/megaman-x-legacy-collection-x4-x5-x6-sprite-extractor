@@ -118,15 +118,16 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     "st100_00": (0x02D9852F, 2, 4),  # DONE (Dynamo: Space Shuttle)
     "st100_01": (0x02D98697, 2, 3),  # DONE (Dynamo: Hunter Base 2)
 
-    # --- unconfirmed
-    # idx 13 (5×26):  max(layer0) == 208 → st120 n_screens=209
-    "st120": (0x02D9979F,  5, 26),  # CONFIRMED — block 1 idx 13, exact max match (Zero Space 4: Birth)
+    "st120": (0x02D9979F, 27, 19),  # ALMOST (Zero Space 4: Birth)
+    "st170": (0x02D99CBA, 20, 17), # ALMOST (Zero Space 2: Grief)
+    "st180": (0x02D99E11, 19, 19), # ALMOST (Zero Space 3: Awakening)
 
+    # --- unconfirmed
     # idx 16  (5×27)   0x02D99C7C
-    "st170": (0x02D99C7C,  5, 27), # CONFIRMED (Zero Space 2: Grief)
+
 
     # idx 17  (5×26)   0x02D99E11
-    "st180": (0x02D99E11,  5, 26), # CONFIRMED (Zero Space 3: Awakening)
+
 
     # idx 20  (5×25)   0x02D99F97
     "st220": (0x02D99F97,  5, 25), # LIKELY (Training Area)
