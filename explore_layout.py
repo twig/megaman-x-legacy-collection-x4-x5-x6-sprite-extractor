@@ -76,7 +76,7 @@ class LayoutExplorer(tk.Tk):
         except Exception as exc:
             messagebox.showerror("Load Error", str(exc))
             sys.exit(1)
-        self.omp, self.ocl, self.tex, self.tex_bg, self.flags_to_palette = result
+        self.omp, self.ocl, self.tex, self.tex_bg, self.flags_to_palette, game_version = result
 
         # Render state
         self._photo: ImageTk.PhotoImage | None = None
@@ -512,8 +512,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Interactive stage layout binary explorer.")
     parser.add_argument("omp_file", type=Path, help="Path to the .omp file")
     parser.add_argument(
-        "--game", type=int, choices=[4, 5, 6], default=5,
-        help="Game version: 4 = X4, 5 = X5 (default), 6 = X6",
+        "--game", type=int, choices=[4, 5, 6],
+        help="Game version: 4 = X4, 5 = X5, 6 = X6",
     )
     parser.add_argument(
         "--exe", type=Path, default=None,
@@ -529,7 +529,19 @@ def main() -> None:
         bin_path = args.layouts
         base_offset = 0
     else:
-        game = GameVersion(args.game)
+        if args.game is not None:
+            game = GameVersion(args.game)
+        elif 'X4' in str(args.omp_file):
+            game = GameVersion.X4
+        elif 'X5' in str(args.omp_file):
+            game = GameVersion.X5
+        elif 'X6' in str(args.omp_file):
+            game = GameVersion.X6
+        else:
+            messagebox.showerror("Load Error", "Cannot determine game version from OMP filename. Please specify --game explicitly.")
+            sys.exit(1)
+
+        print('Detected GameVersion:', game)
         bin_path = args.exe if args.exe is not None else Path(_EXE_NAMES[game])
         base_offset = _EXE_BASE_OFFSETS[game]
 
