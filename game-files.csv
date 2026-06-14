@@ -23,7 +23,7 @@ game,stage,col,col_animate,ocl,tex,tex256,texch3
 5,stage/st160/st160.omp,col/stage/col0f_01_eng.col,,stage/st160/st160.ocl,stage/st160/st160.tex,stage/st160_chr256/st160_chr256.tex,
 5,stage/st170/st170.omp,col/stage/col0g_0x_eng.col,col/stage/stg_0.col,stage/st170/st170.ocl,stage/st170/st170.tex,,stage/st170_ch3/st170_ch3.tex
 5,stage/st180/st180.omp,col/stage/col0h_0x_eng.col,col/stage/sth_0.col,stage/st180/st180.ocl,stage/st180/st180.tex,,
-5,stage/st220/st220.omp,col/stage/col0i_0x_eng.col,col/stage/sti_0.col,stage/st220/st220.ocl,stage/st220/st220.tex,,
+5,stage/st220/st220.omp,col/stage/col0m_0x_eng.col,col/stage/stm_0.col,stage/st220/st220.ocl,stage/st220/st220.tex,,
 5,stage/staff_eng/staff_eng.omp,col/stage/col0m_0x_eng.col,col/stage/stm_0.col,stage/staff_eng/staff_eng.ocl,stage/staff_eng/staff_eng.tex,stage/staff_eng_chr256/staff_eng_chr256.tex,
 6,stage/map/st00.omp,stage/col/eng/col00_0x.col,col/stage/st00/st00.col,stage/cel/st00.ocl,stage/dds/st00.tex,stage/dds/st00_chr256.tex,
 6,stage/map/st01.omp,stage/col/eng/col01_0x.col,col/stage/st01/st01.col,stage/cel/st01.ocl,stage/dds/st01.tex,stage/dds/st01_chr256.tex,

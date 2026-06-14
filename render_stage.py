@@ -122,16 +122,9 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     "st170": (0x02D99CBA, 20, 17), # ALMOST (Zero Space 2: Grief)
     "st180": (0x02D99CBA, 19, 24), # ALMOST (Zero Space 3: Awakening)
 
+    "st220": (0x02D99F7D, 9, 11), # IN RANGE (Training Area) colours look wrong
+
     # --- unconfirmed
-    # idx 16  (5×27)   0x02D99C7C
-
-
-    # idx 17  (5×26)   0x02D99E11
-
-
-    # idx 20  (5×25)   0x02D99F97
-    "st220": (0x02D99F97,  5, 25), # LIKELY (Training Area)
-
     #   idx 21  (10×24)  0x02D9A10E
     "staff_eng": (0x02D9A10E, 10, 24), # CONFIRMED (End Credits) with incorrect colours
 

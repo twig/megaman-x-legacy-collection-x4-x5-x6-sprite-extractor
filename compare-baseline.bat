@@ -17,3 +17,4 @@ python .\render_stage.py PC\X5\stage\st100_01\st100_01.omp --skip-catalog --outp
 python .\render_stage.py PC\X5\stage\st120\st120.omp --skip-catalog --output-dir progress-baseline
 python .\render_stage.py PC\X5\stage\st170\st170.omp --skip-catalog --output-dir progress-baseline
 python .\render_stage.py PC\X5\stage\st180\st180.omp --skip-catalog --output-dir progress-baseline
+python .\render_stage.py PC\X5\stage\st220\st220.omp --skip-catalog --output-dir progress-baseline
