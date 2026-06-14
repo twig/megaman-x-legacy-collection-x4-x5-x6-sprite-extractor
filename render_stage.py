@@ -107,7 +107,7 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     "st050": (0x02D99508, 44, 7), # ALMOST (Volt Kraken)
 
     "st060": (0x02D992B3, 29, 15), # ALMOST (Shining Firefly: Area 1)
-    "st061": (0x02D9A690, 22, 13), # ALMOST (Shining Firefly: Area 2)
+    "st061": (0x02D9A690, 21, 17), # ALMOST (Shining Firefly: Area 2)
 
     "st070": (0x02D98548, 24, 14), # IN RANGE (Spike Rosered)
 
