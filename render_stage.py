@@ -136,6 +136,39 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st140_eng": (0x02D98695, 2, 1), # DONE (Title screen)
         "st141_eng": (0x02D98695, 2, 1), # DONE (Player Select screen)
         "st150": (0x02D98695, 2, 1), # DONE (Gameplay Report screen)
+    },
+    # MIX OF SCANNED AND DUMMY VALUES
+    # X6 Block 1 — COPY1_OFFSET = 0x02DD4000, all W=16, sequential, 14160 bytes total
+    # Heights from x6_extract_psx_layouts.py _BLOCK1_HEIGHTS; offsets computed sequentially.
+    # Verification: max(layer0) == n_screens-1 expected; run explore_layout.py to confirm each.
+    # Block 2 — offsets are GUESSES starting from block 1 end (0x02DD7750).
+    # Heights estimated from PSX n_screens where available, otherwise h=28.
+    # Use explore_layout.py --exe RXC2.exe --base-offset <offset> to verify.
+    "X6": {
+        "st00":      (0x02DD4000, 28, 16),  # UNCONFIRMED (Intro)
+        "st01":      (0x02DD7750, 28, 16),  # GUESS
+        "st01x":     (0x02DD7C90,  3, 16),  # GUESS (PSX n_screens=47 → h≈3)
+        "st02":      (0x02DD4540, 23, 16),  # UNCONFIRMED
+        "st02x":     (0x02DD6E50,  7, 16),  # UNCONFIRMED
+        "st03":      (0x02DD7D20, 13, 16),  # GUESS (PSX n_screens=204 → h≈13)
+        "st03x":     (0x02DD7060,  9, 16),  # UNCONFIRMED
+        "st04a":     (0x02DD4990, 33, 16),  # UNCONFIRMED
+        "st04b":     (0x02DD7F90, 28, 16),  # GUESS
+        "st04x":     (0x02DD7030,  1, 16),  # UNCONFIRMED
+        "st05":      (0x02DD84D0, 28, 16),  # GUESS
+        "st05x":     (0x02DD6970, 26, 16),  # UNCONFIRMED
+        "st06a":     (0x02DD4FC0, 43, 16),  # UNCONFIRMED
+        "st06x":     (0x02DD7210, 28, 16),  # UNCONFIRMED
+        "st07":      (0x02DD8A10, 28, 16),  # GUESS
+        "st07x":     (0x02DD8F50,  7, 16),  # GUESS (similar to st02x)
+        "st08":      (0x02DD90A0, 28, 16),  # GUESS
+        "st08x":     (0x02DD6FA0,  3, 16),  # UNCONFIRMED
+        "st0ca":     (0x02DD57D0, 18, 16),  # UNCONFIRMED
+        "st0cb":     (0x02DD95E0, 18, 16),  # GUESS (similar to st0ca)
+        "st0g":      (0x02DD6160, 43, 16),  # UNCONFIRMED
+        "st0h":      (0x02DD9940, 20, 16),  # GUESS
+        "st0i":      (0x02DD9D00, 20, 16),  # GUESS
+        "stsel_eng": (0x02DD5B30, 33, 16),  # UNCONFIRMED
     }
 }
 
@@ -220,123 +253,6 @@ def get_game_files(game_version: GameVersion, omp_path: Path):
         Path(f".\\PC\\X{game_version}\\{col}"),
         Path(f".\\PC\\X{game_version}\\{col_animate}") if col_animate else None,
     ]
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Render a stage OMP to PNG (level + catalog)."
-    )
-    parser.add_argument("omp_file", type=Path, help="Path to the .omp file")
-    parser.add_argument(
-        "--layer", type=int, default=0, choices=[0, 1, 2],
-        help="Layout layer to render (0=foreground, 1=BG1, 2=BG2; default: 0)",
-    )
-    parser.add_argument(
-        "--skip-stage", action="store_true",
-        help="Only produce the catalog PNG, skip level render",
-    )
-    parser.add_argument(
-        "--skip-catalog", action="store_true",
-        help="Skip catalog PNG generation",
-    )
-    parser.add_argument(
-        "--output-dir", type=Path, help="Directory to save output images (default: current working directory)",
-        default=Path.cwd(),
-    )
-    parser.add_argument(
-        "--debug", action="store_true",
-        help="Overlay screen/layer boundaries and (sx,sy)/screen-id labels on output images",
-    )
-    args = parser.parse_args()
-
-    omp_path: Path = args.omp_file.resolve()
-    output_dir: Path = args.output_dir.resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    omp_stem = omp_path.stem
-    [omp, ocl, tex, tex_background, flags_to_palette, game_version] = preload_related_files(omp_path)
-
-    # Catalog render
-    if not args.skip_catalog:
-        print()
-        print("Rendering OMP catalog...")
-        catalog_img = render_omp(
-            omp,
-            ocl,
-            tex,
-            # tex_foreground,
-            tex_background,
-            flags_to_palette=flags_to_palette,
-            preset=LayerPreset.MAIN,
-        )
-        if args.debug:
-            _debug_overlay_catalog(catalog_img, omp.n_screens)
-        catalog_out = output_dir / f"{omp_stem}_catalog.png"
-        catalog_img.save(catalog_out)
-        print(f"  Saved {catalog_out}  ({catalog_img.width}×{catalog_img.height} px)")
-
-    layout_entry = STAGE_LAYOUT.get(f"X{game_version}", {}).get(omp_stem if game_version != GameVersion.X4 else omp_stem.replace("SCR", "ST"))  # OMP stem vs PSX layout stem
-
-    # Level render (when layout is known)
-    if layout_entry and not args.skip_stage:
-        offset, w, h = layout_entry
-
-        print(f"  (offset=0x{offset:08X}  w={w}  h={h})")
-        print()
-
-        print()
-
-        if game_version == GameVersion.X4:
-            print(f"Loading layout from RXC1.exe (layer {args.layer})...")
-            layout = load_layout_from_exe(EXE_PATH_X4, offset=offset, width=w, height=h, layer=args.layer)
-        else:
-            print(f"Loading layout from RXC2.exe (layer {args.layer})...")
-            layout = load_layout_from_exe(EXE_PATH, offset=offset, width=w, height=h, layer=args.layer)
-
-
-        #---
-        # offset = 2486
-        # w = 24
-        # h = 8
-
-        # exe_path = Path('layouts_rxc2.bin')
-        # layer_size = w * h
-        # total_size = layer_size * 3
-        # data = exe_path.read_bytes()
-        # if offset + total_size > len(data):
-        #     raise ValueError(
-        #         f"EXE too small for layout at {hex(offset)}: "
-        #         f"need {total_size} bytes, file has {len(data) - offset}"
-        #     )
-        # layout_bytes = data[offset : offset + total_size]
-        # layout = LayoutTable.from_bytes(layout_bytes, w, h, args.layer)
-        # print(f"total size {total_size} > {offset+total_size}")
-        #---
-
-        n_sx = len(layout.screens[0]) if layout.screens else 0
-        n_sy = len(layout.screens)
-        print(f"  {n_sx} screens wide × {n_sy} screens tall")
-
-        print()
-        print("Rendering full level...")
-        level_img = render_level(
-            omp,
-            ocl,
-            layout,
-            level_width_screens=n_sx,
-            level_height_screens=n_sy,
-            tex=tex,
-            tex_bg=tex_background,
-            # tex_fg=tex_foreground,
-            flags_to_palette=flags_to_palette,
-        )
-        if args.debug:
-            _debug_overlay_level(level_img, layout, n_sx, n_sy)
-        level_out = output_dir / Path(f"{omp_stem}_level.png")
-        level_img.save(level_out)
-        print(f"  Saved {level_out}  ({level_img.width}×{level_img.height} px)")
-    else:
-        print()
-        print(f"Stage layout unknown for {omp_stem}, skipping level render.")
 
 
 def preload_related_files(omp_path: Path):
@@ -429,6 +345,124 @@ def preload_related_files(omp_path: Path):
     }
 
     return [omp, ocl, tex, tex_background, flags_to_palette, game_version]
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Render a stage OMP to PNG (level + catalog)."
+    )
+    parser.add_argument("omp_file", type=Path, help="Path to the .omp file")
+    parser.add_argument(
+        "--layer", type=int, default=0, choices=[0, 1, 2],
+        help="Layout layer to render (0=foreground, 1=BG1, 2=BG2; default: 0)",
+    )
+    parser.add_argument(
+        "--skip-stage", action="store_true",
+        help="Only produce the catalog PNG, skip level render",
+    )
+    parser.add_argument(
+        "--skip-catalog", action="store_true",
+        help="Skip catalog PNG generation",
+    )
+    parser.add_argument(
+        "--output-dir", type=Path, help="Directory to save output images (default: current working directory)",
+        default=Path.cwd(),
+    )
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="Overlay screen/layer boundaries and (sx,sy)/screen-id labels on output images",
+    )
+    args = parser.parse_args()
+
+    omp_path: Path = args.omp_file.resolve()
+    output_dir: Path = args.output_dir.resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    omp_stem = omp_path.stem
+    [omp, ocl, tex, tex_background, flags_to_palette, game_version] = preload_related_files(omp_path)
+
+    # Catalog render
+    if not args.skip_catalog:
+        print()
+        print("Rendering OMP catalog...")
+        catalog_img = render_omp(
+            omp,
+            ocl,
+            tex,
+            # tex_foreground,
+            tex_background,
+            flags_to_palette=flags_to_palette,
+            preset=LayerPreset.MAIN,
+        )
+        if args.debug:
+            _debug_overlay_catalog(catalog_img, omp.n_screens)
+        catalog_out = output_dir / f"{omp_stem}_catalog.png"
+        catalog_img.save(catalog_out)
+        print(f"  Saved {catalog_out}  ({catalog_img.width}×{catalog_img.height} px)")
+
+    layout_entry = STAGE_LAYOUT.get(f"X{game_version}", {}).get(omp_stem if game_version != GameVersion.X4 else omp_stem)  # OMP stem vs PSX layout stem
+
+    # Level render (when layout is known)
+    if layout_entry and not args.skip_stage:
+        offset, w, h = layout_entry
+
+        print(f"  (offset=0x{offset:08X}  w={w}  h={h})")
+        print()
+
+        print()
+
+        if game_version == GameVersion.X4:
+            print(f"Loading layout from RXC1.exe (layer {args.layer})...")
+            layout = load_layout_from_exe(EXE_PATH_X4, offset=offset, width=w, height=h, layer=args.layer)
+        else:
+            print(f"Loading layout from RXC2.exe (layer {args.layer})...")
+            layout = load_layout_from_exe(EXE_PATH, offset=offset, width=w, height=h, layer=args.layer)
+
+
+        #---
+        # offset = 2486
+        # w = 24
+        # h = 8
+
+        # exe_path = Path('layouts_rxc2.bin')
+        # layer_size = w * h
+        # total_size = layer_size * 3
+        # data = exe_path.read_bytes()
+        # if offset + total_size > len(data):
+        #     raise ValueError(
+        #         f"EXE too small for layout at {hex(offset)}: "
+        #         f"need {total_size} bytes, file has {len(data) - offset}"
+        #     )
+        # layout_bytes = data[offset : offset + total_size]
+        # layout = LayoutTable.from_bytes(layout_bytes, w, h, args.layer)
+        # print(f"total size {total_size} > {offset+total_size}")
+        #---
+
+        n_sx = len(layout.screens[0]) if layout.screens else 0
+        n_sy = len(layout.screens)
+        print(f"  {n_sx} screens wide × {n_sy} screens tall")
+
+        print()
+        print("Rendering full level...")
+        level_img = render_level(
+            omp,
+            ocl,
+            layout,
+            level_width_screens=n_sx,
+            level_height_screens=n_sy,
+            tex=tex,
+            tex_bg=tex_background,
+            # tex_fg=tex_foreground,
+            flags_to_palette=flags_to_palette,
+        )
+        if args.debug:
+            _debug_overlay_level(level_img, layout, n_sx, n_sy)
+        level_out = output_dir / Path(f"{omp_stem}_level.png")
+        level_img.save(level_out)
+        print(f"  Saved {level_out}  ({level_img.width}×{level_img.height} px)")
+    else:
+        print()
+        print(f"Stage layout unknown for {omp_stem}, skipping level render.")
 
 
 if __name__ == "__main__":
