@@ -21,12 +21,7 @@ from PIL.Image import Image as PILImage
 
 from utils.types import Palette, ColourRGB, ColourRGBA
 from utils.palette import load_col_palettes, convert_palette_to_clut
-from utils.tex import convert_tex_to_image
-from extract_tex_to_png import (
-    load_col_palettes,
-    load_tex,
-)
-
+from utils.tex import load_tex, convert_tex_to_image
 
 class CLUTFinderApp:
     GRID_SIZE = 16
