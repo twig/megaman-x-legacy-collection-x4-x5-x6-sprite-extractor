@@ -118,25 +118,18 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
     "st100_00": (0x02D9852F, 2, 4),  # DONE (Dynamo: Space Shuttle)
     "st100_01": (0x02D98697, 2, 3),  # DONE (Dynamo: Hunter Base 2)
 
-    "st120": (0x02D9979F, 27, 19),  # ALMOST (Zero Space 4: Birth)
+    "st160": (0x02D98524, 12, 16), # ALMOST (Zero Space 1: Origin)
     "st170": (0x02D99CBA, 20, 17), # ALMOST (Zero Space 2: Grief)
     "st180": (0x02D99CBA, 19, 24), # ALMOST (Zero Space 3: Awakening)
+    "st120": (0x02D9979F, 27, 19), # ALMOST (Zero Space 4: Birth)
 
-    "st130":    (0x02D9869C, 6, 3),  # ALMOST (Stage Select)
+    "st130":    (0x02D9869C, 6, 3),  # DONE (Stage Select)
     "st220": (0x02D99F7D, 9, 11), # ALMOST (Training Area)
-    "staff_eng": (0x02D9852F, 10, 6), # IN RANGE (End Credits) - incorrect colours
 
-    # unmapped
-    # st140_eng
-    # st141_eng
-    # st150
-    # st160
-
-    #   idx 24  (20×21)  0x02D9AA6E
-    # "st250": (0x02D9AA6E, 20, 21), # UNCONFIRMED — block 1 idx 24, exact max match (Some Stage Name)
-
-    #   idx 25  (20×20)  0x02D9AF5A
-    # "st260": (0x02D9AF5A, 20, 20), # UNCONFIRMED — block 1 idx 25, exact max match (Some Stage Name)
+    "staff_eng": (0x02D9852F, 9, 6), # DONE (End Credits)
+    "st140_eng": (0x02D98695, 2, 1), # DONE (Title screen)
+    "st141_eng": (0x02D98695, 2, 1), # DONE (Player Select screen)
+    "st150": (0x02D98695, 2, 1), # DONE (Gameplay Report screen)
 }
 
 
