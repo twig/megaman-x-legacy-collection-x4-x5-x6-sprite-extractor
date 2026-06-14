@@ -276,7 +276,7 @@ def main() -> None:
 
     layout_entry = STAGE_LAYOUT.get(f"X{game_version}", {}).get(omp_stem if game_version != GameVersion.X4 else omp_stem.replace("SCR", "ST"))  # OMP stem vs PSX layout stem
 
-    # Level render (when layout is known and not suppressed)
+    # Level render (when layout is known)
     if layout_entry and not args.skip_stage:
         offset, w, h = layout_entry
 
