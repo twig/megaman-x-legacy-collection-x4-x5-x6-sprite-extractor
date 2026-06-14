@@ -2,15 +2,26 @@
 
 Trying to find ways to make it easier for sprite rippers to get accurate sprites straight from the source.
 
-`WIP:` currently only working with _some_ X5 assets
+# Features
+
+- MegaMan X4: all stages working
+- MegaMan X5: all stages parsed with 98% tiles rendering accurately, however only Crescent Grizzly stage has structure laid out correctly
+- MegaMan X6: able to parse but output is broken
 
 Remaining
 
-- TEX format 0x12 / 8bpp files
-- Animation sprites maybe?
+- X5 - Tidal Whale: the boss sprite is garbled
+- X5 - Shining Firefly (Area 2): Aqua tube is rendered as dark blue and some incorrect tiles rendered around it
+- `WIP` MegaMan X6: currently only renders Intro stage tiles, but colours are all wrong.
+
+Maybe
+
+- Animation sprites
 
 # References for code
 
+- ❤️ [Kuumba123's TehemanX4 Editor](https://github.com/Kuumba123/TeheManX4_Editor)
+- ❤️ [acediez's partial X5 stage dumps](https://x.com/acediez/status/2061990111147937946) or [archive.org](https://archive.org/download/mmx_ps1_rips/Stage%20Layout/)
 - [TileMolester](https://github.com/toruzz/TileMolester)
 - [ARC format](https://www.watto.org/specs.html?specs=Archive_ARC_ARC_2)
 - romhacking.net threads
@@ -30,8 +41,6 @@ Remaining
 - [RandomTBush's RTB-QuickBMS-Scripts CapcomMTFrameworkPC_TEX.bms](https://github.com/RandomTBush/RTB-QuickBMS-Scripts/blob/master/Textures%2FCapcomMTFrameworkPC_TEX.bms)
 - [Silvris's MH-Tools-and-Scripts Noesis plugin tex_mtFramework_tex.py](https://github.com/Silvris/MH-Tools-and-Scripts/blob/master/Noesis%2Fplugins%2Fpython%2Ftex_mtFramework_tex.py)
 - [Kuumba123's MMX5---X6-DAT-Extract](https://github.com/Kuumba123/MMX5---X6-DAT-Extract) to compare PSX files
-- ❤️ [Kuumba123's TehemanX4 Editor](https://github.com/Kuumba123/TeheManX4_Editor)
-- ❤️ [acediez's partial X5 stage dumps](https://x.com/acediez/status/2061990111147937946) or [archive.org](https://archive.org/download/mmx_ps1_rips/Stage%20Layout/)
 
 # Requirements
 
@@ -63,6 +72,8 @@ pip install -r requirements.txt
 - Use Game Extrator to extract game assets from each of the ARC files
 
 TODO: more information/details on filenames and folders later
+
+- Copy RXC1.exe and RXC2.exe to this folder. We need it to grab stage layout data from the game.
 
 ### File types
 

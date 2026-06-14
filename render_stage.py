@@ -337,12 +337,35 @@ def preload_related_files(omp_path: Path):
 
     # OclEntry.palette_group() maps any unregistered collision type to STANDARD,
     # so all tiles are rendered even if their tile_type is not listed above.
-    flags_to_palette = {
-        OclPaletteGroup.STANDARD:         col,
-        OclPaletteGroup.ALT_PALETTE:      col,
-        OclPaletteGroup.ANIMATED_CRYSTAL: col,
-        OclPaletteGroup.ALT_AREA:         col,
-    }
+
+    if game_version == GameVersion.X6 and anim_col is not None:
+        # X6 STANDARD palette fix: CLUTs 64-82 replaced by per-stage anim_col CLUTs 0-18.
+        # col00_0x has blank placeholders at 64-82; stXX.col has the real stage colors.
+        patched: list = list(col)
+        for i in range(19):
+            for j in range(16):
+                patched[(64 + i) * 16 + j] = anim_col[i * 16 + j]
+
+        # X6 ALT_PALETTE (tile_type=0x38) uses offset col+96 instead of col+64.
+        # ALT_PALETTE col=N always pairs with STANDARD col=N+32, both targeting the
+        # same CLUT: N+96 == (N+32)+64. Build alt_pal by shifting col00_0x by 32 CLUTs
+        # so that the +64 lookup in _apply_palette_to_tile effectively becomes +96.
+        _shift = 32 * 16  # 32 CLUTs × 16 entries each
+        alt_pal: list = col[_shift:] + [(0, 0, 0, 0)] * _shift
+
+        flags_to_palette = {
+            OclPaletteGroup.STANDARD:         patched,
+            OclPaletteGroup.ALT_PALETTE:      alt_pal,
+            OclPaletteGroup.ANIMATED_CRYSTAL: patched,
+            OclPaletteGroup.ALT_AREA:         patched,
+        }
+    else:
+        flags_to_palette = {
+            OclPaletteGroup.STANDARD:         col,
+            OclPaletteGroup.ALT_PALETTE:      col,
+            OclPaletteGroup.ANIMATED_CRYSTAL: col,
+            OclPaletteGroup.ALT_AREA:         col,
+        }
 
     return [omp, ocl, tex, tex_background, flags_to_palette, game_version]
 
