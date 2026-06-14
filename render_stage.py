@@ -120,7 +120,7 @@ STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
 
     "st120": (0x02D9979F, 27, 19),  # ALMOST (Zero Space 4: Birth)
     "st170": (0x02D99CBA, 20, 17), # ALMOST (Zero Space 2: Grief)
-    "st180": (0x02D99E11, 19, 19), # ALMOST (Zero Space 3: Awakening)
+    "st180": (0x02D99CBA, 19, 24), # ALMOST (Zero Space 3: Awakening)
 
     # --- unconfirmed
     # idx 16  (5×27)   0x02D99C7C
