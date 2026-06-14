@@ -64,8 +64,10 @@ from utils.ocl import load_ocl, OclPaletteGroup
 from utils.tex import load_tex
 from utils.palette import load_col_palettes
 from utils.types import GameVersion
+from x4_pc_mmxlc1_layout_offsets import X4_LAYOUT_OFFSETS
 
 # Paths
+EXE_PATH_X4 = Path("RXC1.exe")
 EXE_PATH = Path("RXC2.exe")
 
 # Stage layout
@@ -83,55 +85,61 @@ EXE_PATH = Path("RXC2.exe")
 # Block 2 data start: COPY2_OFFSET   = 0x02D9B9A4  (overlaps last 261 bytes of block 1)
 # Block 2 size table: SIZE_TABLE_2   = 0x02E8DF71  (4-byte entries: w, h, f1, f2)
 
-STAGE_LAYOUT: dict[str, tuple[int, int, int]] = {
+STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # DONE = accurate render of stage (offset and dimensions look correct)
     # ALMOST = tiles and layout complete, offset/dimensions not quite right
     # IN RANGE = we got some tiles and layout data
-    # --- presentable
-    # st000 uses a dedicated second copy of the layout at 0x02EC2D4B.
-    # Verified by 4 anchor points from omp-to-expected-tiles-x5.csv.
-    "st000": (0x02EC2D4B, 15, 24),  # ALMOST (Intro Stage all)
-    # "st000": (0x02EC2D78, 15, 17),  # ALMOST (Intro Stage - part 1 flat)
-    # "st000": (0x02EC2D5F, 4, 3),  # ALMOST (Intro Stage - part 2 tower)
+    "X4": dict([
+        (key, (
+        data["pc_offset"], data["w"], data["h"]))
+        for key, data
+        in X4_LAYOUT_OFFSETS.items()
+    ]),
+    "X5": {
+        "st000": (0x02EC2D4B, 15, 24),  # ALMOST (Intro Stage all)
+        # "st000": (0x02EC2D78, 15, 17),  # ALMOST (Intro Stage - part 1 flat)
+        # "st000": (0x02EC2D5F, 4, 3),  # ALMOST (Intro Stage - part 2 tower)
 
-    "st010": (0x02D98528, 39, 8),  # DONE (Crescent Grizzly)
+        "st010": (0x02D98528, 39, 8),  # DONE (Crescent Grizzly)
 
-    "st020": (0x02D9A407, 32, 5), # ALMOST (Dark Necrobat: Area 1)
-    "st021": (0x02D9A404, 25, 6), # ALMOST (Dark Necrobat: Area 2)
+        "st020": (0x02D9A407, 32, 5), # ALMOST (Dark Necrobat: Area 1)
+        "st021": (0x02D9A404, 25, 6), # ALMOST (Dark Necrobat: Area 2)
 
-    "st030": (0x02D9A407, 22, 15),  # ALMOST (Tidal Whale)
+        "st030": (0x02D9A407, 22, 15),  # ALMOST (Tidal Whale)
 
-    "st040": (0x02D9A3DE, 23, 10), # ALMOST (Burn Dinorex: Area 1)
-    "st041": (0x02D9A3DE, 24, 10), # ALMOST (Burn Dinorex: Area 2)
+        "st040": (0x02D9A3DE, 23, 10), # ALMOST (Burn Dinorex: Area 1)
+        "st041": (0x02D9A3DE, 24, 10), # ALMOST (Burn Dinorex: Area 2)
 
-    "st050": (0x02D99508, 44, 7), # ALMOST (Volt Kraken)
+        "st050": (0x02D99508, 44, 7), # ALMOST (Volt Kraken)
 
-    "st060": (0x02D992B3, 29, 15), # ALMOST (Shining Firefly: Area 1)
-    "st061": (0x02D9A690, 21, 17), # ALMOST (Shining Firefly: Area 2)
+        "st060": (0x02D992B3, 29, 15), # ALMOST (Shining Firefly: Area 1)
+        "st061": (0x02D9A690, 21, 17), # ALMOST (Shining Firefly: Area 2)
 
-    "st070": (0x02D98548, 24, 14), # IN RANGE (Spike Rosered)
+        "st070": (0x02D98548, 24, 14), # IN RANGE (Spike Rosered)
 
-    "st080": (0x02D99A7D, 19, 13), # IN RANGE (Spiral Pegasus)
+        "st080": (0x02D99A7D, 19, 13), # IN RANGE (Spiral Pegasus)
 
-    "st090_00": (0x02D98697, 2, 3),  # DONE (Dynamo: Enigma Cannon)
-    "st090_01": (0x02D98697, 2, 3),  # DONE (Dynamo: Hunter Base 1)
-    "st100_00": (0x02D9852F, 2, 4),  # DONE (Dynamo: Space Shuttle)
-    "st100_01": (0x02D98697, 2, 3),  # DONE (Dynamo: Hunter Base 2)
+        "st090_00": (0x02D98697, 2, 3),  # DONE (Dynamo: Enigma Cannon)
+        "st090_01": (0x02D98697, 2, 3),  # DONE (Dynamo: Hunter Base 1)
+        "st100_00": (0x02D9852F, 2, 4),  # DONE (Dynamo: Space Shuttle)
+        "st100_01": (0x02D98697, 2, 3),  # DONE (Dynamo: Hunter Base 2)
 
-    "st160": (0x02D98524, 12, 16), # ALMOST (Zero Space 1: Origin)
-    "st170": (0x02D99CBA, 20, 17), # ALMOST (Zero Space 2: Grief)
-    "st180": (0x02D99CBA, 19, 24), # ALMOST (Zero Space 3: Awakening)
-    "st120": (0x02D9979F, 27, 19), # ALMOST (Zero Space 4: Birth)
+        "st160": (0x02D98524, 12, 16), # ALMOST (Zero Space 1: Origin)
+        "st170": (0x02D99CBA, 20, 17), # ALMOST (Zero Space 2: Grief)
+        "st180": (0x02D99CBA, 19, 24), # ALMOST (Zero Space 3: Awakening)
+        "st120": (0x02D9979F, 27, 19), # ALMOST (Zero Space 4: Birth)
 
-    "st130":    (0x02D9869C, 6, 3),  # DONE (Stage Select)
-    "st220": (0x02D99F7D, 9, 11), # ALMOST (Training Area)
+        "st130":    (0x02D9869C, 6, 3),  # DONE (Stage Select)
+        "st220": (0x02D99F7D, 9, 11), # ALMOST (Training Area)
 
-    "staff_eng": (0x02D9852F, 9, 6), # DONE (End Credits)
-    "st140_eng": (0x02D98695, 2, 1), # DONE (Title screen)
-    "st141_eng": (0x02D98695, 2, 1), # DONE (Player Select screen)
-    "st150": (0x02D98695, 2, 1), # DONE (Gameplay Report screen)
+        "staff_eng": (0x02D9852F, 9, 6), # DONE (End Credits)
+        "st140_eng": (0x02D98695, 2, 1), # DONE (Title screen)
+        "st141_eng": (0x02D98695, 2, 1), # DONE (Player Select screen)
+        "st150": (0x02D98695, 2, 1), # DONE (Gameplay Report screen)
+    }
 }
 
+# print("Stage layout offsets loaded:", STAGE_LAYOUT["X4"])
 
 # ── Debug overlay helpers ─────────────────────────────────────────────────────
 
@@ -245,7 +253,7 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     omp_stem = omp_path.stem
-    [omp, ocl, tex, tex_background, flags_to_palette] = preload_related_files(omp_path)
+    [omp, ocl, tex, tex_background, flags_to_palette, game_version] = preload_related_files(omp_path)
 
     # Catalog render
     if not args.skip_catalog:
@@ -266,17 +274,24 @@ def main() -> None:
         catalog_img.save(catalog_out)
         print(f"  Saved {catalog_out}  ({catalog_img.width}×{catalog_img.height} px)")
 
-    layout_entry = STAGE_LAYOUT.get(omp_stem)
+    layout_entry = STAGE_LAYOUT.get(f"X{game_version}", {}).get(omp_stem if game_version != GameVersion.X4 else omp_stem.replace("SCR", "ST"))  # OMP stem vs PSX layout stem
 
     # Level render (when layout is known and not suppressed)
     if layout_entry and not args.skip_stage:
         offset, w, h = layout_entry
+
         print(f"  (offset=0x{offset:08X}  w={w}  h={h})")
         print()
 
         print()
-        print(f"Loading layout from RXC2.exe (layer {args.layer})...")
-        layout = load_layout_from_exe(EXE_PATH, offset=offset, width=w, height=h, layer=args.layer)
+
+        if game_version == GameVersion.X4:
+            print(f"Loading layout from RXC1.exe (layer {args.layer})...")
+            layout = load_layout_from_exe(EXE_PATH_X4, offset=offset, width=w, height=h, layer=args.layer)
+        else:
+            print(f"Loading layout from RXC2.exe (layer {args.layer})...")
+            layout = load_layout_from_exe(EXE_PATH, offset=offset, width=w, height=h, layer=args.layer)
+
 
         #---
         # offset = 2486
@@ -319,6 +334,9 @@ def main() -> None:
         level_out = output_dir / Path(f"{omp_stem}_level.png")
         level_img.save(level_out)
         print(f"  Saved {level_out}  ({level_img.width}×{level_img.height} px)")
+    else:
+        print()
+        print(f"Stage layout unknown for {omp_stem}, skipping level render.")
 
 
 def preload_related_files(omp_path: Path):
@@ -410,7 +428,7 @@ def preload_related_files(omp_path: Path):
         OclPaletteGroup.ALT_AREA:         col,
     }
 
-    return [omp, ocl, tex, tex_background, flags_to_palette]
+    return [omp, ocl, tex, tex_background, flags_to_palette, game_version]
 
 
 if __name__ == "__main__":
