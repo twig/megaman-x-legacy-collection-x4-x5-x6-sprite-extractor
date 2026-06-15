@@ -346,16 +346,19 @@ def preload_related_files(omp_path: Path):
         # may hold cycling-animation placeholders or be valid only for specific tiles.
         #
         # A single palette is built for ALL tile types:
-        #   - Base: col+96 for every col position
-        #   - Entry-by-entry fallback: if col+96[i] is a "sentinel" placeholder value,
-        #     substitute col+64[i] instead (which carries the real colour in those cases)
+        #   Base: for every col position use col+96; entry-by-entry fallback to col+64
+        #   when the col+96 entry is a sentinel placeholder.
         #
-        # Sentinel detection covers three placeholder patterns:
-        #   1. Bright-green: g ≥ 200, r < 50, b < 100  (e.g. (0,231,33))
-        #   2. Near-white:   r > 200 AND g > 200 AND b > 200  (cycling animation frames)
-        #   3. Near-black:   max(r,g,b) < 30  (unassigned/null CLUTs like CLUT139 for road)
-        #      The near-black rule preserves road tiles (col=43, CLUT107) whose col+96
-        #      CLUT is nearly empty — all entries fall back to col+64 (CLUT107).
+        # Sentinel detection covers per-entry placeholder patterns:
+        #   1. Bright-green:    g ≥ 200, r < 50, b < 100  (e.g. (0,231,33))
+        #   2. Near-white:      r > 200 AND g > 200 AND b > 200  (cycling frames)
+        #
+        # CLUT-level exclusions (skip entire CLUT, keep col+64):
+        #   A. Enemy/effect palette bank (CLUTs 192-207 = col+96 for col 96-111):
+        #      These CLUTs hold enemy flash/effect colours (pink, magenta, purple,
+        #      lavender) that must NOT override the stage geometry col+64 data.
+        #   B. Null CLUTs: max brightness < 30.
+        #      Handles road tiles (col=43, CLUT139 max=24) and col=89-95 (all-zero).
 
         def _entry_sentinel(entry) -> bool:
             r, g, b = entry[:3]
@@ -363,15 +366,24 @@ def preload_related_files(omp_path: Path):
                 return True
             if r > 200 and g > 200 and b > 200:    # near-white cycling
                 return True
-            if max(r, g, b) < 30:                  # near-black null
-                return True
             return False
+
+        def _clut_is_null(c96: int) -> bool:
+            """True if the entire col+96 CLUT has max brightness < 30 (null placeholder)."""
+            base = c96 * 16
+            return max(max(col[base + j][:3]) for j in range(16)) < 30
 
         n_cluts = len(col) // 16
 
         x6_pal: list = list(col)
         for c in range(n_cluts - 96):
             c64, c96 = c + 64, c + 96
+            if 192 <= c96 <= 207:
+                # Enemy/effect palette bank — keep col+64 for all entries.
+                continue
+            if _clut_is_null(c96):
+                # Null CLUT placeholder — keep col+64 for all entries.
+                continue
             for j in range(16):
                 idx64 = c64 * 16 + j
                 idx96 = c96 * 16 + j
