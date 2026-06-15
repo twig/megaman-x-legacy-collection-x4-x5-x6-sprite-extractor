@@ -339,79 +339,51 @@ def preload_related_files(omp_path: Path):
     # so all tiles are rendered even if their tile_type is not listed above.
 
     if game_version == GameVersion.X6:
-        # X6 palette fix.  col00_0x has two relevant regions:
+        # X6 palette fix.  col00_0x has two regions of interest:
         #   - CLUTs 64-82  (col+64, col 0-18):  blank placeholders; real data is at col+96
         #   - CLUTs 96-114 (col+96, col 0-18):  real per-stage colours
-        # For col ≥ 19 the data at col+64 is normally correct for STANDARD tiles,
-        # but may need to be sourced from col+96 for non-STANDARD tiles.
+        # For col ≥ 19, col+96 CLUTs are generally the correct choice; col+64 CLUTs
+        # may hold cycling-animation placeholders or be valid only for specific tiles.
         #
-        # Sentinel detection: a palette ENTRY (not a whole CLUT) is "sentinel" if it has
-        # green ≥ 200 with low red (<50) and blue (<100).  These are placeholder values
-        # that were never assigned a real colour; they must be replaced.
+        # A single palette is built for ALL tile types:
+        #   - Base: col+96 for every col position
+        #   - Entry-by-entry fallback: if col+96[i] is a "sentinel" placeholder value,
+        #     substitute col+64[i] instead (which carries the real colour in those cases)
         #
-        # STANDARD tiles (hybrid):
-        #   col 0-18  → always copy from col+96 (blank at col+64)
-        #   col ≥ 19  → col+64 normally; entry-by-entry: if col+64[i] is sentinel
-        #               and col+96[i] is not, use col+96[i] instead.
-        #
-        # Non-STANDARD tiles (alt_patched):
-        #   all col   → use col+96 as the base; entry-by-entry: if col+96[i] is sentinel
-        #               and col+64[i] is not, substitute col+64[i] instead.
-        #               This keeps the correct col+96 palette while masking rogue entries.
+        # Sentinel detection covers three placeholder patterns:
+        #   1. Bright-green: g ≥ 200, r < 50, b < 100  (e.g. (0,231,33))
+        #   2. Near-white:   r > 200 AND g > 200 AND b > 200  (cycling animation frames)
+        #   3. Near-black:   max(r,g,b) < 30  (unassigned/null CLUTs like CLUT139 for road)
+        #      The near-black rule preserves road tiles (col=43, CLUT107) whose col+96
+        #      CLUT is nearly empty — all entries fall back to col+64 (CLUT107).
 
         def _entry_sentinel(entry) -> bool:
             r, g, b = entry[:3]
-            # Bright-green placeholder: (0,231,33) pattern
-            if g >= 200 and r < 50 and b < 100:
+            if g >= 200 and r < 50 and b < 100:   # bright-green
                 return True
-            # Near-white placeholder: cycling-animation phases like (247,247,247)
-            # stored in CLUTs that are not assigned to static tiles (e.g. CLUT83).
-            if r > 200 and g > 200 and b > 200:
+            if r > 200 and g > 200 and b > 200:    # near-white cycling
+                return True
+            if max(r, g, b) < 30:                  # near-black null
                 return True
             return False
 
         n_cluts = len(col) // 16
 
-        # --- STANDARD: hybrid palette ---
-        # col 0-19: CLUTs 64-83 are blank or cycling-animation placeholders.
-        # Replace entirely with real stage data from CLUTs 96-115.
-        hybrid: list = list(col)
-        for i in range(20):
-            for j in range(16):
-                hybrid[(64 + i) * 16 + j] = col[(96 + i) * 16 + j]
-        # col 19+: entry-by-entry sentinel patch (col+64 → col+96 for sentinel entries)
-        for c in range(19, n_cluts - 64):
-            c64, c96 = c + 64, c + 96
-            if c96 >= n_cluts:
-                continue
-            for j in range(16):
-                idx64 = c64 * 16 + j
-                idx96 = c96 * 16 + j
-                if _entry_sentinel(col[idx64]) and not _entry_sentinel(col[idx96]):
-                    hybrid[idx64] = col[idx96]
-
-        # --- Non-STANDARD: alt_patched palette ---
-        # Base: col+96 (shifted up 32 CLUTs).  Entry-by-entry: substitute col+64
-        # where col+96 carries a sentinel value.
-        alt_patched: list = list(col)
+        x6_pal: list = list(col)
         for c in range(n_cluts - 96):
             c64, c96 = c + 64, c + 96
             for j in range(16):
                 idx64 = c64 * 16 + j
                 idx96 = c96 * 16 + j
                 src = col[idx96]
-                if _entry_sentinel(src):
-                    # col+96 has a sentinel here — fall back to col+64 entry
-                    alt_patched[idx64] = col[idx64]
-                else:
-                    alt_patched[idx64] = src
+                x6_pal[idx64] = col[idx64] if _entry_sentinel(src) else src
 
         flags_to_palette = {
-            OclPaletteGroup.STANDARD:         hybrid,
-            OclPaletteGroup.ALT_PALETTE:      alt_patched,
-            OclPaletteGroup.ANIMATED_CRYSTAL: alt_patched,
-            OclPaletteGroup.ALT_AREA:         alt_patched,
-            OclPaletteGroup.UNKNOWN:          alt_patched,
+            OclPaletteGroup.STANDARD:         x6_pal,
+            OclPaletteGroup.ALT_PALETTE:      x6_pal,
+            OclPaletteGroup.ANIMATED_CRYSTAL: x6_pal,
+            OclPaletteGroup.ALT_AREA:         x6_pal,
+            OclPaletteGroup.UNKNOWN:          x6_pal,
         }
     else:
         flags_to_palette = {
