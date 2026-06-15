@@ -27,7 +27,7 @@ from tkinter import ttk, messagebox
 from PIL import ImageTk
 
 from utils.omp import render_level, LayoutTable
-from render_stage import preload_related_files, _debug_overlay_level
+from render_stage import preload_related_files, _debug_overlay_level, STAGE_LAYOUT
 from utils.types import GameVersion
 
 # ── Debug overlay colours (shared with st040_compact_render conventions) ──────
@@ -176,7 +176,7 @@ def load_layout_from_binary(
 # ── Main application ──────────────────────────────────────────────────────────
 
 class LayoutExplorer(tk.Tk):
-    def __init__(self, omp_path: Path, bin_path: Path, base_offset: int = 0) -> None:
+    def __init__(self, omp_path: Path, bin_path: Path, base_offset: int = 0, default_w: int = 25, default_h: int = 25) -> None:
         super().__init__()
 
         self.omp_path = omp_path
@@ -204,13 +204,13 @@ class LayoutExplorer(tk.Tk):
         self._render_cancel = threading.Event()
         self._result_queue: queue.Queue = queue.Queue()
 
-        self._build_ui()
+        self._build_ui(default_w, default_h)
         self._schedule_render()
         self.after(50, self._poll_result)
 
     # ── UI construction ───────────────────────────────────────────────────────
 
-    def _build_ui(self) -> None:
+    def _build_ui(self, default_w: int, default_h: int) -> None:
         # 3 columns: [left panel] [canvas area] [right panel]
         # 3 rows:    [top slider] [canvas]       [status bar]
         self.columnconfigure(1, weight=1)
@@ -274,7 +274,7 @@ class LayoutExplorer(tk.Tk):
 
         ttk.Label(top, text="Width (screens):").grid(row=0, column=0, padx=(0, 6))
 
-        self.width_var = tk.IntVar(value=15)
+        self.width_var = tk.IntVar(value=default_w)
         self.width_slider = ttk.Scale(
             top,
             from_=1,
@@ -290,7 +290,7 @@ class LayoutExplorer(tk.Tk):
                                         lambda: 10, 1, 300),
         )
 
-        self.width_entry_var = tk.StringVar(value="15")
+        self.width_entry_var = tk.StringVar(value=f"{default_w}")
         width_spin = tk.Spinbox(
             top,
             from_=1,
@@ -320,7 +320,7 @@ class LayoutExplorer(tk.Tk):
 
         ttk.Label(right, text="Height").grid(row=0, column=0, pady=(0, 2))
 
-        self.height_entry_var = tk.StringVar(value="24")
+        self.height_entry_var = tk.StringVar(value=f"{default_h}")
         height_spin = tk.Spinbox(
             right,
             from_=1,
@@ -335,7 +335,7 @@ class LayoutExplorer(tk.Tk):
         height_spin.bind("<Return>", self._on_height_entry)
         height_spin.bind("<FocusOut>", self._on_height_entry)
 
-        self.height_var = tk.IntVar(value=24)
+        self.height_var = tk.IntVar(value=default_h)
         self.height_slider = ttk.Scale(
             right,
             from_=1,
@@ -650,6 +650,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    omp_file: Path = args.omp_file.resolve()
+    layout_w = 25
+    layout_h = 25
+
     if args.layouts is not None:
         bin_path = args.layouts
         base_offset = 0
@@ -670,7 +674,12 @@ def main() -> None:
         bin_path = args.exe if args.exe is not None else Path(_EXE_NAMES[game])
         base_offset = _EXE_BASE_OFFSETS[game]
 
-    app = LayoutExplorer(args.omp_file.resolve(), bin_path.resolve(), base_offset=base_offset)
+        layout_entry = STAGE_LAYOUT.get(f"X{game}", {}).get(omp_file.stem)
+
+        if layout_entry:
+            base_offset, layout_w, layout_h = layout_entry
+
+    app = LayoutExplorer(omp_file, bin_path.resolve(), base_offset=base_offset, default_w=layout_w, default_h=layout_h)
     app.mainloop()
 
 
