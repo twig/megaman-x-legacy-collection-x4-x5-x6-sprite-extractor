@@ -826,7 +826,10 @@ def _build_chr256_ocl_indices(
         if _tex_is_empty(raw_bg, w_bg, gx_k, gy_k):
             continue  # no background pixel data — not a chr256 tile
         for j in sorted_g:
-            if (j - fi) >= CHR256_INDEX_GAP_THRESHOLD and ocl_entries[j].col > fc:
+            cv = ocl_entries[j].col
+            if (j - fi) >= CHR256_INDEX_GAP_THRESHOLD and (
+                cv > fc or (cv != fc and ocl_entries[fi].tile_type == 0x39)
+            ):
                 chr256.add(j)
 
     return frozenset(chr256)
