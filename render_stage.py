@@ -59,7 +59,7 @@ from pathlib import Path
 
 from PIL import ImageDraw, ImageFont
 
-from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset, LayoutTable
+from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset, LayoutTable, _build_chr256_ocl_indices
 from utils.ocl import load_ocl, OclPaletteGroup
 from utils.tex import load_tex
 from utils.palette import load_col_palettes
@@ -443,6 +443,50 @@ def main() -> None:
     omp_stem = omp_path.stem
     [omp, ocl, tex, tex_background, flags_to_palette, game_version] = preload_related_files(omp_path)
 
+    # For X6: extend chr256 set with page>=8 large-span groups where the background
+    # entry has a lower col than the foreground (cv < fc).  The enemy-bank col range
+    # [96, 111] (c96 = 192-207) is explicitly excluded because those palette rows are
+    # owned by enemy/effect flash palettes and must not be treated as background tiles.
+    chr256_extra: "frozenset[int] | None" = None
+    if game_version == GameVersion.X6:
+        _CHR_SPAN = 500
+        _TILE = 16
+        base_chr256 = _build_chr256_ocl_indices(ocl, tex, tex_background)
+        extra = set(base_chr256)
+        _pg8g: dict[tuple, list] = {}
+        for _i, _e in enumerate(ocl):
+            _pg = _e.pad & 0xF
+            if _pg < 8:
+                continue
+            _k = (_pg, _e.clut_base)
+            _pg8g.setdefault(_k, []).append(_i)
+        _bg_raw = tex_background["raw_image"]
+        _bg_w = tex_background["width"]
+        for _k, _idxs in _pg8g.items():
+            if len(_idxs) < 2:
+                continue
+            _sg = sorted(_idxs)
+            if _sg[-1] - _sg[0] < _CHR_SPAN:
+                continue
+            _fi = _sg[0]
+            _fc = ocl[_fi].col
+            _pg_k, _cb_k = _k
+            _cX = _cb_k & 0xF
+            _cY = (_cb_k >> 4) & 0xF
+            _gx = (_pg_k % 8) * 256 + _cX * _TILE
+            _gy = (_pg_k // 8) * 256 + _cY * _TILE
+            _bh = len(_bg_raw) // _bg_w
+            if _gx + _TILE > _bg_w or _gy + _TILE > _bh:
+                continue
+            if not any(_bg_raw[(_gy + _dy) * _bg_w + _gx + _dx]
+                       for _dy in range(_TILE) for _dx in range(_TILE)):
+                continue
+            for _j in _sg:
+                _cv = ocl[_j].col
+                if (_j - _fi) >= _CHR_SPAN and _cv < _fc and not (192 <= _cv + 96 <= 207):
+                    extra.add(_j)
+        chr256_extra = frozenset(extra)
+
     # Catalog render
     if not args.skip_catalog:
         print()
@@ -455,6 +499,7 @@ def main() -> None:
             tex_background,
             flags_to_palette=flags_to_palette,
             preset=LayerPreset.MAIN,
+            chr256_override=chr256_extra,
         )
         if args.debug:
             _debug_overlay_catalog(catalog_img, omp.n_screens)
@@ -516,6 +561,7 @@ def main() -> None:
             tex_bg=tex_background,
             # tex_fg=tex_foreground,
             flags_to_palette=flags_to_palette,
+            chr256_override=chr256_extra,
         )
         if args.debug:
             _debug_overlay_level(level_img, layout, n_sx, n_sy)

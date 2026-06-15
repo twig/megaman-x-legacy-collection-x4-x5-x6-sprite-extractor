@@ -902,6 +902,7 @@ def render_omp(
     row_start: int = 0,
     row_end: int | None = None,
     tile_size: int = TILE_SIZE,
+    chr256_override: "frozenset[int] | None" = None,
 ) -> PILImage:
     """
     Render the raw OMP screen catalog to a PIL RGBA image for debugging.
@@ -942,7 +943,7 @@ def render_omp(
     canvas_w = layer.width * tile_size
     canvas_h = n_rows * tile_size
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-    chr256_indices = _build_chr256_ocl_indices(ocl_entries, tex, tex_bg, tile_size)
+    chr256_indices = chr256_override if chr256_override is not None else _build_chr256_ocl_indices(ocl_entries, tex, tex_bg, tile_size)
 
     def _resolve_tile(entry: OclEntry, ocl_idx: int) -> list[int] | None:
         # OCL byte2 (stored as field 'clut_base'): encodes TEX tile coordinates
@@ -1040,6 +1041,7 @@ def render_level(
     # tex_fg: TexData,
     flags_to_palette: dict[OclPaletteGroup, Palette],
     tile_size: int = TILE_SIZE,
+    chr256_override: "frozenset[int] | None" = None,
 ) -> PILImage:
     """
     Render the level using the correct screen-based addressing.
@@ -1059,7 +1061,7 @@ def render_level(
     canvas_w = level_width_screens * 16 * tile_size
     canvas_h = level_height_screens * 16 * tile_size
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-    chr256_indices = _build_chr256_ocl_indices(ocl_entries, tex, tex_bg, tile_size)
+    chr256_indices = chr256_override if chr256_override is not None else _build_chr256_ocl_indices(ocl_entries, tex, tex_bg, tile_size)
 
     def _resolve_tile(entry: OclEntry, ocl_idx: int) -> list[int] | None:
         cordX = entry.clut_base & 0xF
