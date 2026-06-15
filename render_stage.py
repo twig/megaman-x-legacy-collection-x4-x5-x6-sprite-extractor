@@ -485,6 +485,53 @@ def main() -> None:
                 _cv = ocl[_j].col
                 if (_j - _fi) >= _CHR_SPAN and _cv < _fc and not (192 <= _cv + 96 <= 207):
                     extra.add(_j)
+
+        # Pass 2: sole-entry page>=8 tiles whose (page, col) matches a confirmed
+        # background col from the multi-member pass above.  These are trailing batches
+        # of background tiles that lack a foreground counterpart in the OCL table.
+        # Only added when both textures have non-empty, differing pixel data and the
+        # col is not in the enemy-bank range.
+        _confirmed_bg_page_col: set[tuple] = set()
+        for _j in extra:
+            _ej = ocl[_j]
+            _pgj = _ej.pad & 0xF
+            if _pgj >= 8:
+                _confirmed_bg_page_col.add((_pgj, _ej.col))
+        if _confirmed_bg_page_col:
+            _tx_raw = tex["raw_image"]
+            _tx_w = tex["width"]
+            _tx_h = len(_tx_raw) // _tx_w
+            _bg_h = len(_bg_raw) // _bg_w
+            for _i, _e in enumerate(ocl):
+                if _i in extra:
+                    continue
+                _pg2 = _e.pad & 0xF
+                if _pg2 < 8:
+                    continue
+                if (_pg2, _e.col) not in _confirmed_bg_page_col:
+                    continue
+                if 192 <= _e.col + 96 <= 207:
+                    continue
+                _cb2 = _e.clut_base
+                _cX2 = _cb2 & 0xF; _cY2 = (_cb2 >> 4) & 0xF
+                _gx2 = (_pg2 % 8) * 256 + _cX2 * _TILE
+                _gy2 = (_pg2 // 8) * 256 + _cY2 * _TILE
+                if (_gx2 + _TILE > _tx_w or _gy2 + _TILE > _tx_h or
+                        _gx2 + _TILE > _bg_w or _gy2 + _TILE > _bg_h):
+                    continue
+                # Both textures must have non-empty, differing pixel data.
+                if not any(_tx_raw[(_gy2 + _dy) * _tx_w + _gx2 + _dx]
+                           for _dy in range(_TILE) for _dx in range(_TILE)):
+                    continue
+                if not any(_bg_raw[(_gy2 + _dy) * _bg_w + _gx2 + _dx]
+                           for _dy in range(_TILE) for _dx in range(_TILE)):
+                    continue
+                if all(_tx_raw[(_gy2 + _dy) * _tx_w + _gx2 + _dx] ==
+                       _bg_raw[(_gy2 + _dy) * _bg_w + _gx2 + _dx]
+                       for _dy in range(_TILE) for _dx in range(_TILE)):
+                    continue
+                extra.add(_i)
+
         chr256_extra = frozenset(extra)
 
     # Catalog render
