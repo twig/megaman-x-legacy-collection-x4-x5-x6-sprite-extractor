@@ -258,6 +258,12 @@ class LayoutExplorer(tk.Tk):
                                         lambda: int(self.width_var.get()),
                                         0, max(self.bin_size - 1, 0)),
         )
+        self.offset_slider.bind(
+            "<Shift-ButtonPress-1>",
+            lambda e: self._trough_jump(e, self.offset_slider, self.offset_var,
+                                        lambda: int(self.width_var.get() * self.height_var.get()),
+                                        0, max(self.bin_size - 1, 0)),
+        )
 
         ttk.Label(left, text=f"max: {self.bin_size - 1}", width=12).grid(row=4, column=0, pady=(4, 0))
 

@@ -145,30 +145,56 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # Heights estimated from PSX n_screens where available, otherwise h=28.
     # Use explore_layout.py --exe RXC2.exe --base-offset <offset> to verify.
     "X6": {
-        "st00":      (0x02DD4000, 28, 16),  # UNCONFIRMED (Intro)
-        "st01":      (0x02DD7750, 28, 16),  # GUESS
-        "st01x":     (0x02DD7C90,  3, 16),  # GUESS (PSX n_screens=47 → h≈3)
-        "st02":      (0x02DD4540, 23, 16),  # UNCONFIRMED
+        "st00":      (0x02DD3FF0, 26, 17),  # DONE (Intro - Eurasia Ruins)
+        "st01":      (0x02DD41FA, 25, 23),  # DONE (Commander Yammark; Amazon Area)
+        "st01x":     (0x02DD7C90,  3, 16),  # GUESS (Commander Yammark; sub stage)
+        "st02":      (0x02DD4540, 23, 16),  # GUESS (North Pole Area)
         "st02x":     (0x02DD6E50,  7, 16),  # UNCONFIRMED
-        "st03":      (0x02DD7D20, 13, 16),  # GUESS (PSX n_screens=204 → h≈13)
+        "st03":      (0x02DD7D20, 13, 16),  # GUESS (Magma Area)
         "st03x":     (0x02DD7060,  9, 16),  # UNCONFIRMED
-        "st04a":     (0x02DD4990, 33, 16),  # UNCONFIRMED
-        "st04b":     (0x02DD7F90, 28, 16),  # GUESS
+        "st04a":     (0x02DD4990, 33, 16),  # UNCONFIRMED (Recycle Lab: Area 1)
+        "st04b":     (0x02DD7F90, 28, 16),  # GUESS (Recycle Lab: Area 2)
         "st04x":     (0x02DD7030,  1, 16),  # UNCONFIRMED
-        "st05":      (0x02DD84D0, 28, 16),  # GUESS
+        "st05":      (0x02DD84D0, 28, 16),  # GUESS (Central Museum)
         "st05x":     (0x02DD6970, 26, 16),  # UNCONFIRMED
-        "st06a":     (0x02DD4FC0, 43, 16),  # UNCONFIRMED
+        "st06a":     (0x02DD4FC0, 43, 16),  # UNCONFIRMED (Inami Temple)
         "st06x":     (0x02DD7210, 28, 16),  # UNCONFIRMED
-        "st07":      (0x02DD8A10, 28, 16),  # GUESS
+        "st07":      (0x02DD8A10, 28, 16),  # GUESS (Laser Institute)
         "st07x":     (0x02DD8F50,  7, 16),  # GUESS (similar to st02x)
-        "st08":      (0x02DD90A0, 28, 16),  # GUESS
+        "st08":      (0x02DD90A0, 28, 16),  # GUESS (Weapons Facility)
         "st08x":     (0x02DD6FA0,  3, 16),  # UNCONFIRMED
-        "st0ca":     (0x02DD57D0, 18, 16),  # UNCONFIRMED
-        "st0cb":     (0x02DD95E0, 18, 16),  # GUESS (similar to st0ca)
+        "st0ca":     (0x02DD57D0, 18, 16),  # UNCONFIRMED (Secret Lab 3: Area 1)
+        "st0cb":     (0x02DD95E0, 18, 16),  # GUESS (Secret Lab 3: Area 2 - similar to st0ca)
         "st0g":      (0x02DD6160, 43, 16),  # UNCONFIRMED
         "st0h":      (0x02DD9940, 20, 16),  # GUESS
         "st0i":      (0x02DD9D00, 20, 16),  # GUESS
-        "stsel_eng": (0x02DD5B30, 33, 16),  # UNCONFIRMED
+        "stsel_eng": (0x02DD5B30, 33, 16),  # CONFIRMED (Stage Select screen)
+
+        # Original values, split out across range
+        # "st00":      (0x02DD4000, 28, 16),  # UNCONFIRMED (Intro)
+        # "st01":      (0x02DD7750, 28, 16),  # GUESS
+        # "st01x":     (0x02DD7C90,  3, 16),  # GUESS (PSX n_screens=47 → h≈3)
+        # "st02":      (0x02DD4540, 23, 16),  # UNCONFIRMED
+        # "st02x":     (0x02DD6E50,  7, 16),  # UNCONFIRMED
+        # "st03":      (0x02DD7D20, 13, 16),  # GUESS (PSX n_screens=204 → h≈13)
+        # "st03x":     (0x02DD7060,  9, 16),  # UNCONFIRMED
+        # "st04a":     (0x02DD4990, 33, 16),  # UNCONFIRMED
+        # "st04b":     (0x02DD7F90, 28, 16),  # GUESS
+        # "st04x":     (0x02DD7030,  1, 16),  # UNCONFIRMED
+        # "st05":      (0x02DD84D0, 28, 16),  # GUESS
+        # "st05x":     (0x02DD6970, 26, 16),  # UNCONFIRMED
+        # "st06a":     (0x02DD4FC0, 43, 16),  # UNCONFIRMED
+        # "st06x":     (0x02DD7210, 28, 16),  # UNCONFIRMED
+        # "st07":      (0x02DD8A10, 28, 16),  # GUESS
+        # "st07x":     (0x02DD8F50,  7, 16),  # GUESS (similar to st02x)
+        # "st08":      (0x02DD90A0, 28, 16),  # GUESS
+        # "st08x":     (0x02DD6FA0,  3, 16),  # UNCONFIRMED
+        # "st0ca":     (0x02DD57D0, 18, 16),  # UNCONFIRMED
+        # "st0cb":     (0x02DD95E0, 18, 16),  # GUESS (similar to st0ca)
+        # "st0g":      (0x02DD6160, 43, 16),  # UNCONFIRMED
+        # "st0h":      (0x02DD9940, 20, 16),  # GUESS
+        # "st0i":      (0x02DD9D00, 20, 16),  # GUESS
+        # "stsel_eng": (0x02DD5B30, 33, 16),  # UNCONFIRMED
     }
 }
 
