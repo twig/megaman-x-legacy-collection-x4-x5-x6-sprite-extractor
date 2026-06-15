@@ -145,8 +145,8 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # Heights estimated from PSX n_screens where available, otherwise h=28.
     # Use explore_layout.py --exe RXC2.exe --base-offset <offset> to verify.
     "X6": {
-        "st00":      (0x02DD3FF0, 26, 17),  # FOUND (Intro - Eurasia Ruins)
-        "st01":      (0x02DD41FA, 25, 23),  # FOUND (Commander Yammark; Amazon Area)
+        "st00":      (0x02DD3FF0, 26, 17),  # ALMOST (Intro - Eurasia Ruins)
+        "st01":      (0x02DD41FA, 26, 22),  # FOUND (Commander Yammark; Amazon Area)
         "st01x":     (0x02DD7C90,  3, 16),  # UNCONFIRMED (Commander Yammark; sub stage)
         "st02":      (0x02DD44A0, 27, 15),  # FOUND (Blizzard Wolfang; North Pole Area)
         "st02x":     (0x02DD6E50,  7, 16),  # UNCONFIRMED
