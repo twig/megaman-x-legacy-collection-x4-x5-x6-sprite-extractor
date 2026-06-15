@@ -157,13 +157,13 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st04x":     (0x02DD7030,  1, 16),  # UNCONFIRMED
         "st05":      (0x02DD4D30, 16, 36),  # FOUND (Ground Scaravich; Central Museum)
         "st05x":     (0x02DD6970, 26, 16),  # UNCONFIRMED
-        "st06a":     (0x02DD4FC0, 43, 16),  # UNCONFIRMED (Inami Temple)
+        "st06a":     (0x02DD500B, 37, 17),  # FOUND (Rainy Turtloid; Inami Temple)
         "st06x":     (0x02DD7210, 28, 16),  # UNCONFIRMED
-        "st07":      (0x02DD8A10, 28, 16),  # GUESS (Laser Institute)
+        "st07":      (0x02DD52E7, 24, 18),  # FOUND (Shield Sheldon; Laser Institute)
         "st07x":     (0x02DD8F50,  7, 16),  # GUESS (similar to st02x)
-        "st08":      (0x02DD90A0, 28, 16),  # GUESS (Weapons Facility)
+        "st08":      (0x02DD90A0, 28, 16),  # GUESS (Infinity Mijinion; Weapons Facility)
         "st08x":     (0x02DD6FA0,  3, 16),  # UNCONFIRMED
-        "st0ca":     (0x02DD57D0, 18, 16),  # UNCONFIRMED (Secret Lab 3: Area 1)
+        "st0ca":     (0x02DD575C, 12, 33),  # UNCONFIRMED (Secret Lab 3: Area 1)
         "st0cb":     (0x02DD95E0, 18, 16),  # GUESS (Secret Lab 3: Area 2 - similar to st0ca)
         "st0g":      (0x02DD6160, 43, 16),  # UNCONFIRMED
         "st0h":      (0x02DD9940, 20, 16),  # GUESS

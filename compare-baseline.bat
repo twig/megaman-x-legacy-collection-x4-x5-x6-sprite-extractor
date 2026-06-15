@@ -63,9 +63,9 @@ python .\render_stage.py PC/X6/stage/map/st04b.omp --skip-catalog --output-dir p
 @REM python .\render_stage.py PC/X6/stage/map/st04x.omp --skip-catalog --output-dir progress-baseline\X6
 python .\render_stage.py PC/X6/stage/map/st05.omp --skip-catalog --output-dir progress-baseline\X6
 @REM python .\render_stage.py PC/X6/stage/map/st05x.omp --skip-catalog --output-dir progress-baseline\X6
-@REM python .\render_stage.py PC/X6/stage/map/st06a.omp --skip-catalog --output-dir progress-baseline\X6
+python .\render_stage.py PC/X6/stage/map/st06a.omp --skip-catalog --output-dir progress-baseline\X6
 @REM python .\render_stage.py PC/X6/stage/map/st06x.omp --skip-catalog --output-dir progress-baseline\X6
-@REM python .\render_stage.py PC/X6/stage/map/st07.omp --skip-catalog --output-dir progress-baseline\X6
+python .\render_stage.py PC/X6/stage/map/st07.omp --skip-catalog --output-dir progress-baseline\X6
 @REM python .\render_stage.py PC/X6/stage/map/st07x.omp --skip-catalog --output-dir progress-baseline\X6
 @REM python .\render_stage.py PC/X6/stage/map/st08.omp --skip-catalog --output-dir progress-baseline\X6
 @REM python .\render_stage.py PC/X6/stage/map/st08x.omp --skip-catalog --output-dir progress-baseline\X6
