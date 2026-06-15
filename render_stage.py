@@ -145,17 +145,17 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # Heights estimated from PSX n_screens where available, otherwise h=28.
     # Use explore_layout.py --exe RXC2.exe --base-offset <offset> to verify.
     "X6": {
-        "st00":      (0x02DD3FF0, 26, 17),  # DONE (Intro - Eurasia Ruins)
-        "st01":      (0x02DD41FA, 25, 23),  # DONE (Commander Yammark; Amazon Area)
-        "st01x":     (0x02DD7C90,  3, 16),  # GUESS (Commander Yammark; sub stage)
-        "st02":      (0x02DD4540, 23, 16),  # GUESS (North Pole Area)
+        "st00":      (0x02DD3FF0, 26, 17),  # FOUND (Intro - Eurasia Ruins)
+        "st01":      (0x02DD41FA, 25, 23),  # FOUND (Commander Yammark; Amazon Area)
+        "st01x":     (0x02DD7C90,  3, 16),  # UNCONFIRMED (Commander Yammark; sub stage)
+        "st02":      (0x02DD44A0, 27, 15),  # FOUND (Blizzard Wolfang; North Pole Area)
         "st02x":     (0x02DD6E50,  7, 16),  # UNCONFIRMED
-        "st03":      (0x02DD7D20, 13, 16),  # GUESS (Magma Area)
+        "st03":      (0x02DD46EA, 18, 38),  # FOUND (Blaze Heatnix; Magma Area)
         "st03x":     (0x02DD7060,  9, 16),  # UNCONFIRMED
-        "st04a":     (0x02DD4990, 33, 16),  # UNCONFIRMED (Recycle Lab: Area 1)
-        "st04b":     (0x02DD7F90, 28, 16),  # GUESS (Recycle Lab: Area 2)
+        "st04a":     (0x02DD4999, 22, 23),  # FOUND (Recycle Lab: Area 1)
+        "st04b":     (0x02DD503A, 29, 18),  # FOUND (Recycle Lab: Area 2)
         "st04x":     (0x02DD7030,  1, 16),  # UNCONFIRMED
-        "st05":      (0x02DD84D0, 28, 16),  # GUESS (Central Museum)
+        "st05":      (0x02DD4D30, 16, 36),  # FOUND (Ground Scaravich; Central Museum)
         "st05x":     (0x02DD6970, 26, 16),  # UNCONFIRMED
         "st06a":     (0x02DD4FC0, 43, 16),  # UNCONFIRMED (Inami Temple)
         "st06x":     (0x02DD7210, 28, 16),  # UNCONFIRMED
