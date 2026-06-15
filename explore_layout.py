@@ -30,6 +30,124 @@ from utils.omp import render_level, LayoutTable
 from render_stage import preload_related_files, _debug_overlay_level
 from utils.types import GameVersion
 
+# ── Debug overlay colours (shared with st040_compact_render conventions) ──────
+
+_VOID_FILL   = (180,   0, 180,   0)   # no fill — outline only
+_VOID_BORDER = (220,   0, 220, 180)   # magenta outline
+_VOID_HATCH  = (220,   0, 220, 255)   # magenta X lines (100% alpha)
+_REPT_TINT   = (  0, 180, 255,   0)   # no fill — outline only
+_REPT_BORDER = (  0, 200, 255, 180)   # cyan outline
+_REPT_HATCH  = (  0, 200, 255, 255)   # cyan X lines (100% alpha)
+_REPT_TEXT   = (  0, 220, 255, 255)   # cyan label
+_TEXTBG      = (  0,   0,   0, 130)
+
+
+def _debug_overlay_void_and_repeated(
+    img,
+    layout: "LayoutTable",
+    level_width_screens: int,
+    level_height_screens: int,
+    tile_size: int = 16,
+) -> None:
+    """
+    Draw cyan hatching on cells that are part of a consecutive horizontal run
+    (same screen_id repeated in adjacent sx cells within the same row), and
+    magenta hatching on interior void cells (screen_id == 0 cells that fall
+    inside the bounding-box of non-zero content).
+
+    Intended to be called after _debug_overlay_level() when debug mode is on.
+    """
+    from PIL import ImageDraw, ImageFont
+
+    W = level_width_screens
+    H = level_height_screens
+    SCREEN_PX = 16 * tile_size
+
+    # Build a flat dict of non-zero cells
+    filled: dict[tuple[int, int], int] = {}
+    for sy in range(H):
+        for sx in range(W):
+            sid = layout.get(sx, sy)
+            if sid is not None and sid != 0:
+                filled[(sx, sy)] = sid
+
+    # Consecutive-right repeats: mark every cell that shares its screen_id
+    # with the immediately adjacent cell to its right in the same row.
+    consecutive_cells: dict[tuple[int, int], int] = {}  # (sx,sy) -> run_length
+    for sy in range(H):
+        sx = 0
+        while sx < W:
+            sid = filled.get((sx, sy))
+            if sid is None:
+                sx += 1
+                continue
+            # Count how far this run extends to the right
+            run = 1
+            while sx + run < W and filled.get((sx + run, sy)) == sid:
+                run += 1
+            if run > 1:
+                for dx in range(1, run):   # skip dx=0 (first in run)
+                    consecutive_cells[(sx + dx, sy)] = run
+            sx += run
+
+    # Bounding box of all non-zero cells
+    if not filled:
+        return
+    xs = [sx for sx, _ in filled]
+    ys = [sy for _, sy in filled]
+    bbox_x0, bbox_x1 = min(xs), max(xs)
+    bbox_y0, bbox_y1 = min(ys), max(ys)
+
+    # Interior void cells: zero cells inside the bbox
+    interior_voids: list[tuple[int, int]] = []
+    for sy in range(bbox_y0, bbox_y1 + 1):
+        for sx in range(bbox_x0, bbox_x1 + 1):
+            sid = layout.get(sx, sy)
+            if sid is None or sid == 0:
+                interior_voids.append((sx, sy))
+
+    draw = ImageDraw.Draw(img, "RGBA")
+    font = ImageFont.load_default()
+
+    # Consecutive-right repeated cells — cyan hatching + border + run-length label
+    for (sx, sy), run_len in consecutive_cells.items():
+        sid = filled[(sx, sy)]
+        x0 = sx * SCREEN_PX
+        y0 = sy * SCREEN_PX
+        x1 = x0 + SCREEN_PX - 1
+        y1 = y0 + SCREEN_PX - 1
+        # draw.rectangle([x0, y0, x1, y1], fill=_REPT_TINT)
+        draw.line([(x0, y0), (x1, y0)], fill=_REPT_BORDER, width=1)
+        draw.line([(x1, y0), (x1, y1)], fill=_REPT_BORDER, width=1)
+        draw.line([(x1, y1), (x0, y1)], fill=_REPT_BORDER, width=1)
+        draw.line([(x0, y1), (x0, y0)], fill=_REPT_BORDER, width=1)
+        draw.line([(x0, y0), (x1, y1)], fill=_REPT_HATCH, width=2)
+        draw.line([(x1, y0), (x0, y1)], fill=_REPT_HATCH, width=2)
+        label = f"x{run_len}"
+        px = x1 - len(label) * 6 - 3
+        py = y0 + 2
+        draw.rectangle([px - 1, py - 1, px + len(label) * 6 + 1, py + 9], fill=_TEXTBG)
+        draw.text((px, py), label, fill=_REPT_TEXT, font=font)
+
+    # Interior void cells — magenta hatching + label
+    for sx, sy in interior_voids:
+        x0 = sx * SCREEN_PX
+        y0 = sy * SCREEN_PX
+        x1 = x0 + SCREEN_PX - 1
+        y1 = y0 + SCREEN_PX - 1
+        # draw.rectangle([x0, y0, x1, y1], fill=_VOID_FILL)
+        draw.line([(x0, y0), (x1, y0)], fill=_VOID_BORDER, width=1)
+        draw.line([(x1, y0), (x1, y1)], fill=_VOID_BORDER, width=1)
+        draw.line([(x1, y1), (x0, y1)], fill=_VOID_BORDER, width=1)
+        draw.line([(x0, y1), (x0, y0)], fill=_VOID_BORDER, width=1)
+        draw.line([(x0, y0), (x1, y1)], fill=_VOID_HATCH, width=2)
+        draw.line([(x1, y0), (x0, y1)], fill=_VOID_HATCH, width=2)
+        label = "VOID"
+        px = x0 + SCREEN_PX // 2 - len(label) * 3
+        py = y0 + SCREEN_PX // 2 - 4
+        draw.rectangle([px - 1, py - 1, px + len(label) * 6 + 1, py + 9], fill=(0, 0, 0, 200))
+        draw.text((px, py), label, fill=(255, 80, 255, 255), font=font)
+
 
 # ── Layout loader ─────────────────────────────────────────────────────────────
 
@@ -454,6 +572,7 @@ class LayoutExplorer(tk.Tk):
 
             if debug:
                 _debug_overlay_level(img, layout, w, h)
+                _debug_overlay_void_and_repeated(img, layout, w, h)
 
             self._result_queue.put(("ok", img, offset, w, h))
 
