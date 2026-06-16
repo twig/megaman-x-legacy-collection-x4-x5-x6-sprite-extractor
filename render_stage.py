@@ -15,35 +15,26 @@ table the level render is skipped and only the catalog is saved.
 
 == STAGE_LAYOUT status codes ==
 
-  CONFIRMED   — exe file offset verified by exact max(layer0) == n_screens-1
-                match against the corresponding OMP, or by 4-point anchor check.
+  Each STAGE_LAYOUT entry carries an inline status tag (the comment after the
+  tuple), which is the source of truth for that stage's confidence:
 
-  UNCONFIRMED — offset and dimensions are plausible (layout data is valid for the
-                stage group), but the exact per-OMP mapping within block 2 has
-                not been verified individually.
+    DONE        — renders accurately.
+    FOUND       — layout located, but still has visual defects rendering the stage.
+    ALMOST      — tiles look complete, but offset/dimensions not quite right.
+    IN RANGE    — most tiles displayed and recognisable, but definitely not the right offset.
+    UNCONFIRMED — offset/dimensions resulted from a script, usually wrong but could be close by.
+    GUESS       — offset/dimensions based on guesstimates within boundaries.
 
-  (absent)    — no layout identified yet; catalog-only output produced.
-
-== Unresolved stages (absent from STAGE_LAYOUT) ==
-
-  Block 1 stages whose layout index has not been matched to an OMP:
-    st001, st002, st009, st011, st012, st014, st015, st016, st017,
-    st020, st021, st022, st023, st024, st025, st027
-  OMP files with no block 1 layout match yet:
-    st020, st021, st040, st041, st050, st060, st070, st080,
-    st170, st180, st220, staff_eng
-  Cutscene/ending stages (no layout found anywhere in exe):
-    st140_eng, st141_eng, st150
-
-  To resolve these, run debug/verify_x5_heights_omp.py — it cross-references
-  every block 1 layout stage against all OMP n_screens values.
+  Stages absent from STAGE_LAYOUT have no layout identified yet (catalog-only
+  output).  Treat absent / GUESS / UNCONFIRMED entries as unresolved.  To hunt for
+  unresolved X5 offsets see docs/finding-stage-layout-offsets.md and
+  experimental/verify_x5_heights_omp.py.
 
 == Block 2 boss stages ==
 
   COPY2_OFFSET = 0x02D9B9A4 (.rdata), SIZE_TABLE_2 = 0x02E8DF71 (.data).
-  Stage idx 0 (8×29, max=8) is valid for the group {st090_00, st090_01,
-  st100_00, st100_01, st130}.  The exact per-OMP index within block 2 has
-  not been individually verified, so these entries are UNCONFIRMED.
+  The X5 group {st090_00, st090_01, st100_00, st100_01, st130} draws from block 2;
+  see each entry's inline status tag for its current confidence.
 
 == COL palette ==
 
@@ -86,9 +77,8 @@ EXE_PATH = Path("RXC2.exe")
 # Block 2 size table: SIZE_TABLE_2   = 0x02E8DF71  (4-byte entries: w, h, f1, f2)
 
 STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
-    # DONE = accurate render of stage (offset and dimensions look correct)
-    # ALMOST = tiles and layout complete, offset/dimensions not quite right
-    # IN RANGE = we got some tiles and layout data
+    # Inline status tags (e.g. DONE / ALMOST / FOUND / GUESS) are explained in the
+    # "STAGE_LAYOUT status codes" section of the module docstring above.
     "X4": dict([
         (key, (
         data["pc_offset"], data["w"], data["h"]))

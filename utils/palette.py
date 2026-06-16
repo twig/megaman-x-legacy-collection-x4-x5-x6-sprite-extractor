@@ -46,14 +46,14 @@ near-white ~(230,230,230)) at the col+64 positions instead of the correct
 static stage colours.  The real stage colours for col 0–18 are stored a
 second time at col+96 (rows 96–114).
 
-render_stage.py compensates by building a patched palette (x6_pal):
-  • For col 0–18 (rows 64–82): prefer col+96 entry; fall back to col+64
-    only when the col+96 entry is itself a cycling sentinel.
-  • Alternatively: overlay stXX.col's 19 CLUTs directly onto rows 64–82,
-    since stXX.col contains exactly the correct static stage colours for
-    that region.
-  • For col 96–111 (rows 192–207): that col+96 band holds enemy
-    flash/effect colours; use the raw col data (rows 96–111) instead.
+normalize_x6_stage_palette() (in this module) compensates by relocating each
+col+96 CLUT row onto its col+64 row, so the renderer can keep the universal
+col+64 lookup.  The relocation is whole-CLUT (not per-entry); two exceptions
+keep the original col+64 row instead:
+  • Enemy/effect bank (rows 192–207, i.e. col 96–111 at +96): holds enemy
+    flash/effect colours that must not overwrite stage geometry.
+  • Null col+96 rows (max brightness < NULL_CLUT_MAX_BRIGHTNESS): carry no
+    stage data (e.g. road tiles col=43, the all-zero col=89–95 band).
 """
 from pathlib import Path
 

@@ -1,8 +1,8 @@
-# Finding Stage Layout Offsets for Unresolved X5 OMP Files
+# Finding Stage Layout Offsets for Unresolved OMP Files
 
 ## Background — What we're looking for
 
-Every stage in Mega Man X5 has a **layout table** — a simple grid of numbers stored inside
+Every stage in Mega Man X4/X5/X6 has a **layout table** — a simple grid of numbers stored inside
 `RXC2.exe`. Each number tells the game which "screen" (a 16×16-tile chunk from the OMP file)
 to place at that grid position.
 
@@ -21,11 +21,36 @@ stage.
 
 ---
 
-## Current state
+## Easiest method
+
+Run `explore_layout.py` against your preferred stage and start scrolling through the contents of the EXE.
+
+The offsets are based on estimates of where the stage data may be, or the starting offset of the data section.
+
+```python
+python explore_layout.py stage_file.omp
+```
+
+Click on the left offset slider to move a row at a time.
+
+Shift+Click the offset slider to scroll through a page at a time. Increase height to scroll through more content quicker.
+
+**Note**: its possible for the data to look _mostly_ right but have gaps between screens. This means it is **not the right data**!
+
+The correct data will have no gaps in between screens, making it easier to identify visually.
+The wrong sections also have repeating screens which should not happen.
+
+Once you found a recognisable part of the stage without gaps, adjust the offset/width/height until it looks right.
+
+If everything worked out well, throw the offset values into `render_stage.STAGE_LAYOUT` and test with `render_stage.py`
+
+## Older approaches
+
+These kinda worked for X5 but didn't quite work for X6, but leaving notes here for prosperity.
 
 Run the verifier to see what is already resolved:
 
-```
+```python
 python debug\verify_x5_heights_omp.py
 ```
 
@@ -277,27 +302,21 @@ the match.
 
 Open [render_stage.py](../render_stage.py) and find the `STAGE_LAYOUT` dict.
 
-### Add the new entry
+### Add (or update) the entry
 
-Move the stage from the `# ── To add when resolved` comment block into the active dict, like
-this (exact max match → CONFIRMED; partial match → UNCONFIRMED):
-
-```python
-    # Block 1 idx 21  (10×24): max(layer0) == 94 → st021 n_screens=95
-    "st021": (0x02D9A10E, 10, 24),  # CONFIRMED — block 1 idx 21, exact max match
-```
-
-### Update `_CONFIRMED_STEMS`
-
-If the max was an exact match (`Layer 0 max == target_max`), add the stem here too:
+Add the stage to the appropriate game sub-dict with an inline status tag. Use the
+tag that matches your confidence — e.g. an exact max match → `CONFIRMED`, a partial
+match → `UNCONFIRMED` (see the "STAGE_LAYOUT status codes" legend in
+[render_stage.py](../render_stage.py)):
 
 ```python
-_CONFIRMED_STEMS = {"st000", "st010", "st030", "st160", "st061", "st120", "st021"}
+"X5": {
+    "st021": (0x02D9A10E, 10, 24),  # DONE
+}
 ```
 
-### Remove the entry from the comment block
-
-Delete or comment out the corresponding `# idx 21 (10×24) 0x02D9A10E — unverified` line.
+The inline tag is the source of truth for the stage's confidence; there is no
+separate list to maintain.
 
 ### Test it
 
@@ -306,7 +325,7 @@ python render_stage.py PC\X5\stage\st021\st021.omp
 ```
 
 If `st021_level.png` appears with recognisable level geometry (not a scrambled mess), the offset
-is correct. The script prints `CONFIRMED` or `UNCONFIRMED` next to the offset on startup.
+is correct. The script prints the resolved `(offset=0x..  w=..  h=..)` on startup.
 
 ---
 
@@ -336,65 +355,3 @@ stage block, was found). The short version:
 
 This is exploratory work. The block 2 discovery notes in `find_size_table2.py` are the best
 reference for how to approach it.
-
----
-
-## Quick reference — all known offsets
-
-| OMP stem | exe offset   | W   | H   | Status                              |
-| -------- | ------------ | --- | --- | ----------------------------------- |
-| st000    | `0x02EC2D4B` | 15  | 24  | CONFIRMED (4-anchor)                |
-| st010    | `0x02D98548` | 15  | 24  | CONFIRMED idx 0                     |
-| st030    | `0x02D98F7A` | 5   | 29  | CONFIRMED idx 8                     |
-| st160    | `0x02D98F7A` | 5   | 29  | CONFIRMED idx 8 (shared with st030) |
-| st061    | `0x02D992B3` | 5   | 29  | CONFIRMED idx 10                    |
-| st120    | `0x02D9979F` | 5   | 26  | CONFIRMED idx 13                    |
-| st090_00 | `0x02D9B9A4` | 8   | 29  | UNCONFIRMED block 2 idx 0           |
-| st090_01 | `0x02D9B9A4` | 8   | 29  | UNCONFIRMED block 2 idx 0           |
-| st100_00 | `0x02D9B9A4` | 8   | 29  | UNCONFIRMED block 2 idx 0           |
-| st100_01 | `0x02D9B9A4` | 8   | 29  | UNCONFIRMED block 2 idx 0           |
-| st130    | `0x02D9B9A4` | 8   | 29  | UNCONFIRMED block 2 idx 0           |
-
-### Block 1 unverified (offsets and dims known, OMP match unknown)
-
-| Block 1 idx | Offset       | W   | H   | Need n_screens |
-| ----------- | ------------ | --- | --- | -------------- |
-| 1           | `0x02D98980` | 10  | 25  | 145            |
-| 2           | `0x02D98C6E` | 10  | 26  | 217            |
-| 9           | `0x02D9912D` | 5   | 26  | 73             |
-| 11          | `0x02D99466` | 5   | 26  | 121            |
-| 12          | `0x02D995EC` | 5   | 29  | 186            |
-| 14          | `0x02D99925` | 5   | 29  | 202            |
-| 15          | `0x02D99AD8` | 5   | 28  | 116            |
-| 16          | `0x02D99C7C` | 5   | 27  | 24             |
-| 17          | `0x02D99E11` | 5   | 26  | 143            |
-| 20          | `0x02D99F97` | 5   | 25  | 121            |
-| 21          | `0x02D9A10E` | 10  | 24  | 143            |
-| 22          | `0x02D9A3DE` | 10  | 23  | 100            |
-| 23          | `0x02D9A690` | 15  | 22  | 123            |
-| 24          | `0x02D9AA6E` | 20  | 21  | 67             |
-| 25          | `0x02D9AF5A` | 20  | 20  | 193            |
-| 27          | `0x02D9B99B` | 5   | 18  | 10             |
-
-These block 1 entries need OMP files with the listed `n_screens` to confirm them. None of our 26
-extracted OMP files have those values, so they cannot be confirmed from the current data set.
-
-### OMP files with no layout block found yet
-
-| OMP stem  | n_screens | Block                |
-| --------- | --------- | -------------------- |
-| st020     | 106       | Unknown block        |
-| st021     | 95        | Unknown block        |
-| st040     | 95        | Unknown block        |
-| st041     | 114       | Unknown block        |
-| st050     | 222       | Unknown block        |
-| st060     | 56        | Unknown block        |
-| st070     | 221       | Unknown block        |
-| st080     | 118       | Unknown block        |
-| st170     | 133       | Unknown block        |
-| st180     | 141       | Unknown block        |
-| st220     | 79        | Unknown block        |
-| staff_eng | 37        | Unknown block        |
-| st140_eng | 3         | Not found (cutscene) |
-| st141_eng | 3         | Not found (cutscene) |
-| st150     | 3         | Not found (cutscene) |

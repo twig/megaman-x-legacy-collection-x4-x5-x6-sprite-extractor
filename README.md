@@ -4,15 +4,15 @@ Trying to find ways to make it easier for sprite rippers to get accurate sprites
 
 # Features
 
-- MegaMan X4: all stages working
-- MegaMan X5: all stages parsed with 98% tiles rendering accurately, however only Crescent Grizzly stage has structure laid out correctly
-- MegaMan X6: able to parse but output is broken
+- MegaMan X4: all stages render correctly
+- MegaMan X5: all stages parse and render tiles accurately; only Crescent Grizzly stage has correct layout
+- MegaMan X6: tiles and colours rendering ok for some stages; remaining stages are WIP
 
 Remaining
 
-- X5 - Tidal Whale: the boss sprite is garbled
+- Find the remaining X5 offsets
 - X5 - Shining Firefly (Area 2): Aqua tube is rendered as dark blue and some incorrect tiles rendered around it
-- `WIP` MegaMan X6: currently only renders Intro stage tiles, but colours are all wrong.
+- `WIP` MegaMan X6: confirm the remaining stage layout offsets and fix rendering issues
 
 Maybe
 
@@ -77,10 +77,10 @@ TODO: more information/details on filenames and folders later
 
 ### File types
 
-| Extension | Description                                          |
-| --------- | ---------------------------------------------------- |
-| COL       | Palette files                                        |
-| TEX       | Image files. Formats <br>0x07: 32bpp <br>0x12: 8bpp? |
+| Extension | Description                                         |
+| --------- | --------------------------------------------------- |
+| COL       | Palette files                                       |
+| TEX       | Image files. Formats <br>0x07: 32bpp <br>0x12: 8bpp |
 
 There are others, but not there yet.
 
@@ -90,27 +90,27 @@ First get into Python virtualenv with `.venv\Scripts\activate.bat`
 
 ## Extract 32bpp TEX images
 
-The `extract_tex_to_png.py` script is used for converting MMXLC TEX images to PNG.
+The `debug_scripts/extract_tex_to_png.py` script is used for converting MMXLC TEX images to PNG.
 
 ### Generate for all colours in palette
 
 Generate texture using all palette colours (CLUTs) in given palette file.
 
 ```sh
-python extract_tex_to_png.py TEX_file COL_file
+python debug_scripts/extract_tex_to_png.py TEX_file COL_file
 ```
 
-Example: `python extract_tex_to_png.py PC\X5\chr\stage\obj00_0a_000.tex PC\X5\col\stage\col00_0x_eng.col`
+Example: `python debug_scripts/extract_tex_to_png.py PC\X5\chr\stage\obj00_0a_000.tex PC\X5\col\stage\col00_0x_eng.col`
 
 ### Specific colours
 
 Generate texture using given palette file and specific CLUT index.
 
 ```sh
-python extract_tex_to_png.py TEX_file COL_file --clut CLUT_BASE
+python debug_scripts/extract_tex_to_png.py TEX_file COL_file --clut CLUT_BASE
 ```
 
-Example: `python extract_tex_to_png.py PC\X5\chr\stage\obj00_0a_000.tex PC\X5\col\stage\col00_0x_eng.col`
+Example: `python debug_scripts/extract_tex_to_png.py PC\X5\chr\stage\obj00_0a_000.tex PC\X5\col\stage\col00_0x_eng.col --clut 67`
 
 ## Determining CLUT base index
 
