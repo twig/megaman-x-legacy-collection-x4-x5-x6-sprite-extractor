@@ -414,7 +414,19 @@ def preload_related_files(omp_path: Path):
                 idx64 = c64 * 16 + j
                 idx96 = c96 * 16 + j
                 src = col[idx96]
-                x6_pal[idx64] = col[idx64] if _entry_sentinel(src) else src
+                if _entry_sentinel(src):
+                    fallback = col[idx64]
+                    # Near-white c96 + near-black c64: c96 is a real light
+                    # stage colour (e.g. ice-blue highlight, snow-white) that
+                    # falsely triggers the near-white sentinel.  Use c96 when
+                    # it is cool/neutral (b >= r) and c64 is empty (near-black).
+                    is_near_white = src[0] > 200 and src[1] > 200 and src[2] > 200
+                    if is_near_white and max(fallback[:3]) < 20 and src[2] >= src[0]:
+                        x6_pal[idx64] = src
+                    else:
+                        x6_pal[idx64] = fallback
+                else:
+                    x6_pal[idx64] = src
 
         flags_to_palette = {
             OclPaletteGroup.STANDARD:         x6_pal,
