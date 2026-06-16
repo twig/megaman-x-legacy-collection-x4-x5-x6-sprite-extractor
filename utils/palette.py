@@ -170,11 +170,16 @@ def normalize_x6_stage_palette(col: Palette) -> Palette:
     (X6_STAGE_CLUT_OFFSET); the col+64 rows are a VRAM snapshot polluted by live
     player/animation cycling frames.  We relocate each col+96 row onto its col+64
     row, except:
-      (a) enemy bank — rows X6_ENEMY_BANK_LO..HI hold enemy/effect flash colours
-          that must not overwrite stage geometry; keep col+64.
       (b) null fallback — a col+96 row that is effectively empty
           (max brightness < NULL_CLUT_MAX_BRIGHTNESS) carries no stage data; keep
           col+64.  This covers road tiles (col=43) and the all-zero col=89-95 band.
+
+    Note: an earlier "enemy bank" exception kept the col+64 rows for col+96 sources
+    in X6_ENEMY_BANK_LO..HI (192-207).  It was dropped because in per-stage COL files
+    (e.g. col07_0x.col) those rows are legitimate stage CLUTs — the absolute-row guard
+    wrongly suppressed relocation and left polluted snapshot colours (see col=104 /
+    CLUT #198 region in st07).  The X6_ENEMY_BANK_* constants are retained for
+    reference pending a stage-aware replacement.
 
     The input is not mutated; a new list is returned.
     """
@@ -183,8 +188,6 @@ def normalize_x6_stage_palette(col: Palette) -> Palette:
     for c in range(n_cluts - X6_STAGE_CLUT_OFFSET):
         dst = c + STAGE_CLUT_BASE_ROW
         src = c + X6_STAGE_CLUT_OFFSET
-        if X6_ENEMY_BANK_LO <= src <= X6_ENEMY_BANK_HI:
-            continue  # (a) enemy/effect flash bank — keep col+64
         if _clut_max_brightness(col, src) < NULL_CLUT_MAX_BRIGHTNESS:
             continue  # (b) null col+96 row — keep col+64
         for j in range(16):
