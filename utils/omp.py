@@ -802,10 +802,17 @@ def _build_chr256_ocl_indices(
     # AND whose col differs from the first col belong to the chr256 background batch.
     #
     # Mirrors the page<8 large-gap different-col rule from Pass 2 (applied to page>=8).
-    # Fixes stages like st080 where page=11 tile coordinates appear twice: once with
-    # a foreground col (e.g. col=32 or col=64) and once with a background col
-    # (e.g. col=80 or col=96), with a span of 922+ between them.  The background
-    # (higher-index, different-col) entry must read from tex_bg.
+    # When a tile coordinate appears twice with a large index gap, the first
+    # occurrence is the foreground (tex) tile and the later, different-col occurrence
+    # is the chr256 background variant (tex_bg) — exactly as Pass 2 does for page<8
+    # using `col != first_col`.
+    #
+    # The later/background col may be either HIGHER than the first col (e.g. st080
+    # page=11: foreground col=32/64, background col=80/96) or LOWER than it (e.g.
+    # st02 page=11: foreground col=224, background col=96).  Both are background
+    # entries, so the test is `cv != fc`, not `cv > fc` — a one-sided `cv > fc`
+    # check left st02's col=96 background tiles reading the foreground texture,
+    # producing garbled output.
     #
     # Same-col entries in large-span page>=8 groups are left in tex regardless of
     # their gap (they are hit-flash/palette variants sharing the tex tile data).
@@ -827,9 +834,7 @@ def _build_chr256_ocl_indices(
             continue  # no background pixel data — not a chr256 tile
         for j in sorted_g:
             cv = ocl_entries[j].col
-            if (j - fi) >= CHR256_INDEX_GAP_THRESHOLD and (
-                cv > fc or (cv != fc and ocl_entries[fi].tile_type == 0x39)
-            ):
+            if (j - fi) >= CHR256_INDEX_GAP_THRESHOLD and cv != fc:
                 chr256.add(j)
 
     return frozenset(chr256)
