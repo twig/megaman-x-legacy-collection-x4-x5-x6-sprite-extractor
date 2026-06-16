@@ -410,18 +410,31 @@ def preload_related_files(omp_path: Path):
             if _clut_is_null(c96):
                 # Null CLUT placeholder — keep col+64 for all entries.
                 continue
+            # Determine if c96 row has at least one real (non-sentinel, non-black)
+            # entry — indicates c96 is a genuine stage palette, not a null row.
+            c96_has_real = any(
+                not _entry_sentinel(col[c96 * 16 + k]) and max(col[c96 * 16 + k][:3]) > 0
+                for k in range(16)
+            )
             for j in range(16):
                 idx64 = c64 * 16 + j
                 idx96 = c96 * 16 + j
                 src = col[idx96]
                 if _entry_sentinel(src):
                     fallback = col[idx64]
-                    # Near-white c96 + near-black c64: c96 is a real light
-                    # stage colour (e.g. ice-blue highlight, snow-white) that
-                    # falsely triggers the near-white sentinel.  Use c96 when
-                    # it is cool/neutral (b >= r) and c64 is empty (near-black).
+                    # Near-white c96: may be a real stage highlight or a null placeholder.
+                    # Use c96 (over c64 fallback) when:
+                    #   (a) c96 is cool/neutral (b >= r) and c64 is near-black: c96
+                    #       provides the only real colour (e.g. ice-grey in black void).
+                    #   (b) c96 is strictly cool (b > r) and c96 row has real entries and
+                    #       c64 is warm-hued (r > b): c96 is a full ice palette whose
+                    #       brightest entries look near-white but c64 is a different
+                    #       colour domain (e.g. col=17 ice-highlights vs red/lava palette).
                     is_near_white = src[0] > 200 and src[1] > 200 and src[2] > 200
-                    if is_near_white and max(fallback[:3]) < 20 and src[2] >= src[0]:
+                    cool_strict = src[2] > src[0]
+                    cool_lax    = src[2] >= src[0]
+                    fb_near_black = max(fallback[:3]) < 20
+                    if is_near_white and ((cool_lax and fb_near_black) or (cool_strict and c96_has_real and fallback[0] > fallback[2])):
                         x6_pal[idx64] = src
                     else:
                         x6_pal[idx64] = fallback
