@@ -573,7 +573,7 @@ class CLUTFinderApp:
         def worker():
             # Fuzzy-matching of colour since screenshot isn't always accurate.
             def is_colour_match(search_colour: ColourRGB, palette_colour: ColourRGBA):
-                difference = 5
+                difference = 10
                 r1, g1, b1 = search_colour
                 r2, g2, b2, _a = palette_colour
 
