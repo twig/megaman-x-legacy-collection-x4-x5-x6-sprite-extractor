@@ -62,7 +62,7 @@ from PIL import ImageDraw, ImageFont
 from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset, LayoutTable, _build_chr256_ocl_indices
 from utils.ocl import load_ocl, OclPaletteGroup
 from utils.tex import load_tex
-from utils.palette import load_col_palettes
+from utils.palette import load_col_palettes, normalize_x6_stage_palette
 from utils.types import GameVersion
 from x4_pc_mmxlc1_layout_offsets import X4_LAYOUT_OFFSETS
 
@@ -364,98 +364,12 @@ def preload_related_files(omp_path: Path):
     # OclEntry.palette_group() maps any unregistered collision type to STANDARD,
     # so all tiles are rendered even if their tile_type is not listed above.
 
-    if game_version == GameVersion.X6:
-        # X6 palette fix.  col00_0x has two regions of interest:
-        #   - CLUTs 64-82  (col+64, col 0-18):  blank placeholders; real data is at col+96
-        #   - CLUTs 96-114 (col+96, col 0-18):  real per-stage colours
-        # For col ≥ 19, col+96 CLUTs are generally the correct choice; col+64 CLUTs
-        # may hold cycling-animation placeholders or be valid only for specific tiles.
-        #
-        # A single palette is built for ALL tile types:
-        #   Base: for every col position use col+96; entry-by-entry fallback to col+64
-        #   when the col+96 entry is a sentinel placeholder.
-        #
-        # Sentinel detection covers per-entry placeholder patterns:
-        #   1. Bright-green:    g ≥ 200, r < 50, b < 100  (e.g. (0,231,33))
-        #   2. Near-white:      r > 200 AND g > 200 AND b > 200  (cycling frames)
-        #
-        # CLUT-level exclusions (skip entire CLUT, keep col+64):
-        #   A. Enemy/effect palette bank (CLUTs 192-207 = col+96 for col 96-111):
-        #      These CLUTs hold enemy flash/effect colours (pink, magenta, purple,
-        #      lavender) that must NOT override the stage geometry col+64 data.
-        #   B. Null CLUTs: max brightness < 30.
-        #      Handles road tiles (col=43, CLUT139 max=24) and col=89-95 (all-zero).
-
-        def _entry_sentinel(entry) -> bool:
-            r, g, b = entry[:3]
-            if g >= 200 and r < 50 and b < 100:   # bright-green
-                return True
-            if r > 200 and g > 200 and b > 200:    # near-white cycling
-                return True
-            return False
-
-        def _clut_is_null(c96: int) -> bool:
-            """True if the entire col+96 CLUT has max brightness < 30 (null placeholder)."""
-            base = c96 * 16
-            return max(max(col[base + j][:3]) for j in range(16)) < 30
-
-        n_cluts = len(col) // 16
-
-        x6_pal: list = list(col)
-        for c in range(n_cluts - 96):
-            c64, c96 = c + 64, c + 96
-            if 192 <= c96 <= 207:
-                # Enemy/effect palette bank — keep col+64 for all entries.
-                continue
-            if _clut_is_null(c96):
-                # Null CLUT placeholder — keep col+64 for all entries.
-                continue
-            # Determine if c96 row has at least one real (non-sentinel, non-black)
-            # entry — indicates c96 is a genuine stage palette, not a null row.
-            c96_has_real = any(
-                not _entry_sentinel(col[c96 * 16 + k]) and max(col[c96 * 16 + k][:3]) > 0
-                for k in range(16)
-            )
-            for j in range(16):
-                idx64 = c64 * 16 + j
-                idx96 = c96 * 16 + j
-                src = col[idx96]
-                if _entry_sentinel(src):
-                    fallback = col[idx64]
-                    # Near-white c96: may be a real stage highlight or a null placeholder.
-                    # Use c96 (over c64 fallback) when:
-                    #   (a) c96 is cool/neutral (b >= r) and c64 is near-black: c96
-                    #       provides the only real colour (e.g. ice-grey in black void).
-                    #   (b) c96 is strictly cool (b > r) and c96 row has real entries and
-                    #       c64 is warm-hued (r > b): c96 is a full ice palette whose
-                    #       brightest entries look near-white but c64 is a different
-                    #       colour domain (e.g. col=17 ice-highlights vs red/lava palette).
-                    is_near_white = src[0] > 200 and src[1] > 200 and src[2] > 200
-                    cool_strict = src[2] > src[0]
-                    cool_lax    = src[2] >= src[0]
-                    fb_near_black = max(fallback[:3]) < 20
-                    if is_near_white and ((cool_lax and fb_near_black) or (cool_strict and c96_has_real and fallback[0] > fallback[2])):
-                        x6_pal[idx64] = src
-                    else:
-                        x6_pal[idx64] = fallback
-                else:
-                    x6_pal[idx64] = src
-
-        flags_to_palette = {
-            OclPaletteGroup.STANDARD:         x6_pal,
-            OclPaletteGroup.ALT_PALETTE:      x6_pal,
-            OclPaletteGroup.ANIMATED_CRYSTAL: x6_pal,
-            OclPaletteGroup.ALT_AREA:         x6_pal,
-            OclPaletteGroup.UNKNOWN:          x6_pal,
-        }
-    else:
-        flags_to_palette = {
-            OclPaletteGroup.STANDARD:         col,
-            OclPaletteGroup.ALT_PALETTE:      col,
-            OclPaletteGroup.ANIMATED_CRYSTAL: col,
-            OclPaletteGroup.ALT_AREA:         col,
-            OclPaletteGroup.UNKNOWN:          col,
-        }
+    # X6's col00_0x.col is a VRAM snapshot whose stage CLUTs are relocated to
+    # col+96; normalize_x6_stage_palette() relocates them back onto col+64 so the
+    # renderer can use the universal col+64 lookup.  X4/X5 store stage CLUTs at
+    # col+64 directly, so their palette is used unchanged.
+    stage_palette = normalize_x6_stage_palette(col) if game_version == GameVersion.X6 else col
+    flags_to_palette = {group: stage_palette for group in OclPaletteGroup}
 
     return [omp, ocl, tex, tex_background, flags_to_palette, game_version]
 

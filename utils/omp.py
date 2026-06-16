@@ -1018,7 +1018,7 @@ def render_omp(
             raw_tile = _resolve_tile(entry, tile_id)
             if raw_tile is None:
                 continue  # tile not found in TEX
-            rgba_pixels = _apply_palette_to_tile(raw_tile, entry.col + 64, palette)
+            rgba_pixels = _apply_palette_to_tile(raw_tile, entry.abs_clut_stage(), palette)
 
             tile_img = Image.new("RGBA", (tile_size, tile_size))
             tile_img.putdata(rgba_pixels)
@@ -1130,7 +1130,7 @@ def render_level(
                     if raw_tile is None:
                         continue
 
-                    rgba_pixels = _apply_palette_to_tile(raw_tile, entry.col + 64, palette)
+                    rgba_pixels = _apply_palette_to_tile(raw_tile, entry.abs_clut_stage(), palette)
 
                     tile_img = Image.new("RGBA", (tile_size, tile_size))
                     tile_img.putdata(rgba_pixels)

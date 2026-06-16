@@ -91,6 +91,11 @@ OCL_MAGIC = b"OCL\x00"
 OCL_HEADER_SIZE = 12  # magic(4) + version(4) + entry_count(4)
 OCL_ENTRY_SIZE = 4
 
+# Stage tile CLUTs begin at VRAM row 64, immediately after the 64-row player /
+# sprite palette block.  abs_clut = col + STAGE_CLUT_BASE_ROW.  This is the single
+# source of truth for the stage CLUT base; see utils/palette.py for the VRAM layout.
+STAGE_CLUT_BASE_ROW = 64
+
 
 class OclPaletteGroup(IntEnum):
     """
@@ -127,7 +132,7 @@ class OclEntry:
         Return the absolute CLUT row index for this stage tile entry.
         Formula confirmed against omp-to-expected-tiles.csv: abs_clut = col + 64.
         """
-        return self.col + 64
+        return self.col + STAGE_CLUT_BASE_ROW
 
     def palette_group(self) -> OclPaletteGroup:
         """
@@ -141,14 +146,6 @@ class OclEntry:
             return OclPaletteGroup(self.tile_type)
         except ValueError:
             return OclPaletteGroup.UNKNOWN
-
-    def absolute_clut(self, relative_clut: int = 0) -> int:
-        """
-        Deprecated — the original model (clut_base + relative_clut) was based on
-        an unconfirmed PAT/object CLUT theory that contradicts binary evidence.
-        Use abs_clut_stage() for stage tile CLUT resolution.
-        """
-        return self.abs_clut_stage()
 
 
 def load_ocl(ocl_path: Path) -> list[OclEntry]:
@@ -180,13 +177,3 @@ def load_ocl(ocl_path: Path) -> list[OclEntry]:
         entries.append(OclEntry(tile_type=flags, col=col, clut_base=clut_base, pad=pad))
 
     return entries
-
-
-def get_absolute_clut(entries: list[OclEntry], ocl_index: int) -> int:
-    """
-    Return the absolute CLUT row index for the stage tile at ocl_index.
-    Formula: entries[ocl_index].col + 64  (confirmed against omp-to-expected-tiles.csv).
-    """
-    if not (0 <= ocl_index < len(entries)):
-        raise IndexError(f"ocl_index {ocl_index} out of range (table has {len(entries)} entries)")
-    return entries[ocl_index].abs_clut_stage()

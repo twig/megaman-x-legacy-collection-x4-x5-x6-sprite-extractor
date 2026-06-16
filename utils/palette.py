@@ -58,9 +58,21 @@ render_stage.py compensates by building a patched palette (x6_pal):
 from pathlib import Path
 
 from utils.types import Palette, CLUT
+from utils.ocl import STAGE_CLUT_BASE_ROW
 
 COL_HEADER_SIZE = 12  # COL file: 4-byte magic + 4-byte unknown + 4-byte entry count
 COL_BLOCK_SIZE = 2
+
+# ── X6 palette normalization ──────────────────────────────────────────────────
+# X6's col00_0x.col is a runtime VRAM snapshot: the stage-palette region at the
+# col+64 rows is partly clobbered by live player/animation cycling frames (or is
+# null), and the real static stage palette is relocated to col+96.  To keep the
+# renderer game-agnostic (always addressing col+64), we relocate the col+96 rows
+# into the col+64 rows at load time, with two structural exceptions.
+X6_STAGE_CLUT_OFFSET = 96     # X6 true static stage CLUT base (vs col+64 for X4/X5)
+X6_ENEMY_BANK_LO = 192        # rows 192-207 (col 96-111 at +96) hold enemy/effect
+X6_ENEMY_BANK_HI = 207        #   flash colours — keep col+64 there instead.
+NULL_CLUT_MAX_BRIGHTNESS = 30  # a CLUT whose max channel < this is treated as null
 
 
 def convert_palette_to_clut(palette: Palette) -> CLUT:
@@ -141,3 +153,40 @@ def is_palette_all_black(palette: Palette) -> bool:
         if r != 0 or g != 0 or b != 0:
             return False
     return True
+
+
+def _clut_max_brightness(palette: Palette, clut_row: int) -> int:
+    """Return the maximum RGB channel value across one 16-entry CLUT row."""
+    base = clut_row * 16
+    return max(max(palette[base + j][:3]) for j in range(16))
+
+
+def normalize_x6_stage_palette(col: Palette) -> Palette:
+    """
+    Produce an X6 stage palette whose col+64 rows hold the correct static stage
+    colours, so the renderer can use the universal col+64 lookup.
+
+    X6's col00_0x.col stores the real static stage CLUTs at col+96
+    (X6_STAGE_CLUT_OFFSET); the col+64 rows are a VRAM snapshot polluted by live
+    player/animation cycling frames.  We relocate each col+96 row onto its col+64
+    row, except:
+      (a) enemy bank — rows X6_ENEMY_BANK_LO..HI hold enemy/effect flash colours
+          that must not overwrite stage geometry; keep col+64.
+      (b) null fallback — a col+96 row that is effectively empty
+          (max brightness < NULL_CLUT_MAX_BRIGHTNESS) carries no stage data; keep
+          col+64.  This covers road tiles (col=43) and the all-zero col=89-95 band.
+
+    The input is not mutated; a new list is returned.
+    """
+    out: Palette = list(col)
+    n_cluts = len(col) // 16
+    for c in range(n_cluts - X6_STAGE_CLUT_OFFSET):
+        dst = c + STAGE_CLUT_BASE_ROW
+        src = c + X6_STAGE_CLUT_OFFSET
+        if X6_ENEMY_BANK_LO <= src <= X6_ENEMY_BANK_HI:
+            continue  # (a) enemy/effect flash bank — keep col+64
+        if _clut_max_brightness(col, src) < NULL_CLUT_MAX_BRIGHTNESS:
+            continue  # (b) null col+96 row — keep col+64
+        for j in range(16):
+            out[dst * 16 + j] = col[src * 16 + j]
+    return out
