@@ -133,7 +133,7 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # Verification: max(layer0) == n_screens-1 expected; run explore_layout.py to confirm each.
     # Block 2 — offsets are GUESSES starting from block 1 end (0x02DD7750).
     # Heights estimated from PSX n_screens where available, otherwise h=28.
-    # Use explore_layout.py --exe RXC2.exe --base-offset <offset> to verify.
+    # Use explore_layout.py to verify.
     "X6": {
         "st00":      (0x02DD3FF0, 26, 17),  # ALMOST (Intro - Eurasia Ruins)
         "st01":      (0x02DD41FA, 26, 22),  # FOUND (Commander Yammark; Amazon Area)
