@@ -51,15 +51,19 @@ from pathlib import Path
 from PIL import ImageDraw, ImageFont
 
 from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset, LayoutTable, _build_chr256_ocl_indices
-from utils.ocl import load_ocl, OclPaletteGroup
+from utils.ocl import load_ocl, OclEntry, OclPaletteGroup
 from utils.tex import load_tex
 from utils.palette import load_col_palettes, normalize_x6_stage_palette
-from utils.types import GameVersion
+from utils.types import GameVersion, TexData
 from x4_pc_mmxlc1_layout_offsets import X4_LAYOUT_OFFSETS
 
 # Paths
 EXE_PATH_X4 = Path("RXC1.exe")
 EXE_PATH = Path("RXC2.exe")
+
+# Tile geometry / palette constants
+TILE_SIZE = 16                    # pixels per tile edge
+X6_BG_INDICATOR_COLS = (0, 112)   # page>=8 OCL cols that mark chr256 background tiles
 
 # Stage layout
 # Maps OMP stem → (exe_file_offset, width_screens, height_screens)
@@ -364,6 +368,98 @@ def preload_related_files(omp_path: Path):
     return [omp, ocl, tex, tex_background, flags_to_palette, game_version]
 
 
+def build_x6_chr256_override(
+    ocl: list[OclEntry],
+    tex: TexData,
+    tex_background: TexData,
+) -> frozenset[int]:
+    """
+    Return the chr256 (tex_background) OCL-index set for an X6 stage.
+
+    Starts from the game-agnostic _build_chr256_ocl_indices() routing and adds a
+    trailing batch of background tiles on pages >= 8 that have no foreground
+    counterpart in the OCL table — the base routing handles foreground/background
+    duplicate pairs (page<8 and page>=8, via its Pass 3a-3c) but leaves these
+    unpaired sole background tiles on tex because nothing pairs them.
+
+    A page>=8 tile is added when its (page, col) matches a col already confirmed as
+    background by the base routing, and tex / tex_background hold different non-empty
+    pixel data at its coordinate (so the routing actually matters).
+
+    Sole-entry gate: a (page, clut_base) coordinate that appears MORE THAN ONCE is a
+    foreground/background duplicate pair, not an unpaired sole background tile.  Its
+    first occurrence is the foreground tile (tex) and any background variant is the
+    later occurrence, already routed by _build_chr256_ocl_indices (Pass 3c).  Adding
+    the first occurrence here would read the foreground texture for a background slot
+    — e.g. st02's page=11 col=29 ice-incline tiles rendered as jagged foreground
+    fragments instead of the smooth chr256 hill.  Background indicator cols (0/112)
+    are exempt: a same-indicator-col duplicate (e.g. st04a page>=8 col=0 pairs) is
+    genuinely background and must still be added.
+    """
+    base_chr256 = _build_chr256_ocl_indices(ocl, tex, tex_background)
+    extra = set(base_chr256)
+
+    bg_raw = tex_background["raw_image"]
+    bg_w = tex_background["width"]
+
+    # Count occurrences per page>=8 (page, clut_base) coordinate for the sole-entry gate.
+    pg8_coord_count: dict[tuple, int] = {}
+    for entry in ocl:
+        if (entry.pad & 0xF) >= 8:
+            key = (entry.pad & 0xF, entry.clut_base)
+            pg8_coord_count[key] = pg8_coord_count.get(key, 0) + 1
+
+    # Cols already confirmed as background by the base routing.
+    confirmed_bg_page_col: set[tuple] = set()
+    for idx in extra:
+        entry = ocl[idx]
+        page = entry.pad & 0xF
+        if page >= 8:
+            confirmed_bg_page_col.add((page, entry.col))
+
+    if not confirmed_bg_page_col:
+        return frozenset(extra)
+
+    tx_raw = tex["raw_image"]
+    tx_w = tex["width"]
+    tx_h = len(tx_raw) // tx_w
+    bg_h = len(bg_raw) // bg_w
+
+    for idx, entry in enumerate(ocl):
+        if idx in extra:
+            continue
+        page = entry.pad & 0xF
+        if page < 8:
+            continue
+        if (page, entry.col) not in confirmed_bg_page_col:
+            continue
+        # Sole-entry gate (see docstring): skip non-indicator duplicates.
+        if (pg8_coord_count.get((page, entry.clut_base), 0) > 1
+                and entry.col not in X6_BG_INDICATOR_COLS):
+            continue
+        cordX = entry.clut_base & 0xF
+        cordY = (entry.clut_base >> 4) & 0xF
+        gx = (page % 8) * 256 + cordX * TILE_SIZE
+        gy = (page // 8) * 256 + cordY * TILE_SIZE
+        if (gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h or
+                gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h):
+            continue
+        # Both textures must have non-empty, differing pixel data.
+        if not any(tx_raw[(gy + dy) * tx_w + gx + dx]
+                   for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+            continue
+        if not any(bg_raw[(gy + dy) * bg_w + gx + dx]
+                   for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+            continue
+        if all(tx_raw[(gy + dy) * tx_w + gx + dx] ==
+               bg_raw[(gy + dy) * bg_w + gx + dx]
+               for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+            continue
+        extra.add(idx)
+
+    return frozenset(extra)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Render a stage OMP to PNG (level + catalog)."
@@ -398,82 +494,9 @@ def main() -> None:
     omp_stem = omp_path.stem
     [omp, ocl, tex, tex_background, flags_to_palette, game_version] = preload_related_files(omp_path)
 
-    # For X6 only: route a trailing batch of background (chr256) tiles on pages >= 8
-    # that have no foreground counterpart in the OCL table.  _build_chr256_ocl_indices()
-    # already handles foreground/background duplicate pairs (page<8 and page>=8, via its
-    # Pass 3a-3c) and leaves these unpaired sole background tiles on tex because nothing
-    # pairs them; detect and redirect them to tex_background here.
-    #
-    # A page>=8 tile is added when its (page, col) matches a col already confirmed as
-    # background by the base routing, and tex / tex_background hold different non-empty
-    # pixel data at its coordinate (so the routing actually matters).
-    #
-    # Sole-entry gate: a (page, clut_base) coordinate that appears MORE THAN ONCE is a
-    # foreground/background duplicate pair, not an unpaired sole background tile.  Its
-    # first occurrence is the foreground tile (tex) and any background variant is the
-    # later occurrence, already routed by _build_chr256_ocl_indices (Pass 3c).  Adding
-    # the first occurrence here would read the foreground texture for a background slot
-    # — e.g. st02's page=11 col=29 ice-incline tiles rendered as jagged foreground
-    # fragments instead of the smooth chr256 hill.  Background indicator cols (0/112)
-    # are exempt: a same-indicator-col duplicate (e.g. st04a page>=8 col=0 pairs) is
-    # genuinely background and must still be added.
     chr256_extra: "frozenset[int] | None" = None
     if game_version == GameVersion.X6:
-        _TILE = 16
-        _BG_INDICATOR_COLS = (0, 112)
-        base_chr256 = _build_chr256_ocl_indices(ocl, tex, tex_background)
-        extra = set(base_chr256)
-        _bg_raw = tex_background["raw_image"]
-        _bg_w = tex_background["width"]
-        _pg8_coord_count: dict[tuple, int] = {}
-        for _e in ocl:
-            if (_e.pad & 0xF) >= 8:
-                _k = (_e.pad & 0xF, _e.clut_base)
-                _pg8_coord_count[_k] = _pg8_coord_count.get(_k, 0) + 1
-        _confirmed_bg_page_col: set[tuple] = set()
-        for _j in extra:
-            _ej = ocl[_j]
-            _pgj = _ej.pad & 0xF
-            if _pgj >= 8:
-                _confirmed_bg_page_col.add((_pgj, _ej.col))
-        if _confirmed_bg_page_col:
-            _tx_raw = tex["raw_image"]
-            _tx_w = tex["width"]
-            _tx_h = len(_tx_raw) // _tx_w
-            _bg_h = len(_bg_raw) // _bg_w
-            for _i, _e in enumerate(ocl):
-                if _i in extra:
-                    continue
-                _pg2 = _e.pad & 0xF
-                if _pg2 < 8:
-                    continue
-                if (_pg2, _e.col) not in _confirmed_bg_page_col:
-                    continue
-                # Sole-entry gate (see note above): skip non-indicator duplicates.
-                if (_pg8_coord_count.get((_pg2, _e.clut_base), 0) > 1
-                        and _e.col not in _BG_INDICATOR_COLS):
-                    continue
-                _cb2 = _e.clut_base
-                _cX2 = _cb2 & 0xF; _cY2 = (_cb2 >> 4) & 0xF
-                _gx2 = (_pg2 % 8) * 256 + _cX2 * _TILE
-                _gy2 = (_pg2 // 8) * 256 + _cY2 * _TILE
-                if (_gx2 + _TILE > _tx_w or _gy2 + _TILE > _tx_h or
-                        _gx2 + _TILE > _bg_w or _gy2 + _TILE > _bg_h):
-                    continue
-                # Both textures must have non-empty, differing pixel data.
-                if not any(_tx_raw[(_gy2 + _dy) * _tx_w + _gx2 + _dx]
-                           for _dy in range(_TILE) for _dx in range(_TILE)):
-                    continue
-                if not any(_bg_raw[(_gy2 + _dy) * _bg_w + _gx2 + _dx]
-                           for _dy in range(_TILE) for _dx in range(_TILE)):
-                    continue
-                if all(_tx_raw[(_gy2 + _dy) * _tx_w + _gx2 + _dx] ==
-                       _bg_raw[(_gy2 + _dy) * _bg_w + _gx2 + _dx]
-                       for _dy in range(_TILE) for _dx in range(_TILE)):
-                    continue
-                extra.add(_i)
-
-        chr256_extra = frozenset(extra)
+        chr256_extra = build_x6_chr256_override(ocl, tex, tex_background)
 
     # Catalog render
     if not args.skip_catalog:
@@ -495,7 +518,7 @@ def main() -> None:
         catalog_img.save(catalog_out)
         print(f"  Saved {catalog_out}  ({catalog_img.width}×{catalog_img.height} px)")
 
-    layout_entry = STAGE_LAYOUT.get(f"X{game_version}", {}).get(omp_stem if game_version != GameVersion.X4 else omp_stem)  # OMP stem vs PSX layout stem
+    layout_entry = STAGE_LAYOUT.get(f"X{game_version}", {}).get(omp_stem)
 
     # Level render (when layout is known)
     if layout_entry and not args.skip_stage:
