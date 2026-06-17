@@ -669,6 +669,57 @@ def _build_chr256_ocl_indices(
         if _min_dist_to_nolg(_sorted_g[0], _page_k) <= _NOLG_DIST_THRESHOLD:
             _lg_samecol_chr256_keys.add(_key)
 
+    def _nolg_first_is_fg_pair(key: tuple[int, int]) -> bool:
+        """
+        True when a no-large-gap group is actually a foreground/background DUPLICATE
+        pair whose FIRST occurrence is a foreground tile (belongs on tex), rather than
+        a chr256 palette-variant background batch.
+
+        Confirmed for X6 st0h's pole/chain columns (OCL 463-515): each is the first
+        occurrence of a 2-entry group with a SMALL index gap (243-257 < THRESHOLD),
+        so it lands in the "whole group is chr256" branch and the foreground pole was
+        wrongly read from tex_bg (unrelated solid background → orange blobs).
+
+        Signature distinguishing the pair from a genuine background batch:
+          - the first occurrence is NOT a 0x38 hit-flash/alt-palette variant. A 0x38
+            entry shares its base tile's pixel data and lives inside the chr256 batch
+            by definition — it is never an independent foreground tile (X5 st030
+            page-4 entries 2905-2917 are 0x38 palette variants that must stay on
+            tex_bg; flipping them to tex showed the wrong solid-foreground tile); AND
+          - first occurrence's col differs from a later member's col (mixed col →
+            fg/bg pair, like the large-gap different-col rule — NOT a same-palette
+            hit-flash/variant batch, which stays chr256); AND
+          - the first occurrence's tex coordinate holds a SPARSE foreground sprite
+            (fg_fill > 0 and fg_fill*3 <= bg_fill — covers at most ~1/3 of the tile)
+            over an essentially SOLID tex_bg tile (bg_fill >= 3/4 area) whose pixels
+            differ. This is a tighter variant of the large-gap same-col rule's
+            "fg fragment vs bg solid" gate (fg_fill*2 <= bg_fill): the *2 form admits
+            exactly-half-filled tiles (fg_fill == 128/256), which are dense vertical-
+            bar / stipple palette variants belonging to the chr256 batch, NOT sparse
+            foreground sprites (X5 st061 page-3 OCL 1995-1999 and X6 st03 page-4 OCL
+            2576-2590 are such half-fill tiles that must stay on tex_bg; genuine
+            foreground poles/vines/edges in st0h/st160/st04b cover <= 68/256).
+
+        Only the FIRST occurrence is foreground; later occurrences remain chr256.
+        """
+        idxs = group_indices[key]
+        if len(idxs) < 2:
+            return False
+        s = sorted(idxs)
+        fi = s[0]
+        if ocl_entries[fi].tile_type == OclPaletteGroup.ALT_PALETTE:
+            return False  # 0x38 hit-flash variant: shares batch pixel data, never fg
+        if all(ocl_entries[j].col == ocl_entries[fi].col for j in s):
+            return False  # same col → palette/hit-flash variant batch, keep as chr256
+        page_k, clut_k = key
+        cordX_k = clut_k & 0xF; cordY_k = (clut_k >> 4) & 0xF
+        gx_k = (page_k % 8) * 256 + cordX_k * tile_size
+        gy_k = (page_k // 8) * 256 + cordY_k * tile_size
+        fg = _tex_fill(raw_tex, w_tex, gx_k, gy_k)
+        bg = _tex_fill(raw_bg, w_bg, gx_k, gy_k)
+        return (fg > 0 and bg >= (tile_size * tile_size * 3) // 4
+                and fg * 3 <= bg and _tiles_differ(gx_k, gy_k))
+
     seen: set[tuple[int, int]] = set()
     chr256: set[int] = set()
     for i, e in enumerate(ocl_entries):
@@ -754,7 +805,10 @@ def _build_chr256_ocl_indices(
                 # First occurrence of an all-close (no-large-gap) group: the whole
                 # group belongs to the chr256 batch, including this first entry —
                 # but only when tex_bg has tile data at these coordinates.
-                if group_bg_has_data[key]:
+                # EXCEPTION: a foreground/background duplicate pair (mixed col, sparse
+                # fg sprite over a solid bg tile) keeps its first occurrence on tex;
+                # only the later occurrence(s) are the chr256 background variant.
+                if group_bg_has_data[key] and not _nolg_first_is_fg_pair(key):
                     chr256.add(i)
             elif key in _lg_samecol_chr256_keys:
                 # First occurrence of a same-col large-gap group identified in
