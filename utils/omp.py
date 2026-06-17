@@ -477,6 +477,15 @@ def _build_chr256_ocl_indices(
             for dx in range(tile_size)
         )
 
+    def _tex_fill(raw: bytes, w: int, gx: int, gy: int) -> int:
+        """Return the count of non-zero (opaque) pixels in the 16×16 tile block."""
+        return sum(
+            1
+            for dy in range(tile_size)
+            for dx in range(tile_size)
+            if raw[(gy + dy) * w + gx + dx]
+        )
+
     # Pass 0: count occurrences per key so standalone entries can be detected
     key_count: dict[tuple[int, int], int] = {}
     for e in ocl_entries:
@@ -699,13 +708,46 @@ def _build_chr256_ocl_indices(
             else:
                 # Same-col entries in large-gap groups normally remain in tex (they
                 # are hit-flash/palette variants that share pixel data with the first
-                # occurrence and lie within the tex OCL batch).
-                # Exception: if the group was identified in Pass 1e as a same-col
-                # large-gap group whose fi is adjacent to the no-LG chr256 batch on
-                # the same page, the whole group belongs to the background batch
-                # (e.g. st061 page=0 col=3/4/5/6/7/10 groups).
+                # occurrence and lie within the tex OCL batch).  Two exceptions
+                # promote a non-first entry to the chr256 background batch:
+                #   (a) Pass 1e flagged the group as adjacent to the no-LG chr256
+                #       batch on the same page, so the whole group is background
+                #       (e.g. st061 page=0 col=3/4/5/6/7/10 groups); or
+                #   (b) this is a later occurrence at a large index gap whose tex_bg
+                #       coordinate holds a SOLID tile while tex holds only a sparse,
+                #       differing fragment — a genuine same-col background duplicate
+                #       where the foreground version is missing/incomplete.  The first
+                #       occurrence is the real foreground tile (tex); the far, same-col
+                #       duplicate is the chr256 background variant.  This mirrors the
+                #       page>=8 rule in Pass 3c for the page<8 case the different-col
+                #       rule above (col != first_col) cannot reach when the whole group
+                #       shares one col.  Example: X6 st01's tree/rock objects (OCL
+                #       2484-2487 / 2605-2608), whose tex holds fragmentary pixels and
+                #       chr256 holds the coherent rock tile.
+                #
+                #       The fill gate (tex_bg solid AND tex fragment ≤ half of it) is
+                #       what keeps genuine FOREGROUND objects in tex: a coherent fg
+                #       tile (turret housing, foliage) fills its block, so tex_fill is
+                #       not far below tex_bg_fill and the entry stays on tex even when
+                #       tex_bg happens to hold unrelated data at the same coordinate
+                #       (e.g. st01 OCL 2627 fg-rock/bg-near-empty, 2702 fg-foliage/
+                #       bg-rock — both correctly left on tex).
                 if key in _lg_samecol_chr256_keys:
                     chr256.add(i)
+                else:
+                    fi = group_indices[key][0]
+                    cordX = e.clut_base & 0xF; cordY = (e.clut_base >> 4) & 0xF
+                    gx = (page % 8) * 256 + cordX * tile_size
+                    gy = (page // 8) * 256 + cordY * tile_size
+                    if (i - fi) >= CHR256_INDEX_GAP_THRESHOLD and group_bg_has_data[key]:
+                        bg_fill = _tex_fill(raw_bg, w_bg, gx, gy)
+                        fg_fill = _tex_fill(raw_tex, w_tex, gx, gy)
+                        # tex_bg essentially solid (continuous background) and the tex
+                        # fragment covers at most half of it → fg version is missing.
+                        if (bg_fill >= (tile_size * tile_size * 3) // 4
+                                and fg_fill * 2 <= bg_fill
+                                and _tiles_differ(gx, gy)):
+                            chr256.add(i)
         else:
             seen.add(key)
             if not group_has_large_gap[key]:
