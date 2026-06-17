@@ -781,8 +781,13 @@ def _build_chr256_ocl_indices(
                 #       tile (turret housing, foliage) fills its block, so tex_fill is
                 #       not far below tex_bg_fill and the entry stays on tex even when
                 #       tex_bg happens to hold unrelated data at the same coordinate
-                #       (e.g. st01 OCL 2627 fg-rock/bg-near-empty, 2702 fg-foliage/
-                #       bg-rock — both correctly left on tex).
+                #       (e.g. st01 OCL 2627 fg-rock/bg-near-empty, correctly left on
+                #       tex — its OCL neighbours jump to another page, so it is not an
+                #       interior strip member).  NOTE: this gate misfires on fully-
+                #       painted background TRANSITION tiles (dense tex pixels read as a
+                #       foreground object), e.g. st01 OCL 2702, the lone gap in the
+                #       page-3 moss strip 2695-2719.  Those are recovered by the
+                #       contiguous-strip gap-fill pass in render_stage.build_x6_chr256_override.
                 if key in _lg_samecol_chr256_keys:
                     chr256.add(i)
                 else:

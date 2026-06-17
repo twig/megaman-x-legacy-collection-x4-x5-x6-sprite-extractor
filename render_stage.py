@@ -372,6 +372,7 @@ def build_x6_chr256_override(
     ocl: list[OclEntry],
     tex: TexData,
     tex_background: TexData,
+    gap_fill: bool = True,
 ) -> frozenset[int]:
     """
     Return the chr256 (tex_background) OCL-index set for an X6 stage.
@@ -417,43 +418,109 @@ def build_x6_chr256_override(
         if page >= 8:
             confirmed_bg_page_col.add((page, entry.col))
 
-    if not confirmed_bg_page_col:
-        return frozenset(extra)
-
     tx_raw = tex["raw_image"]
     tx_w = tex["width"]
     tx_h = len(tx_raw) // tx_w
     bg_h = len(bg_raw) // bg_w
 
-    for idx, entry in enumerate(ocl):
-        if idx in extra:
+    # Unpaired sole-background tiles (only runs when the base routing confirmed at
+    # least one page>=8 background col; otherwise there is nothing to anchor to).
+    if confirmed_bg_page_col:
+        for idx, entry in enumerate(ocl):
+            if idx in extra:
+                continue
+            page = entry.pad & 0xF
+            if page < 8:
+                continue
+            if (page, entry.col) not in confirmed_bg_page_col:
+                continue
+            # Sole-entry gate (see docstring): skip non-indicator duplicates.
+            if (pg8_coord_count.get((page, entry.clut_base), 0) > 1
+                    and entry.col not in X6_BG_INDICATOR_COLS):
+                continue
+            cordX = entry.clut_base & 0xF
+            cordY = (entry.clut_base >> 4) & 0xF
+            gx = (page % 8) * 256 + cordX * TILE_SIZE
+            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            if (gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h or
+                    gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h):
+                continue
+            # Both textures must have non-empty, differing pixel data.
+            if not any(tx_raw[(gy + dy) * tx_w + gx + dx]
+                       for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                continue
+            if not any(bg_raw[(gy + dy) * bg_w + gx + dx]
+                       for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                continue
+            if all(tx_raw[(gy + dy) * tx_w + gx + dx] ==
+                   bg_raw[(gy + dy) * bg_w + gx + dx]
+                   for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                continue
+            extra.add(idx)
+
+    # ── Gap-fill pass: interior holes in a contiguous background strip ─────────
+    #
+    # A chr256 background tileset is laid out as horizontal strips: a run of
+    # consecutive OCL indices that map to consecutive (page, clut_base) tile
+    # coordinates.  The base routing's per-tile fill heuristic occasionally drops
+    # a single fully-painted tile out of such a strip (it mistakes the dense pixel
+    # data for a foreground object — e.g. st01's green-moss ridge transition tile
+    # at OCL 2702, the lone gap in the 2695-2719 page-3 strip).
+    #
+    # An entry currently routed to tex whose immediate index neighbours (idx-1 and
+    # idx+1) are BOTH background, on the SAME page, with clut_base forming a
+    # consecutive triple (cb-1, cb, cb+1), is itself an interior strip member and
+    # belongs on tex_bg.  Two guards keep genuine foreground tiles out:
+    #   - The consecutive-clut_base requirement: a foreground tile interrupting the
+    #     OCL order (e.g. st01 OCL 2627, whose neighbour jumps to another page)
+    #     breaks the run and is never considered.
+    #   - MIN_STRIP_RUN: the lockstep chr256 strip through idx must span at least
+    #     this many tiles.  A genuine background tilemap strip (sky ridge, moss
+    #     line, ice ridge, machinery wall) runs for dozens of tiles; a 2-4 tile
+    #     run of background fragments inside a foreground-heavy region is NOT a
+    #     strip.  Confirmed across X6: genuine strip gaps span >= 31 tiles
+    #     (st01 2702→115, 2677→31; st02 2373→35; st04b 1116→112, 1132→40) while
+    #     the foreground pole/chain region in st0h yields only 4-11 (470→4,
+    #     505→11), which a threshold of 20 cleanly excludes.
+    # tex_bg must hold pixel data at the coordinate for the swap to be meaningful.
+    MIN_STRIP_RUN = 20
+    pre_gap = frozenset(extra)  # snapshot: measure runs/neighbours order-independently
+
+    def _strip_run(idx: int, page: int, cb: int) -> int:
+        """Length of the lockstep chr256 strip (consecutive index + clut_base) through idx."""
+        n = 1
+        k = idx - 1
+        while k >= 0 and k in pre_gap and (ocl[k].pad & 0xF) == page and ocl[k].clut_base == cb - (idx - k):
+            n += 1; k -= 1
+        k = idx + 1
+        while k < len(ocl) and k in pre_gap and (ocl[k].pad & 0xF) == page and ocl[k].clut_base == cb + (k - idx):
+            n += 1; k += 1
+        return n
+
+    for idx in range(1, len(ocl) - 1) if gap_fill else ():
+        if idx in pre_gap:
             continue
+        entry = ocl[idx]
         page = entry.pad & 0xF
-        if page < 8:
+        if page >= 8:
             continue
-        if (page, entry.col) not in confirmed_bg_page_col:
+        if (idx - 1) not in pre_gap or (idx + 1) not in pre_gap:
             continue
-        # Sole-entry gate (see docstring): skip non-indicator duplicates.
-        if (pg8_coord_count.get((page, entry.clut_base), 0) > 1
-                and entry.col not in X6_BG_INDICATOR_COLS):
+        prev_e, next_e = ocl[idx - 1], ocl[idx + 1]
+        if (prev_e.pad & 0xF) != page or (next_e.pad & 0xF) != page:
+            continue
+        if prev_e.clut_base != entry.clut_base - 1 or next_e.clut_base != entry.clut_base + 1:
+            continue
+        if _strip_run(idx, page, entry.clut_base) < MIN_STRIP_RUN:
             continue
         cordX = entry.clut_base & 0xF
         cordY = (entry.clut_base >> 4) & 0xF
         gx = (page % 8) * 256 + cordX * TILE_SIZE
         gy = (page // 8) * 256 + cordY * TILE_SIZE
-        if (gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h or
-                gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h):
-            continue
-        # Both textures must have non-empty, differing pixel data.
-        if not any(tx_raw[(gy + dy) * tx_w + gx + dx]
-                   for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+        if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
             continue
         if not any(bg_raw[(gy + dy) * bg_w + gx + dx]
                    for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
-            continue
-        if all(tx_raw[(gy + dy) * tx_w + gx + dx] ==
-               bg_raw[(gy + dy) * bg_w + gx + dx]
-               for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
             continue
         extra.add(idx)
 
