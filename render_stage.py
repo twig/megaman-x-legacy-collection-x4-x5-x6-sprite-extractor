@@ -133,7 +133,7 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # Verification: max(layer0) == n_screens-1 expected; run explore_layout.py to confirm each.
     # Block 2 — offsets are GUESSES starting from block 1 end (0x02DD7750).
     # Heights estimated from PSX n_screens where available, otherwise h=28.
-    # Use explore_layout.py --exe RXC2.exe --base-offset <offset> to verify.
+    # Use explore_layout.py to verify.
     "X6": {
         "st00":      (0x02DD3FF0, 26, 17),  # ALMOST (Intro - Eurasia Ruins)
         "st01":      (0x02DD41FA, 26, 22),  # FOUND (Commander Yammark; Amazon Area)
@@ -153,12 +153,12 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st07x":     (0x02DD8F50,  7, 16),  # GUESS (similar to st02x)
         "st08":      (0x02DD90A0, 28, 16),  # GUESS (Infinity Mijinion; Weapons Facility)
         "st08x":     (0x02DD6FA0,  3, 16),  # UNCONFIRMED
-        "st0ca":     (0x02DD575C, 12, 33),  # UNCONFIRMED (Secret Lab 3: Area 1)
-        "st0cb":     (0x02DD95E0, 18, 16),  # GUESS (Secret Lab 3: Area 2 - similar to st0ca)
-        "st0g":      (0x02DD6160, 43, 16),  # UNCONFIRMED
-        "st0h":      (0x02DD9940, 20, 16),  # GUESS
+        "st0ca":     (0x02DD575C, 12, 33),  # FOUND (Secret Lab 3: Area 1)
+        "st0cb":     (0x02DD5948, 16, 10),  # FOUND (Secret Lab 3: Area 2)
+        "st0g":      (0x02DD61D0, 40, 14),  # FOUND (Secret Lab 1)
+        "st0h":      (0x02DD64A0, 24, 21),  # FOUND (Secret Lab 2)
         "st0i":      (0x02DD9D00, 20, 16),  # GUESS
-        "stsel_eng": (0x02DD5B30, 33, 16),  # CONFIRMED (Stage Select screen)
+        "stsel_eng": (0x02DD6110,  7,  4),  # ALMOST (Stage Select screen)
 
         # Original values, split out across range
         # "st00":      (0x02DD4000, 28, 16),  # UNCONFIRMED (Intro)
