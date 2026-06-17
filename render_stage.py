@@ -446,6 +446,22 @@ def main() -> None:
         # of background tiles that lack a foreground counterpart in the OCL table.
         # Only added when both textures have non-empty, differing pixel data and the
         # col is not in the enemy-bank range.
+        #
+        # Sole-entry gate: a (page, clut_base) coordinate that appears MORE THAN ONCE
+        # is a foreground/background duplicate pair, not a trailing sole background
+        # batch.  Its first occurrence is the foreground tile (tex) and any background
+        # variant is the later occurrence, already routed by _build_chr256_ocl_indices
+        # (Pass 3c).  Adding the first occurrence here reads the foreground texture for
+        # a background slot — e.g. st02's page=11 col=29 ice-incline tiles rendered as
+        # jagged foreground fragments instead of the smooth chr256 hill.  Background
+        # indicator cols (0/112) are exempt: a same-indicator-col duplicate (e.g. st04a
+        # page>=8 col=0 pairs) is genuinely background and must still be added.
+        _BG_INDICATOR_COLS = (0, 112)
+        _pg8_coord_count: dict[tuple, int] = {}
+        for _e in ocl:
+            if (_e.pad & 0xF) >= 8:
+                _k = (_e.pad & 0xF, _e.clut_base)
+                _pg8_coord_count[_k] = _pg8_coord_count.get(_k, 0) + 1
         _confirmed_bg_page_col: set[tuple] = set()
         for _j in extra:
             _ej = ocl[_j]
@@ -466,6 +482,10 @@ def main() -> None:
                 if (_pg2, _e.col) not in _confirmed_bg_page_col:
                     continue
                 if 192 <= _e.col + 96 <= 207:
+                    continue
+                # Sole-entry gate (see note above): skip non-indicator duplicates.
+                if (_pg8_coord_count.get((_pg2, _e.clut_base), 0) > 1
+                        and _e.col not in _BG_INDICATOR_COLS):
                     continue
                 _cb2 = _e.clut_base
                 _cX2 = _cb2 & 0xF; _cY2 = (_cb2 >> 4) & 0xF
