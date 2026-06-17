@@ -68,6 +68,41 @@ The C# renderer has no alpha channel at all (writes to RGB `bmp[]`). On PSX, col
 
 ---
 
+## KNOWN ISSUE: X6 page-10/11 tiles with `col` bit 6 set render with wrong CLUT
+
+**Status:** unresolved, left visible by choice (see render_stage.py / utils/omp.py pad handling).
+
+**Where:** X6 stages with high-nibble-4 pad tiles — most visibly `st0g` (Secret Lab 1),
+also `st02`, `st04a`, `st04b`, `st06a`. Example st0g pixel regions: a blue band at
+~(576-1599, 540-690) and a "wrong tile" patch at ~(2112-2207, 928-1055).
+
+**Symptom:** certain page-10/11 (8bpp) tiles render the correct *shape* but the wrong
+*palette* (e.g. a garish blue band where a grey-teal wall belongs); a few look like the
+wrong tile entirely because the bad CLUT makes them unrecognisable.
+
+**Diagnosis (confirmed):**
+- These are genuine 8bpp tiles (pixel high-nibbles up to 3-5) and the texture routing is
+  correct — forcing a different CLUT base just produces garbage, which confirms the base
+  `col + 64` is right and the texture data spans those rows.
+- The fault is in `normalize_x6_stage_palette()` (utils/palette.py): it relocates stage
+  CLUTs `col+96 → col+64` (a fixed +32-row shift). This is correct for tiles whose CLUT
+  lands in the working range (e.g. `col=32` → row 96 ← src 128; `col=112` → row 176 ←
+  src 208), **but for `col` values with bit 6 set (64/80/96) the relocation source lands
+  in rows 192+** — the "enemy bank" region — which does not hold the stage's real static
+  colours in the shared `col0g_0x.col` VRAM dump. `col=48` (→ row 112 ← src 144) is the
+  same family.
+- These tiles were previously hidden by the old over-broad `pad & 0xF0` skip; correcting
+  that skip (now `(pad & 0xF) > 0xB or (pad & 0xF0) == 0x10`, matching the editor) made
+  them visible and exposed this pre-existing palette gap. The majority of high-nibble-4
+  tiles (`col` 0/16/32) DO render correctly and fill real gaps, so the skip fix stands.
+
+**Why not fixed:** picking the correct source rows for the bit-6 CLUTs needs either a
+ground-truth st0g reference or deeper VRAM archaeology, and the palette docstring records
+that the row-192+ relocation exception was *removed* to fix st07 — so a naive change risks
+regressing other stages. Revisit with per-stage COL source resolution.
+
+---
+
 ## Palette Array Offset (`+ 64`)
 
 ```csharp

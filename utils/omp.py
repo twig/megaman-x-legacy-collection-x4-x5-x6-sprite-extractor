@@ -1055,11 +1055,11 @@ def render_omp(
             if palette is None:
                 continue  # no palette registered at all — skip
 
-            # Any non-zero pad high nibble signals a foreground-transparent slot:
-            #   pad=0xFF (high=0xF): crystal sky-fill placeholder ("no TEX data")
-            #   pad=0x10 (high=0x1): background-layer-only tile (e.g. st070/st000)
-            # In both cases the background layer is meant to show through.
-            if entry.pad & 0xF0:
+            # Skip non-drawable slots, matching TeheManX4_Editor's Draw16xTile,
+            # which derives page = pad & 0xF and draws nothing when page > 0xB.
+            #   pad=0xFF (page 15): crystal sky-fill placeholder ("no TEX data")
+            #   pad=0x10 (page 0):  background-layer-only tile (e.g. st070/st000)
+            if (entry.pad & 0xF) > 0xB or (entry.pad & 0xF0) == 0x10:
                 continue
 
             raw_tile = _resolve_tile(entry, tile_id)
@@ -1166,11 +1166,11 @@ def render_level(
                     if palette is None:
                         continue  # no palette registered at all — skip
 
-                    # Any non-zero pad high nibble signals a foreground-transparent slot:
-                    #   pad=0xFF (high=0xF): crystal sky-fill placeholder ("no TEX data")
-                    #   pad=0x10 (high=0x1): background-layer-only tile (e.g. st070/st000)
-                    # In both cases the background layer is meant to show through.
-                    if entry.pad & 0xF0:
+                    # Skip non-drawable slots, matching TeheManX4_Editor's Draw16xTile,
+                    # which derives page = pad & 0xF and draws nothing when page > 0xB.
+                    #   pad=0xFF (page 15): crystal sky-fill placeholder ("no TEX data")
+                    #   pad=0x10 (page 0):  background-layer-only tile (e.g. st070/st000)
+                    if (entry.pad & 0xF) > 0xB or (entry.pad & 0xF0) == 0x10:
                         continue
 
                     raw_tile = _resolve_tile(entry, ocl_idx)

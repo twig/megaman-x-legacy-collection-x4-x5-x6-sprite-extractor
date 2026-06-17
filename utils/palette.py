@@ -176,6 +176,13 @@ def normalize_x6_stage_palette(col: Palette) -> Palette:
     wrongly suppressed relocation and left polluted snapshot colours (see col=104 /
     CLUT #198 region in st07).
 
+    KNOWN GAP: the fixed +32-row relocation is wrong for stage CLUTs whose col has
+    bit 6 set (col 64/80/96 → dst rows 128/144/160 ← src rows 160/176/192).  In the
+    shared col0g_0x.col VRAM dump those src rows are the "enemy bank", not stage data,
+    so X6 page-10/11 tiles using those cols render with the wrong CLUT (e.g. st0g's
+    blue band).  Left unresolved by choice — see docs/unconfirmed/issues.md
+    ("X6 page-10/11 tiles with col bit 6 set render with wrong CLUT").
+
     The input is not mutated; a new list is returned.
     """
     out: Palette = list(col)
