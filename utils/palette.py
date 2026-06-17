@@ -48,12 +48,10 @@ second time at col+96 (rows 96–114).
 
 normalize_x6_stage_palette() (in this module) compensates by relocating each
 col+96 CLUT row onto its col+64 row, so the renderer can keep the universal
-col+64 lookup.  The relocation is whole-CLUT (not per-entry); two exceptions
-keep the original col+64 row instead:
-  • Enemy/effect bank (rows 192–207, i.e. col 96–111 at +96): holds enemy
-    flash/effect colours that must not overwrite stage geometry.
+col+64 lookup.  The relocation is whole-CLUT (not per-entry), with one exception:
   • Null col+96 rows (max brightness < NULL_CLUT_MAX_BRIGHTNESS): carry no
-    stage data (e.g. road tiles col=43, the all-zero col=89–95 band).
+    stage data (e.g. road tiles col=43, the all-zero col=89–95 band), so the
+    original col+64 row is kept.
 """
 from pathlib import Path
 
@@ -68,10 +66,8 @@ COL_BLOCK_SIZE = 2
 # col+64 rows is partly clobbered by live player/animation cycling frames (or is
 # null), and the real static stage palette is relocated to col+96.  To keep the
 # renderer game-agnostic (always addressing col+64), we relocate the col+96 rows
-# into the col+64 rows at load time, with two structural exceptions.
+# into the col+64 rows at load time, with one structural exception (null rows).
 X6_STAGE_CLUT_OFFSET = 96     # X6 true static stage CLUT base (vs col+64 for X4/X5)
-X6_ENEMY_BANK_LO = 192        # rows 192-207 (col 96-111 at +96) hold enemy/effect
-X6_ENEMY_BANK_HI = 207        #   flash colours — keep col+64 there instead.
 NULL_CLUT_MAX_BRIGHTNESS = 30  # a CLUT whose max channel < this is treated as null
 
 
@@ -170,16 +166,22 @@ def normalize_x6_stage_palette(col: Palette) -> Palette:
     (X6_STAGE_CLUT_OFFSET); the col+64 rows are a VRAM snapshot polluted by live
     player/animation cycling frames.  We relocate each col+96 row onto its col+64
     row, except:
-      (b) null fallback — a col+96 row that is effectively empty
-          (max brightness < NULL_CLUT_MAX_BRIGHTNESS) carries no stage data; keep
-          col+64.  This covers road tiles (col=43) and the all-zero col=89-95 band.
+      • null fallback — a col+96 row that is effectively empty
+        (max brightness < NULL_CLUT_MAX_BRIGHTNESS) carries no stage data; keep
+        col+64.  This covers road tiles (col=43) and the all-zero col=89-95 band.
 
-    Note: an earlier "enemy bank" exception kept the col+64 rows for col+96 sources
-    in X6_ENEMY_BANK_LO..HI (192-207).  It was dropped because in per-stage COL files
-    (e.g. col07_0x.col) those rows are legitimate stage CLUTs — the absolute-row guard
+    Note: an earlier "enemy bank" exception also kept the col+64 rows for col+96
+    sources in rows 192-207.  It was dropped because in per-stage COL files (e.g.
+    col07_0x.col) those rows are legitimate stage CLUTs — the absolute-row guard
     wrongly suppressed relocation and left polluted snapshot colours (see col=104 /
-    CLUT #198 region in st07).  The X6_ENEMY_BANK_* constants are retained for
-    reference pending a stage-aware replacement.
+    CLUT #198 region in st07).
+
+    KNOWN GAP: the fixed +32-row relocation is wrong for stage CLUTs whose col has
+    bit 6 set (col 64/80/96 → dst rows 128/144/160 ← src rows 160/176/192).  In the
+    shared col0g_0x.col VRAM dump those src rows are the "enemy bank", not stage data,
+    so X6 page-10/11 tiles using those cols render with the wrong CLUT (e.g. st0g's
+    blue band).  Left unresolved by choice — see docs/unconfirmed/issues.md
+    ("X6 page-10/11 tiles with col bit 6 set render with wrong CLUT").
 
     The input is not mutated; a new list is returned.
     """
@@ -189,7 +191,7 @@ def normalize_x6_stage_palette(col: Palette) -> Palette:
         dst = c + STAGE_CLUT_BASE_ROW
         src = c + X6_STAGE_CLUT_OFFSET
         if _clut_max_brightness(col, src) < NULL_CLUT_MAX_BRIGHTNESS:
-            continue  # (b) null col+96 row — keep col+64
+            continue  # null col+96 row — keep col+64
         for j in range(16):
             out[dst * 16 + j] = col[src * 16 + j]
     return out
