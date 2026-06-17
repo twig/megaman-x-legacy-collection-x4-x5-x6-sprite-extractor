@@ -398,65 +398,33 @@ def main() -> None:
     omp_stem = omp_path.stem
     [omp, ocl, tex, tex_background, flags_to_palette, game_version] = preload_related_files(omp_path)
 
-    # For X6: extend chr256 set with page>=8 large-span groups where the background
-    # entry has a lower col than the foreground (cv < fc).  The enemy-bank col range
-    # [96, 111] (c96 = 192-207) is explicitly excluded because those palette rows are
-    # owned by enemy/effect flash palettes and must not be treated as background tiles.
+    # For X6 only: route a trailing batch of background (chr256) tiles on pages >= 8
+    # that have no foreground counterpart in the OCL table.  _build_chr256_ocl_indices()
+    # already handles foreground/background duplicate pairs (page<8 and page>=8, via its
+    # Pass 3a-3c) and leaves these unpaired sole background tiles on tex because nothing
+    # pairs them; detect and redirect them to tex_background here.
+    #
+    # A page>=8 tile is added when its (page, col) matches a col already confirmed as
+    # background by the base routing, and tex / tex_background hold different non-empty
+    # pixel data at its coordinate (so the routing actually matters).
+    #
+    # Sole-entry gate: a (page, clut_base) coordinate that appears MORE THAN ONCE is a
+    # foreground/background duplicate pair, not an unpaired sole background tile.  Its
+    # first occurrence is the foreground tile (tex) and any background variant is the
+    # later occurrence, already routed by _build_chr256_ocl_indices (Pass 3c).  Adding
+    # the first occurrence here would read the foreground texture for a background slot
+    # — e.g. st02's page=11 col=29 ice-incline tiles rendered as jagged foreground
+    # fragments instead of the smooth chr256 hill.  Background indicator cols (0/112)
+    # are exempt: a same-indicator-col duplicate (e.g. st04a page>=8 col=0 pairs) is
+    # genuinely background and must still be added.
     chr256_extra: "frozenset[int] | None" = None
     if game_version == GameVersion.X6:
-        _CHR_SPAN = 500
         _TILE = 16
+        _BG_INDICATOR_COLS = (0, 112)
         base_chr256 = _build_chr256_ocl_indices(ocl, tex, tex_background)
         extra = set(base_chr256)
-        _pg8g: dict[tuple, list] = {}
-        for _i, _e in enumerate(ocl):
-            _pg = _e.pad & 0xF
-            if _pg < 8:
-                continue
-            _k = (_pg, _e.clut_base)
-            _pg8g.setdefault(_k, []).append(_i)
         _bg_raw = tex_background["raw_image"]
         _bg_w = tex_background["width"]
-        for _k, _idxs in _pg8g.items():
-            if len(_idxs) < 2:
-                continue
-            _sg = sorted(_idxs)
-            if _sg[-1] - _sg[0] < _CHR_SPAN:
-                continue
-            _fi = _sg[0]
-            _fc = ocl[_fi].col
-            _pg_k, _cb_k = _k
-            _cX = _cb_k & 0xF
-            _cY = (_cb_k >> 4) & 0xF
-            _gx = (_pg_k % 8) * 256 + _cX * _TILE
-            _gy = (_pg_k // 8) * 256 + _cY * _TILE
-            _bh = len(_bg_raw) // _bg_w
-            if _gx + _TILE > _bg_w or _gy + _TILE > _bh:
-                continue
-            if not any(_bg_raw[(_gy + _dy) * _bg_w + _gx + _dx]
-                       for _dy in range(_TILE) for _dx in range(_TILE)):
-                continue
-            for _j in _sg:
-                _cv = ocl[_j].col
-                if (_j - _fi) >= _CHR_SPAN and _cv < _fc and not (192 <= _cv + 96 <= 207):
-                    extra.add(_j)
-
-        # Pass 2: sole-entry page>=8 tiles whose (page, col) matches a confirmed
-        # background col from the multi-member pass above.  These are trailing batches
-        # of background tiles that lack a foreground counterpart in the OCL table.
-        # Only added when both textures have non-empty, differing pixel data and the
-        # col is not in the enemy-bank range.
-        #
-        # Sole-entry gate: a (page, clut_base) coordinate that appears MORE THAN ONCE
-        # is a foreground/background duplicate pair, not a trailing sole background
-        # batch.  Its first occurrence is the foreground tile (tex) and any background
-        # variant is the later occurrence, already routed by _build_chr256_ocl_indices
-        # (Pass 3c).  Adding the first occurrence here reads the foreground texture for
-        # a background slot — e.g. st02's page=11 col=29 ice-incline tiles rendered as
-        # jagged foreground fragments instead of the smooth chr256 hill.  Background
-        # indicator cols (0/112) are exempt: a same-indicator-col duplicate (e.g. st04a
-        # page>=8 col=0 pairs) is genuinely background and must still be added.
-        _BG_INDICATOR_COLS = (0, 112)
         _pg8_coord_count: dict[tuple, int] = {}
         for _e in ocl:
             if (_e.pad & 0xF) >= 8:
@@ -480,8 +448,6 @@ def main() -> None:
                 if _pg2 < 8:
                     continue
                 if (_pg2, _e.col) not in _confirmed_bg_page_col:
-                    continue
-                if 192 <= _e.col + 96 <= 207:
                     continue
                 # Sole-entry gate (see note above): skip non-indicator duplicates.
                 if (_pg8_coord_count.get((_pg2, _e.clut_base), 0) > 1
