@@ -26,7 +26,7 @@ def debug_palette_png(original_palette: Palette, output_path: Path) -> None:
     # Since this is mainly used for debugging, we don't need a big black patch at the end
     # Determine end of meaningful data and trim palette if necessary
     last_nonzero_index = max(
-        i for i, (r, g, b) in enumerate(original_palette) if (r, g, b) != (0, 0, 0)
+        i for i, (r, g, b, a) in enumerate(original_palette) if (r, g, b) != (0, 0, 0)
     )
     palette = original_palette[: last_nonzero_index + 1]
 
@@ -40,7 +40,7 @@ def debug_palette_png(original_palette: Palette, output_path: Path) -> None:
 
     image = Image.new("RGB", (image_width, image_height), color=(0, 0, 0))
     draw = ImageDraw.Draw(image)
-    for i, (r, g, b) in enumerate(palette):
+    for i, (r, g, b, a) in enumerate(palette):
         x = (i % cols) * cell_size
         y = (i // cols) * cell_size
         for dx in range(cell_size):
