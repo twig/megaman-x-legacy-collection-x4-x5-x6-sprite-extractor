@@ -1,56 +1,56 @@
-python .\render_stage.py PC\X5\stage\st000\st000.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st010\st010.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st020\st020.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st030\st030.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st021\st021.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st040\st040.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st041\st041.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st050\st050.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st060\st060.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st061\st061.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st070\st070.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st080\st080.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st090_00\st090_00.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st090_01\st090_01.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st100_00\st100_00.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st100_01\st100_01.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st120\st120.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st160\st160.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st170\st170.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st180\st180.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st130\st130.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st220\st220.omp --skip-catalog --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\staff_eng\staff_eng.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st000\st000.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st010\st010.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st020\st020.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st030\st030.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st021\st021.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st040\st040.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st041\st041.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st050\st050.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st060\st060.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st061\st061.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st070\st070.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st080\st080.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st090_00\st090_00.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st090_01\st090_01.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st100_00\st100_00.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st100_01\st100_01.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st120\st120.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st160\st160.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st170\st170.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st180\st180.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st130\st130.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\st220\st220.omp --skip-catalog --output-dir progress-baseline\X5
+@REM python .\render_stage.py PC\X5\stage\staff_eng\staff_eng.omp --skip-catalog --output-dir progress-baseline\X5
 
-@REM python .\render_stage.py PC\X4\stage\map\ENDING_eng.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR00_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR00_01.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR0A_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR0B_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR0C_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR0C_01.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR0D_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR0D_01_eng.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR0E_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR0E_01_eng.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR0F_00_eng.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR01_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR01_01.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR02_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR02_01.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR03_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR03_01.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR04_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR04_01.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR05_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR05_01.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR06_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR06_01.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR07_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR07_01.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR08_00.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR08_01.omp --skip-catalog --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR09_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM @REM python .\render_stage.py PC\X4\stage\map\ENDING_eng.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR00_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR00_01.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR0A_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR0B_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR0C_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR0C_01.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR0D_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR0D_01_eng.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR0E_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR0E_01_eng.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR0F_00_eng.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR01_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR01_01.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR02_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR02_01.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR03_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR03_01.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR04_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR04_01.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR05_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR05_01.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR06_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR06_01.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR07_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR07_01.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR08_00.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR08_01.omp --skip-catalog --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR09_00.omp --skip-catalog --output-dir progress-baseline\X4
 
 python .\render_stage.py PC\X6\stage\map\st00.omp --skip-catalog --output-dir progress-baseline\X6
 python .\render_stage.py PC/X6/stage/map/st01.omp --skip-catalog --output-dir progress-baseline\X6
@@ -92,6 +92,7 @@ for /r "%ROOT%" %%F in (*_level.png) do (
             del "%%F"
         ) else (
             echo Changed: %%F
+            python .\debug_scripts\compare_images.py "%%F" "%%~dpnF-baseline%%~xF"
         )
     ) else (
         echo Missing baseline for: %%F
