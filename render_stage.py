@@ -64,6 +64,10 @@ EXE_PATH = Path("RXC2.exe")
 # Tile geometry / palette constants
 TILE_SIZE = 16                    # pixels per tile edge
 X6_BG_INDICATOR_COLS = (0, 112)   # page>=8 OCL cols that mark chr256 background tiles
+X6_PALETTE_FAN_MIN_COLS = 4       # >= this many distinct cols at one atlas coord ⇒ a recolored
+                                  # tile fanned into palette variants (only stsel/st02/st05 have any)
+X6_CHR256_COL_MIN = 112           # within such a fan, col >= this is the chr256 background variant;
+                                  # lower cols are foreground recolors (read tex)
 
 # Stage layout
 # Maps OMP stem → (exe_file_offset, width_screens, height_screens)
@@ -140,29 +144,29 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # Use explore_layout.py to verify.
     "X6": {
         "st00":      (0x02DD3FF0, 26, 17),  # ALMOST (Intro - Eurasia Ruins)
-        "st01":      (0x02DD41FA, 26, 22),  # FOUND (Commander Yammark; Amazon Area)
+        "st01":      (0x02DD41FA, 26, 22),  # DONE (Commander Yammark; Amazon Area)
         "st01x":     (0x02DD7C90,  3, 16),  # UNCONFIRMED (Commander Yammark; sub stage)
-        "st02":      (0x02DD44A0, 27, 15),  # FOUND (Blizzard Wolfang; North Pole Area)
+        "st02":      (0x02DD44A0, 27, 15),  # ALMOST (Blizzard Wolfang; North Pole Area)
         "st02x":     (0x02DD6E50,  7, 16),  # UNCONFIRMED
-        "st03":      (0x02DD46EA, 18, 38),  # FOUND (Blaze Heatnix; Magma Area)
+        "st03":      (0x02DD46EA, 18, 38),  # ALMOST (Blaze Heatnix; Magma Area)
         "st03x":     (0x02DD7060,  9, 16),  # UNCONFIRMED
-        "st04a":     (0x02DD4999, 22, 23),  # FOUND (Recycle Lab: Area 1)
-        "st04b":     (0x02DD503A, 29, 18),  # FOUND (Recycle Lab: Area 2)
+        "st04a":     (0x02DD4999, 22, 23),  # ALMOST (Recycle Lab: Area 1)
+        "st04b":     (0x02DD503A, 29, 18),  # ALMOST (Recycle Lab: Area 2)
         "st04x":     (0x02DD7030,  1, 16),  # UNCONFIRMED
-        "st05":      (0x02DD4D30, 16, 36),  # FOUND (Ground Scaravich; Central Museum)
+        "st05":      (0x02DD4D30, 16, 36),  # ALMOST (Ground Scaravich; Central Museum)
         "st05x":     (0x02DD6970, 26, 16),  # UNCONFIRMED
-        "st06a":     (0x02DD500B, 37, 17),  # FOUND (Rainy Turtloid; Inami Temple)
+        "st06a":     (0x02DD500B, 37, 17),  # ALMOST (Rainy Turtloid; Inami Temple)
         "st06x":     (0x02DD7210, 28, 16),  # UNCONFIRMED
-        "st07":      (0x02DD52E7, 24, 18),  # FOUND (Shield Sheldon; Laser Institute)
+        "st07":      (0x02DD52E7, 24, 18),  # DONE (Shield Sheldon; Laser Institute)
         "st07x":     (0x02DD8F50,  7, 16),  # GUESS (similar to st02x)
-        "st08":      (0x02DD90A0, 28, 16),  # GUESS (Infinity Mijinion; Weapons Facility)
+        "st08":      (0x02DD90A0, 28, 16),  # UNCONFIRMED (Infinity Mijinion; Weapons Facility)
         "st08x":     (0x02DD6FA0,  3, 16),  # UNCONFIRMED
-        "st0ca":     (0x02DD575C, 12, 33),  # FOUND (Secret Lab 3: Area 1)
-        "st0cb":     (0x02DD5948, 16, 10),  # FOUND (Secret Lab 3: Area 2)
-        "st0g":      (0x02DD61D0, 40, 14),  # FOUND (Secret Lab 1)
-        "st0h":      (0x02DD64A0, 24, 21),  # FOUND (Secret Lab 2)
+        "st0ca":     (0x02DD575C, 12, 33),  # ALMOST (Secret Lab 3: Area 1)
+        "st0cb":     (0x02DD5948, 16, 10),  # DONE (Secret Lab 3: Area 2)
+        "st0g":      (0x02DD61D0, 40, 14),  # ALMOST (Secret Lab 1)
+        "st0h":      (0x02DD64A0, 24, 21),  # ALMOST (Secret Lab 2)
         "st0i":      (0x02DD9D00, 20, 16),  # GUESS
-        "stsel_eng": (0x02DD6110,  7,  4),  # ALMOST (Stage Select screen)
+        "stsel_eng": (0x02DD6110,  7,  4),  # DONE (Stage Select screen)
 
         # Original values, split out across range
         # "st00":      (0x02DD4000, 28, 16),  # UNCONFIRMED (Intro)
@@ -373,6 +377,7 @@ def build_x6_chr256_override(
     tex: TexData,
     tex_background: TexData,
     gap_fill: bool = True,
+    palette_fan_guard: bool = True,
 ) -> frozenset[int]:
     """
     Return the chr256 (tex_background) OCL-index set for an X6 stage.
@@ -523,6 +528,118 @@ def build_x6_chr256_override(
                    for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
             continue
         extra.add(idx)
+
+    # ── Palette-fan col split ─────────────────────────────────────────────────
+    #
+    # A texture coordinate shared by MANY distinct `col` (palette) values is a tile
+    # that has been recolored into several palette variants: the foreground
+    # variants (the stage-select boss panels, the st05/st02 recolored objects) plus
+    # ONE chr256 background variant at the same coordinate.  The base routing's
+    # large-gap different-col rules route ALL the far/different-col occurrences to
+    # chr256, so the intermediate FOREGROUND recolors get wrongly read from the
+    # (often fragmentary) background sheet.
+    #
+    # Within such a fan, the chr256 background variant is the one whose col sits in
+    # the high band (col >= X6_CHR256_COL_MIN — the 0x70/0xA0/0xB0 chr256 palette
+    # rows seen as col 112/121/126/160/176 in stsel/st02/st05); the lower-col
+    # variants are foreground recolors and read tex.  Per-col (not per-coordinate)
+    # is essential: an earlier per-coordinate version moved the whole group and so
+    # also dragged the genuine col>=112 background onto tex (the st02/st05
+    # regressions).
+    #
+    # The split only fires where a coordinate is fanned across
+    # >= X6_PALETTE_FAN_MIN_COLS distinct cols.  Empirically that occurs ONLY on
+    # stsel_eng / st02 / st05 — every settled gameplay stage has zero chr256
+    # entries at such coords — so they are provably untouched.  Requiring BOTH a
+    # high-band and a low-band member confines it to genuine mixed fg/bg fans and
+    # avoids inverting same-band groups (e.g. st00's col=112 foreground over a
+    # col=24 background, which never reaches >= 4 cols anyway).
+    #
+    # An all-low-band fan (NO col>=X6_CHR256_COL_MIN member, e.g. stsel's page-0
+    # stage-name text, cols 35-40) has no background variant to anchor the split.
+    # It is routed entirely to tex when tex_background is NOT a solid tile there
+    # (bg_fill < 3/4 area) and tex holds some pixel data — i.e. the chr256 slot is
+    # only fragments while the real glyph art lives in tex.  The solid-bg gate is
+    # what keeps real all-low-band chr256 backgrounds on tex_bg: st05's page-0/1/2
+    # recolor fans are fully painted (bg_fill == 256), so they are left alone.
+    # Verified: among all X6 stages, only stsel_eng has all-low-band fans whose
+    # background is non-solid, so no settled gameplay stage is affected.
+    SOLID_FILL = (TILE_SIZE * TILE_SIZE * 3) // 4
+    if palette_fan_guard:
+        members_by_coord: dict[tuple, list[int]] = {}
+        for i, entry in enumerate(ocl):
+            members_by_coord.setdefault((entry.pad & 0xF, entry.clut_base), []).append(i)
+        # Cols confirmed as foreground "text/recolor" palettes by the all-low-band
+        # fan rule below; used to recover narrower (2-3 col) members of the same
+        # recolored glyph set that fall under X6_PALETTE_FAN_MIN_COLS.  Empty for
+        # every settled stage (none has such fans), so this never affects gameplay.
+        fg_text_cols: set[int] = set()
+        for (page, clut_base), idxs in members_by_coord.items():
+            cols = {ocl[i].col for i in idxs}
+            if len(cols) < X6_PALETTE_FAN_MIN_COLS:
+                continue
+            cordX = clut_base & 0xF
+            cordY = (clut_base >> 4) & 0xF
+            gx = (page % 8) * 256 + cordX * TILE_SIZE
+            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
+                    gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h):
+                continue
+            # Routing only matters where the two sheets actually differ here.
+            if all(tx_raw[(gy + dy) * tx_w + gx + dx] == bg_raw[(gy + dy) * bg_w + gx + dx]
+                   for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                continue
+            has_hi = any(c >= X6_CHR256_COL_MIN for c in cols)
+            has_lo = any(c < X6_CHR256_COL_MIN for c in cols)
+            if has_hi and has_lo:
+                # Mixed fan: the lower-col variants are foreground recolors — remove
+                # them from chr256.  The high-band variant's placement is LEFT TO THE
+                # BASE ROUTING: it already routes genuine chr256 backgrounds (st05
+                # col126, st02 col160/176) to tex_bg, and correctly keeps stsel's
+                # col112 panel palette on tex.  Forcing high-band entries into chr256
+                # here wrongly dragged those stsel panels onto the sparse background.
+                for i in idxs:
+                    if ocl[i].col < X6_CHR256_COL_MIN:
+                        extra.discard(i)    # low-band variant → foreground (tex)
+            elif not has_hi:
+                # All-low-band fan: foreground when the chr256 slot is only
+                # fragments (not a solid tile) and tex actually holds art.
+                fg_fill = sum(1 for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)
+                              if tx_raw[(gy + dy) * tx_w + gx + dx])
+                bg_fill = sum(1 for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)
+                              if bg_raw[(gy + dy) * bg_w + gx + dx])
+                if bg_fill < SOLID_FILL and fg_fill > 0:
+                    for i in idxs:
+                        extra.discard(i)
+                    fg_text_cols |= cols   # remember these recolor palettes
+
+        # Recovery pass: a recolored glyph set may also appear with FEWER palette
+        # variants (e.g. stsel's stage-name text at cb 0x12-0x15 uses only cols
+        # 39/40, below X6_PALETTE_FAN_MIN_COLS).  Promote any remaining chr256 tile
+        # whose col belongs to a confirmed text/recolor palette set, on an all-low
+        # coordinate whose background is non-solid and whose foreground holds art.
+        # Gated by fg_text_cols, which is empty on every gameplay stage.
+        if fg_text_cols:
+            for (page, clut_base), idxs in members_by_coord.items():
+                if any(ocl[i].col >= X6_CHR256_COL_MIN for i in idxs):
+                    continue
+                if not any(i in extra and ocl[i].col in fg_text_cols for i in idxs):
+                    continue
+                cordX = clut_base & 0xF
+                cordY = (clut_base >> 4) & 0xF
+                gx = (page % 8) * 256 + cordX * TILE_SIZE
+                gy = (page // 8) * 256 + cordY * TILE_SIZE
+                if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
+                        gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h):
+                    continue
+                bg_fill = sum(1 for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)
+                              if bg_raw[(gy + dy) * bg_w + gx + dx])
+                fg_fill = sum(1 for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)
+                              if tx_raw[(gy + dy) * tx_w + gx + dx])
+                if bg_fill < SOLID_FILL and fg_fill > 0:
+                    for i in idxs:
+                        if ocl[i].col in fg_text_cols:
+                            extra.discard(i)
 
     return frozenset(extra)
 
