@@ -85,8 +85,6 @@ X6_CHR256_COL_MIN = 112           # within such a fan, col >= this is the chr256
 # Block 2 size table: SIZE_TABLE_2   = 0x02E8DF71  (4-byte entries: w, h, f1, f2)
 
 STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
-    # Inline status tags (e.g. DONE / ALMOST / FOUND / GUESS) are explained in the
-    # "STAGE_LAYOUT status codes" section of the module docstring above.
     "X4": dict([
         (key, (
         data["pc_offset"], data["w"], data["h"]))
@@ -94,105 +92,84 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         in X4_LAYOUT_OFFSETS.items()
     ]),
     "X5": {
-        "st000": (0x02EC2D4B, 15, 24),  # ALMOST (Intro Stage all)
+        "st000":     (0x02EC2D4B, 15, 24), # ALMOST (Intro Stage all)
         # "st000": (0x02EC2D78, 15, 17),  # ALMOST (Intro Stage - part 1 flat)
         # "st000": (0x02EC2D5F, 4, 3),  # ALMOST (Intro Stage - part 2 tower)
-
-        "st010": (0x02D98528, 39, 8),  # DONE (Crescent Grizzly)
-
-        "st020": (0x02D9A407, 32, 5), # ALMOST (Dark Necrobat: Area 1)
-        "st021": (0x02D9A404, 25, 6), # ALMOST (Dark Necrobat: Area 2)
-
-        "st030": (0x02D9A407, 22, 15),  # ALMOST (Tidal Whale)
-
-        "st040": (0x02D9A3DE, 23, 10), # ALMOST (Burn Dinorex: Area 1)
-        "st041": (0x02D9A3DE, 24, 10), # ALMOST (Burn Dinorex: Area 2)
-
-        "st050": (0x02D99508, 44, 7), # ALMOST (Volt Kraken)
-
-        "st060": (0x02D992B3, 29, 15), # ALMOST (Shining Firefly: Area 1)
-        "st061": (0x02D9A690, 21, 17), # ALMOST (Shining Firefly: Area 2)
-
-        "st070": (0x02D98548, 24, 14), # IN RANGE (Spike Rosered)
-
-        "st080": (0x02D99A7D, 19, 13), # IN RANGE (Spiral Pegasus)
-
-        "st090_00": (0x02D98697, 2, 3),  # DONE (Dynamo: Enigma Cannon)
-        "st090_01": (0x02D98697, 2, 3),  # DONE (Dynamo: Hunter Base 1)
-        "st100_00": (0x02D9852F, 2, 4),  # DONE (Dynamo: Space Shuttle)
-        "st100_01": (0x02D98697, 2, 3),  # DONE (Dynamo: Hunter Base 2)
-
-        "st160": (0x02D98524, 12, 16), # ALMOST (Zero Space 1: Origin)
-        "st170": (0x02D99CBA, 20, 17), # ALMOST (Zero Space 2: Grief)
-        "st180": (0x02D99CBA, 19, 24), # ALMOST (Zero Space 3: Awakening)
-        "st120": (0x02D9979F, 27, 19), # ALMOST (Zero Space 4: Birth)
-
-        "st130":    (0x02D9869C, 6, 3),  # DONE (Stage Select)
-        "st220": (0x02D99F7D, 9, 11), # ALMOST (Training Area)
-
-        "staff_eng": (0x02D9852F, 9, 6), # DONE (End Credits)
-        "st140_eng": (0x02D98695, 2, 1), # DONE (Title screen)
-        "st141_eng": (0x02D98695, 2, 1), # DONE (Player Select screen)
-        "st150": (0x02D98695, 2, 1), # DONE (Gameplay Report screen)
+        "st010":     (0x02D98528, 39, 8),  # LAYOUT DONE, TILES DONE (Crescent Grizzly)
+        "st020":     (0x02D9A407, 32, 5),  # ALMOST (Dark Necrobat: Area 1)
+        "st021":     (0x02D9A404, 25, 6),  # ALMOST (Dark Necrobat: Area 2)
+        "st030":     (0x02D9A407, 22, 15), # ALMOST (Tidal Whale)
+        "st040":     (0x02D9A3DE, 23, 10), # ALMOST (Burn Dinorex: Area 1)
+        "st041":     (0x02D9A3DE, 24, 10), # ALMOST (Burn Dinorex: Area 2)
+        "st050":     (0x02D99508, 44, 7),  # ALMOST (Volt Kraken)
+        "st060":     (0x02D992B3, 29, 15), # ALMOST (Shining Firefly: Area 1)
+        "st061":     (0x02D9A690, 21, 17), # ALMOST (Shining Firefly: Area 2)
+        "st070":     (0x02D98548, 24, 14), # IN RANGE (Spike Rosered)
+        "st080":     (0x02D99A7D, 19, 13), # IN RANGE (Spiral Pegasus)
+        "st090_00":  (0x02D98697, 2, 3),   # LAYOUT DONE, TILES DONE (Dynamo: Enigma Cannon)
+        "st090_01":  (0x02D98697, 2, 3),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 1)
+        "st100_00":  (0x02D9852F, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Space Shuttle)
+        "st100_01":  (0x02D98697, 2, 3),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 2)
+        "st160":     (0x02D98524, 12, 16), # ALMOST (Zero Space 1: Origin)
+        "st170":     (0x02D99CBA, 20, 17), # ALMOST (Zero Space 2: Grief)
+        "st180":     (0x02D99CBA, 19, 24), # ALMOST (Zero Space 3: Awakening)
+        "st120":     (0x02D9979F, 27, 19), # ALMOST (Zero Space 4: Birth)
+        "st130":     (0x02D9869C, 6, 3),   # LAYOUT DONE, TILES DONE (Stage Select)
+        "st220":     (0x02D99F7D, 9, 11),  # ALMOST (Training Area)
+        "staff_eng": (0x02D9852F, 9, 6),   # LAYOUT DONE, TILES DONE (End Credits)
+        "st140_eng": (0x02D98695, 2, 1),   # LAYOUT DONE, TILES DONE (Title screen)
+        "st141_eng": (0x02D98695, 2, 1),   # LAYOUT DONE, TILES DONE (Player Select screen)
+        "st150":     (0x02D98695, 2, 1),   # LAYOUT DONE, TILES DONE (Gameplay Report screen)
     },
-    # MIX OF SCANNED AND DUMMY VALUES
-    # X6 Block 1 — COPY1_OFFSET = 0x02DD4000, all W=16, sequential, 14160 bytes total
-    # Heights from x6_extract_psx_layouts.py _BLOCK1_HEIGHTS; offsets computed sequentially.
-    # Verification: max(layer0) == n_screens-1 expected; run explore_layout.py to confirm each.
-    # Block 2 — offsets are GUESSES starting from block 1 end (0x02DD7750).
-    # Heights estimated from PSX n_screens where available, otherwise h=28.
-    # Use explore_layout.py to verify.
+    # Offsets read from RXC2.exe's per-stage LAYOUT POINTER TABLE (file 0x0307E898),
+    # each entry is a virtual-address located + decoded by extract_layout_offsets.py
+    # layout_file_offset = VA - 0x400e00
+    #
+    # These are the offsets the GAME uses and verified to be correct after
+    # width/height guesses using explore_layout.py
     "X6": {
-        "st00":      (0x02DD3FF0, 26, 17),  # ALMOST (Intro - Eurasia Ruins)
-        "st01":      (0x02DD41FA, 26, 22),  # DONE (Commander Yammark; Amazon Area)
-        "st01x":     (0x02DD7C90,  3, 16),  # UNCONFIRMED (Commander Yammark; sub stage)
-        "st02":      (0x02DD44A0, 27, 15),  # ALMOST (Blizzard Wolfang; North Pole Area)
-        "st02x":     (0x02DD6E50,  7, 16),  # UNCONFIRMED
-        "st03":      (0x02DD46EA, 18, 38),  # ALMOST (Blaze Heatnix; Magma Area)
-        "st03x":     (0x02DD7060,  9, 16),  # UNCONFIRMED
-        "st04a":     (0x02DD4999, 22, 23),  # ALMOST (Recycle Lab: Area 1)
-        "st04b":     (0x02DD503A, 29, 18),  # ALMOST (Recycle Lab: Area 2)
-        "st04x":     (0x02DD7030,  1, 16),  # UNCONFIRMED
-        "st05":      (0x02DD4D30, 16, 36),  # ALMOST (Ground Scaravich; Central Museum)
-        "st05x":     (0x02DD6970, 26, 16),  # UNCONFIRMED
-        "st06a":     (0x02DD500B, 37, 17),  # ALMOST (Rainy Turtloid; Inami Temple)
-        "st06x":     (0x02DD7210, 28, 16),  # UNCONFIRMED
-        "st07":      (0x02DD52E7, 24, 18),  # DONE (Shield Sheldon; Laser Institute)
-        "st07x":     (0x02DD8F50,  7, 16),  # GUESS (similar to st02x)
-        "st08":      (0x02DD90A0, 28, 16),  # UNCONFIRMED (Infinity Mijinion; Weapons Facility)
-        "st08x":     (0x02DD6FA0,  3, 16),  # UNCONFIRMED
-        "st0ca":     (0x02DD575C, 12, 33),  # ALMOST (Secret Lab 3: Area 1)
-        "st0cb":     (0x02DD5948, 16, 10),  # DONE (Secret Lab 3: Area 2)
-        "st0g":      (0x02DD61D0, 40, 14),  # ALMOST (Secret Lab 1)
-        "st0h":      (0x02DD64A0, 24, 21),  # ALMOST (Secret Lab 2)
-        "st0i":      (0x02DD9D00, 20, 16),  # GUESS
-        "stsel_eng": (0x02DD6110,  7,  4),  # DONE (Stage Select screen)
-
-        # Original values, split out across range
-        # "st00":      (0x02DD4000, 28, 16),  # UNCONFIRMED (Intro)
-        # "st01":      (0x02DD7750, 28, 16),  # GUESS
-        # "st01x":     (0x02DD7C90,  3, 16),  # GUESS (PSX n_screens=47 → h≈3)
-        # "st02":      (0x02DD4540, 23, 16),  # UNCONFIRMED
-        # "st02x":     (0x02DD6E50,  7, 16),  # UNCONFIRMED
-        # "st03":      (0x02DD7D20, 13, 16),  # GUESS (PSX n_screens=204 → h≈13)
-        # "st03x":     (0x02DD7060,  9, 16),  # UNCONFIRMED
-        # "st04a":     (0x02DD4990, 33, 16),  # UNCONFIRMED
-        # "st04b":     (0x02DD7F90, 28, 16),  # GUESS
-        # "st04x":     (0x02DD7030,  1, 16),  # UNCONFIRMED
-        # "st05":      (0x02DD84D0, 28, 16),  # GUESS
-        # "st05x":     (0x02DD6970, 26, 16),  # UNCONFIRMED
-        # "st06a":     (0x02DD4FC0, 43, 16),  # UNCONFIRMED
-        # "st06x":     (0x02DD7210, 28, 16),  # UNCONFIRMED
-        # "st07":      (0x02DD8A10, 28, 16),  # GUESS
-        # "st07x":     (0x02DD8F50,  7, 16),  # GUESS (similar to st02x)
-        # "st08":      (0x02DD90A0, 28, 16),  # GUESS
-        # "st08x":     (0x02DD6FA0,  3, 16),  # UNCONFIRMED
-        # "st0ca":     (0x02DD57D0, 18, 16),  # UNCONFIRMED
-        # "st0cb":     (0x02DD95E0, 18, 16),  # GUESS (similar to st0ca)
-        # "st0g":      (0x02DD6160, 43, 16),  # UNCONFIRMED
-        # "st0h":      (0x02DD9940, 20, 16),  # GUESS
-        # "st0i":      (0x02DD9D00, 20, 16),  # GUESS
-        # "stsel_eng": (0x02DD5B30, 33, 16),  # UNCONFIRMED
+        # garbled
+        "st00":      (0x02DD3FF0, 26, 17),  # LAYOUT DONE, TILES ALMOST (Intro - Eurasia Ruins)
+        # garbled, missing tiles?
+        "st01":      (0x02DD41E0, 26, 23),  # LAYOUT DONE, TILES ALMOST (Commander Yammark; Amazon Area)
+        # garbled
+        "st01x":     (0x02DD6A18, 26, 20),  # LAYOUT DONE, TILES ALMOST (Commander Yammark; sub stage)
+        # garbled, missing tile?
+        "st02":      (0x02DD44A0, 27, 15),  # LAYOUT DONE, TILES MOST (Blizzard Wolfang; North Pole Area)
+        # missing tile?
+        "st02x":     (0x02DD6CD8, 15, 33),  # LAYOUT DONE, TILES ALMOST sub stage
+        # garbled, grey box, black box, inverted shadow, wrong palette, missing tile?
+        "st03":      (0x02DD46D8, 18, 39),  # LAYOUT DONE, TILES MOST (Blaze Heatnix; Magma Area)
+        # inverted shadow, missing tiles
+        "st03x":     (0x02DD6F80, 15, 20),  # LAYOUT DONE, TILES MOST sub stage
+        # striped, inverted shadows, garbled, wrong palette
+        "st04a":     (0x02DD4998, 22, 23),  # LAYOUT DONE, TILES MOST (Recycle Lab: Area 1)
+        # wrong palette, inverted shadows
+        "st04b":     (0x02DD4BA8, 26, 15),  # LAYOUT DONE, TILES ALMOST (Recycle Lab: Area 2)
+        # inverted shadows
+        "st04x":     (0x02DD7118, 15, 14),  # LAYOUT DONE, TILES ALMOST sub-stage
+        # garbled, maybe missing tiles?
+        "st05":      (0x02DD4D30, 16, 36),  # LAYOUT DONE, TILES ALMOST (Ground Scaravich; Central Museum)
+        # inverted shadows
+        "st05x":     (0x02DD7228,  6, 16),  # LAYOUT DONE, TILES ALMOST sub stage
+        # garbled, black box, missing tiles?
+        "st06a":     (0x02DD5030, 37, 16),  # LAYOUT DONE, TILES ALMOST (Rainy Turtloid; Inami Temple)
+        # black box, missing tile?
+        "st06x":     (0x02DD7300,  8, 14),  # LAYOUT DONE, TILES ALMOST sub stage
+        # black box
+        "st07":      (0x02DD52E7, 24, 19),  # LAYOUT DONE, TILES DONE (Shield Sheldon; Laser Institute)
+        # inverted highlight
+        "st07x":     (0x02DD7378, 26,  8),  # LAYOUT DONE, TILES ALMOST sub stage
+        # garbled, missing tiles?
+        "st08":      (0x02DD5540, 24, 19),  # LAYOUT DONE, TILES ALMOST (Infinity Mijinion; Weapons Facility)
+        "st08x":     (0x02DD7468, 10, 11),  # LAYOUT DONE, TILES DONE sub stage
+        "st0ca":     (0x02DD5750, 12, 34),  # LAYOUT DONE, TILES ALMOST (Secret Lab 3: Area 1)
+        "st0cb":     (0x02DD5948, 16, 10),  # LAYOUT DONE, TILES ALMOST (Secret Lab 3: Area 2)
+        "st0g":      (0x02DD61D0, 40, 14),  # LAYOUT DONE, TILES MOST (Secret Lab 1)
+        "st0h":      (0x02DD64A0, 24, 21),  # LAYOUT DONE, TILES ALMOST (Secret Lab 2)
+        "st0i":      (0x02DD6728, 25, 23),  # LAYOUT DONE, TILES ALMOST sub-stage
+        # tiles missing?
+        "stsel_eng": (0x02DD6110,  7,  4),  # LAYOUT DONE, TILES DONE (Stage Select screen)
     }
 }
 
