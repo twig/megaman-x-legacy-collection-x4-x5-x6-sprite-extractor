@@ -76,3 +76,26 @@ python .\render_stage.py PC/X6/stage/map/st0g.omp --skip-catalog --output-dir pr
 python .\render_stage.py PC/X6/stage/map/st0h.omp --skip-catalog --output-dir progress-baseline\X6
 @REM python .\render_stage.py PC/X6/stage/map/st0i.omp --skip-catalog --output-dir progress-baseline\X6
 python .\render_stage.py PC/X6/stage/map/stsel_eng.omp --skip-catalog --output-dir progress-baseline\X6
+
+@REM Diff or hash "*_level.png" against "*_level-baseline.png" in subfolders of progress-baseline.
+@REM Delete if there is no change
+@echo off
+setlocal
+
+set "ROOT=progress-baseline"
+
+for /r "%ROOT%" %%F in (*_level.png) do (
+    if exist "%%~dpnF-baseline%%~xF" (
+        fc /b "%%F" "%%~dpnF-baseline%%~xF" >nul
+        if not errorlevel 1 (
+            echo Deleting unchanged file: %%F
+            del "%%F"
+        ) else (
+            echo Changed: %%F
+        )
+    ) else (
+        echo Missing baseline for: %%F
+    )
+)
+
+endlocal

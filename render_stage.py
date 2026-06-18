@@ -369,6 +369,14 @@ def preload_related_files(omp_path: Path):
     stage_palette = normalize_x6_stage_palette(col) if game_version == GameVersion.X6 else col
     flags_to_palette = {group: stage_palette for group in OclPaletteGroup}
 
+    # NOTE: animated-crystal tiles (tile_type 0x39) are left on the static stage
+    # palette.  An earlier attempt routed them to the per-stage animated COL indexed
+    # by `col`, but those COL files are per-stage palette banks of wildly varying
+    # size (1-645 rows) — col-direct indexing runs out of range (lost tiles) and, even
+    # in range, yields wrong colours on most stages (st00/st04b/st05 lost tiles;
+    # st04a/st06a/st07 wrong colours).  The correct animated-palette mapping needs the
+    # COL format reverse-engineered; until then the static palette is the safe default.
+
     return [omp, ocl, tex, tex_background, flags_to_palette, game_version]
 
 
@@ -378,6 +386,7 @@ def build_x6_chr256_override(
     tex_background: TexData,
     gap_fill: bool = True,
     palette_fan_guard: bool = True,
+    fg_pair_fix: bool = True,
 ) -> frozenset[int]:
     """
     Return the chr256 (tex_background) OCL-index set for an X6 stage.
@@ -640,6 +649,54 @@ def build_x6_chr256_override(
                     for i in idxs:
                         if ocl[i].col in fg_text_cols:
                             extra.discard(i)
+
+    # ── Foreground/background pair recovery ───────────────────────────────────
+    # A small-span (< CHR256_PAIR_GAP) page<8 group whose members were ALL routed to
+    # chr256 by the base "no-large-gap whole-group" rule is sometimes really a
+    # foreground/background DUPLICATE pair: the FIRST occurrence is the foreground
+    # tile (its art lives in tex) and the later occurrence(s) are the chr256
+    # background variant.  _build_chr256_ocl_indices._nolg_first_is_fg_pair catches
+    # only the sparse-fragment form (fg*3 <= bg over a solid bg) and skips 0x38
+    # first occurrences, so fully-painted foreground tiles (e.g. st0h's pole/chain
+    # columns, tex_fill ~256) slip through and read the background sheet.
+    #
+    # Recover the first occurrence to tex when its coordinate holds non-empty tex
+    # pixels that DIFFER from tex_bg (a genuine distinct foreground tile).
+    if fg_pair_fix:
+        # The chr256 background variant sits within this many OCL indices of the
+        # foreground first occurrence for a genuine TIGHT fg/bg pair — st0h's
+        # pole/chain pairs span at most 261.  Stages whose near-threshold no-large-gap
+        # groups are real recolor batches (first occurrence correctly chr256
+        # background) keep their second member farther away: st04a 307, st04b 347+,
+        # st03 430.  This empirically-derived bound isolates the st0h pole case and
+        # leaves every other X6 stage byte-identical; a looser bound regressed st03
+        # (its dark-metal first occurrences turned to garbage when forced onto tex).
+        CHR256_PAIR_MAX_GAP = 280
+        groups: dict[tuple, list[int]] = {}
+        for i, entry in enumerate(ocl):
+            if (entry.pad & 0xF) < 8:
+                groups.setdefault((entry.pad & 0xF, entry.clut_base), []).append(i)
+        for (page, clut_base), idxs in groups.items():
+            if len(idxs) < 2:
+                continue
+            s = sorted(idxs)
+            if (s[1] - s[0]) >= CHR256_PAIR_MAX_GAP:
+                continue                       # background variant too far → not a tight pair
+            if not all(i in extra for i in s):
+                continue                       # only the "whole group → chr256" case
+            cordX = clut_base & 0xF
+            cordY = (clut_base >> 4) & 0xF
+            gx = (page % 8) * 256 + cordX * TILE_SIZE
+            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
+                    gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h):
+                continue
+            fg_nonempty = any(tx_raw[(gy + dy) * tx_w + gx + dx]
+                              for dy in range(TILE_SIZE) for dx in range(TILE_SIZE))
+            differs = any(tx_raw[(gy + dy) * tx_w + gx + dx] != bg_raw[(gy + dy) * bg_w + gx + dx]
+                          for dy in range(TILE_SIZE) for dx in range(TILE_SIZE))
+            if fg_nonempty and differs:
+                extra.discard(s[0])            # first occurrence → foreground (tex)
 
     return frozenset(extra)
 
