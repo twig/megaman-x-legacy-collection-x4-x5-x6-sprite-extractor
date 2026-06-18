@@ -387,6 +387,7 @@ def build_x6_chr256_override(
     gap_fill: bool = True,
     palette_fan_guard: bool = True,
     fg_pair_fix: bool = True,
+    pg8_empty_bg: bool = True,
 ) -> frozenset[int]:
     """
     Return the chr256 (tex_background) OCL-index set for an X6 stage.
@@ -469,6 +470,57 @@ def build_x6_chr256_override(
             if all(tx_raw[(gy + dy) * tx_w + gx + dx] ==
                    bg_raw[(gy + dy) * bg_w + gx + dx]
                    for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                continue
+            extra.add(idx)
+
+    # ── Page>=8 empty-foreground background recovery ──────────────────────────
+    #
+    # The base routing classifies page>=8 background tiles using the col=0/112
+    # chr256 palette indicators (omp.py Pass 3a/3b/3c) or large-span different-col
+    # duplicate pairs.  A stage whose page>=8 background tileset uses NEITHER — sole
+    # entries at distinct coordinates carrying ordinary palette cols (st0h's pages
+    # 10-11 use cols 6/32/48/80/96) — is invisible to all of those passes, and the
+    # "unpaired sole-background" pass above also skips it because that pass requires
+    # an already-confirmed background (page, col) anchor AND a non-empty foreground
+    # tile.  Result: st0h drew none of its ~160 page>=8 background tiles (the museum
+    # walls/floors), leaving large holes.
+    #
+    # The unambiguous, anchor-free signal for these is: the FOREGROUND sheet (tex) is
+    # EMPTY at the tile's coordinate while the chr256 sheet (tex_background) holds
+    # real pixels.  A placed tile (non-zero OMP cell) whose foreground texture is
+    # blank can only have come from the background sheet — there is nothing else to
+    # draw.  Route every such page>=8 entry to tex_background.
+    #
+    # Regression safety: this is provably pixel-additive.  It only adds entries whose
+    # tex tile is entirely empty, so before the change those tiles rendered NOTHING
+    # (a fully-transparent paste).  Each level cell maps to exactly one OCL index, so
+    # filling a previously-blank cell can neither alter nor occlude any pixel already
+    # drawn by another tile.  It never removes an index from the set and never touches
+    # page<8 routing, so X4/X5 (which don't call this) and every page<8 tile are
+    # byte-identical.  Across the settled X6 stages the only tiles it adds are
+    # OMP-referenced background tiles previously missing as holes (st00 +7, st04b +42,
+    # st05 +33, st06a +18, st0h +160) — recoveries, not regressions.
+    if pg8_empty_bg:
+        for idx, entry in enumerate(ocl):
+            if idx in extra:
+                continue
+            page = entry.pad & 0xF
+            if page < 8:
+                continue
+            cordX = entry.clut_base & 0xF
+            cordY = (entry.clut_base >> 4) & 0xF
+            gx = (page % 8) * 256 + cordX * TILE_SIZE
+            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            if (gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h or
+                    gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h):
+                continue
+            # Foreground must be empty (tile would otherwise render nothing) and the
+            # chr256 sheet must hold real pixels to draw instead.
+            if any(tx_raw[(gy + dy) * tx_w + gx + dx]
+                   for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                continue
+            if not any(bg_raw[(gy + dy) * bg_w + gx + dx]
+                       for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
                 continue
             extra.add(idx)
 
