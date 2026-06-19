@@ -143,7 +143,7 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st03x":     (0x02DD6F80, 15, 20),  # LAYOUT DONE, TILES MOST sub stage
         # striped, inverted shadows, garbled, wrong palette
         "st04a":     (0x02DD4998, 22, 23),  # LAYOUT DONE, TILES MOST (Recycle Lab: Area 1)
-        # wrong palette, inverted shadows
+        # inverted shadows
         "st04b":     (0x02DD4BA8, 26, 15),  # LAYOUT DONE, TILES ALMOST (Recycle Lab: Area 2)
         # inverted shadows
         "st04x":     (0x02DD7118, 15, 14),  # LAYOUT DONE, TILES ALMOST sub-stage
@@ -159,7 +159,7 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st07":      (0x02DD52E7, 24, 19),  # LAYOUT DONE, TILES DONE (Shield Sheldon; Laser Institute)
         # inverted highlight
         "st07x":     (0x02DD7378, 26,  8),  # LAYOUT DONE, TILES ALMOST sub stage
-        # garbled, missing tiles?
+        # missing tiles?
         "st08":      (0x02DD5540, 24, 19),  # LAYOUT DONE, TILES ALMOST (Infinity Mijinion; Weapons Facility)
         "st08x":     (0x02DD7468, 10, 11),  # LAYOUT DONE, TILES DONE sub stage
         "st0ca":     (0x02DD5750, 12, 34),  # LAYOUT DONE, TILES ALMOST (Secret Lab 3: Area 1)
@@ -367,7 +367,9 @@ def build_x6_chr256_override(
     garbage_page_flip: bool = True,
     strip_tail_extend: bool = True,
     interior_gap_bridge: bool = True,
+    fg_strip_recover: bool = True,
     bg_empty_hole_fill: bool = True,
+    pg8_garbage_hole_suppress: bool = True,
 ) -> frozenset[int]:
     """
     Return the chr256 (tex_background) OCL-index set for an X6 stage.
@@ -818,6 +820,97 @@ def build_x6_chr256_override(
             if fg_nonempty and differs:
                 extra.discard(s[0])            # first occurrence → foreground (tex)
 
+    # ── Foreground duplicate-strip recovery (seam-continuity vote) ────────────
+    #
+    # fg_pair_fix above recovers TIGHT foreground/background pairs (second member
+    # within CHR256_PAIR_MAX_GAP=280 of the first).  A foreground tilemap stored as a
+    # long contiguous strip whose every tile ALSO has a recolored duplicate FARTHER
+    # away slips through: each (page, clut_base) is a no-large-gap group (span < 500,
+    # so the base routing sends the whole group to tex_bg) but the second occurrence
+    # sits 300-450 indices out — past the 280 bound that fg_pair_fix uses to avoid
+    # regressing st03 (gap 430) and st04a (307).  Confirmed in st04b: OCL 1020-1156
+    # (page 1, col=9, clut_base 0x48-0xD0) is the Recycle-Lab floor/machinery strip,
+    # each tile reused in other areas as a col 5/16/21/22 recolor; all 137 first
+    # occurrences were pinned to tex_bg and the floor rendered as scrambled garbage.
+    #
+    # The gap bound can't be widened without regressing st03/st04a (their first
+    # occurrences ARE the background and belong on tex_bg), and within-tile coherence
+    # does not separate them.  The decisive signal is SEAM CONTINUITY along the strip:
+    # the CORRECT sheet renders texture-adjacent tiles (clut_base, clut_base+1) with a
+    # continuous shared edge, the wrong sheet with a discontinuity.  Aggregated over a
+    # whole lockstep run this cleanly separates the cases — mean seam |Δ| ratio
+    # (tex_bg / tex): st04b 1.8 (tex continuous → foreground) vs st03 0.3, st04a 0.8,
+    # st08x 1.0 (tex_bg continuous → stay background).
+    #
+    # For each maximal lockstep run (consecutive OCL index + clut_base, same page) of
+    # FIRST occurrences of multi-col duplicate groups that are STILL wholly routed to
+    # tex_bg at this point (so stsel/st0i/st0h, already moved to tex by the palette-fan
+    # and fg_pair_fix passes above, are not candidates), route the whole run to tex
+    # when the run spans >= _FGSTRIP_MIN_RUN tiles and the tex seams are clearly more
+    # continuous than tex_bg (ratio >= _FGSTRIP_SEAM_RATIO).  Verified across every X6
+    # stage to fire on st04b's strip alone and leave all other stages byte-identical.
+    _FGSTRIP_MIN_RUN = 8
+    _FGSTRIP_SEAM_RATIO = 1.4
+
+    def _seam(raw: bytes, w: int, h: int, gx0: int, gy0: int, gx1: int, gy1: int) -> float:
+        """Mean |Δ| down the vertical seam between tile0's right edge and tile1's left edge."""
+        if (max(gy0, gy1) + TILE_SIZE > h or gx0 + TILE_SIZE > w or gx1 + TILE_SIZE > w):
+            return -1.0
+        tot = cnt = 0
+        for dy in range(TILE_SIZE):
+            a = raw[(gy0 + dy) * w + gx0 + TILE_SIZE - 1]
+            b = raw[(gy1 + dy) * w + gx1]
+            if a or b:
+                tot += abs(a - b); cnt += 1
+        return tot / cnt if cnt else 0.0
+
+    if fg_strip_recover:
+        groups_fs: dict[tuple, list[int]] = {}
+        for i, e in enumerate(ocl):
+            groups_fs.setdefault((e.pad & 0xF, e.clut_base), []).append(i)
+
+        def _is_fg_strip_cand(i: int) -> bool:
+            e = ocl[i]
+            page = e.pad & 0xF
+            if page >= 8 or i not in extra:
+                return False
+            idxs = groups_fs[(page, e.clut_base)]
+            if len(idxs) < 2 or min(idxs) != i:
+                return False                       # only a group's first occurrence
+            return len({ocl[j].col for j in idxs}) >= 2   # mixed-col duplicate (fg/bg pair shape)
+
+        def _xy(e: OclEntry) -> tuple[int, int]:
+            page = e.pad & 0xF
+            cordX = e.clut_base & 0xF
+            cordY = (e.clut_base >> 4) & 0xF
+            return (page % 8) * 256 + cordX * TILE_SIZE, (page // 8) * 256 + cordY * TILE_SIZE
+
+        i = 0
+        nocl = len(ocl)
+        while i < nocl:
+            if not _is_fg_strip_cand(i):
+                i += 1; continue
+            run = [i]
+            j = i + 1
+            while (j < nocl and _is_fg_strip_cand(j)
+                   and (ocl[j].pad & 0xF) == (ocl[j - 1].pad & 0xF)
+                   and ocl[j].clut_base == ocl[j - 1].clut_base + 1):
+                run.append(j); j += 1
+            if len(run) >= _FGSTRIP_MIN_RUN:
+                sum_t = sum_b = 0.0
+                ns = 0
+                for k in range(len(run) - 1):
+                    gx0, gy0 = _xy(ocl[run[k]])
+                    gx1, gy1 = _xy(ocl[run[k + 1]])
+                    s_t = _seam(tx_raw, tx_w, tx_h, gx0, gy0, gx1, gy1)
+                    s_b = _seam(bg_raw, bg_w, bg_h, gx0, gy0, gx1, gy1)
+                    if s_t >= 0 and s_b >= 0:
+                        sum_t += s_t; sum_b += s_b; ns += 1
+                if ns and sum_t > 0 and (sum_b / sum_t) >= _FGSTRIP_SEAM_RATIO:
+                    for g in run:
+                        extra.discard(g)           # whole strip → foreground (tex)
+            i = j
+
     # ── Garbage-foreground whole-page flip ────────────────────────────────────
     #
     # Some X6 stages store a background tileset across an ENTIRE page<8 as sole
@@ -1075,6 +1168,61 @@ def build_x6_chr256_override(
                 continue
             if not any(tx_raw[(gy + dy) * tx_w + gx + dx]
                        for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                continue
+            extra.add(idx)
+
+    # ── Page>=8 background-strip garbage-hole suppression ─────────────────────
+    #
+    # bg_empty_hole_fill suppresses garbage holes interior to a page<8 background
+    # batch, keyed on OCL-index neighbours.  The page>=8 chr256 strips are ordered
+    # by clut_base WITHIN a (page, col), not by OCL index, so an interior empty-tex_bg
+    # hole there is invisible to index-neighbour logic.  st08's machinery gap (page
+    # 11, col 10, clut_base 0xF1-0xF4) is such a block: 4 placed tiles whose tex_bg
+    # slot is empty sit inside the clut_base span of the 136-tile (page 11, col 10)
+    # background strip, with tex_bg-routed members at both lower and higher clut_base.
+    # Their tex holds striped garbage (coh 8-70), drawn as colourful streaks in the
+    # dark machinery.  No art exists in either sheet for these slots, so the correct
+    # render is transparent — route them to the empty tex_bg.
+    #
+    # Gated to fire on exactly these tiles (verified zero elsewhere across X6):
+    #   - page in 8..0xB, tile currently on tex, tex_bg fully empty at its coordinate;
+    #   - tex holds striped garbage (coh_tex >= _PG8H_GARBAGE_MIN); and
+    #   - the tile's (page, col) strip has a tex_bg-routed member at BOTH a smaller and
+    #     a larger clut_base (the hole is interior to a real background strip, not a
+    #     lone foreground tile).
+    # Like bg_empty_hole_fill this is pixel-additive: it only routes already-garbage
+    # placed tiles to an empty (transparent) slot, never altering any other tile.
+    _PG8H_GARBAGE_MIN = 5.0
+    if pg8_garbage_hole_suppress:
+        bg_cb_by_pagecol: dict[tuple, list[int]] = {}
+        for i, e in enumerate(ocl):
+            if (e.pad & 0xF) >= 8 and i in extra:
+                bg_cb_by_pagecol.setdefault((e.pad & 0xF, e.col), []).append(e.clut_base)
+        for idx, entry in enumerate(ocl):
+            if idx in extra:
+                continue
+            page = entry.pad & 0xF
+            if page < 8 or page > 0xB:
+                continue
+            members = bg_cb_by_pagecol.get((page, entry.col))
+            if not members:
+                continue
+            cb = entry.clut_base
+            if not (any(c < cb for c in members) and any(c > cb for c in members)):
+                continue
+            cordX = cb & 0xF
+            cordY = (cb >> 4) & 0xF
+            gx = (page % 8) * 256 + cordX * TILE_SIZE
+            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
+                    gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h):
+                continue
+            # tex_bg fully empty (no background art).
+            if any(bg_raw[(gy + dy) * bg_w + gx + dx]
+                   for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                continue
+            # tex is striped garbage (otherwise it may be a legitimate sparse tile).
+            if _tile_coh(tx_raw, tx_w, gx, gy) < _PG8H_GARBAGE_MIN:
                 continue
             extra.add(idx)
 
