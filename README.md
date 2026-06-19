@@ -22,6 +22,7 @@ Maybe
 
 - ❤️ [Kuumba123's TehemanX4 Editor](https://github.com/Kuumba123/TeheManX4_Editor)
 - ❤️ [acediez's partial X5 stage dumps](https://x.com/acediez/status/2061990111147937946) or [archive.org](https://archive.org/download/mmx_ps1_rips/Stage%20Layout/)
+- ❤️ X GOD's vgmaps stage dumps for [X5](https://www.vgmaps.com/Atlas/PSX/index.htm#MegaManX5) and [X6](https://www.vgmaps.com/Atlas/PSX/index.htm#MegaManX6)
 - [TileMolester](https://github.com/toruzz/TileMolester)
 - [ARC format](https://www.watto.org/specs.html?specs=Archive_ARC_ARC_2)
 - romhacking.net threads
