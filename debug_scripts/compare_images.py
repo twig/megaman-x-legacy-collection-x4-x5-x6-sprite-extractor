@@ -72,7 +72,7 @@ def compare(sample_path, baseline_path, tile=TILE, save_diff=False, crop=True):
 
     if save_diff:
         root, ext = os.path.splitext(sample_path)
-        out_path = f"{root}_diff{ext}"
+        out_path = f"{root}-diff{ext}"
     else:
         out_path = sample_path
 
