@@ -76,6 +76,40 @@ The C# renderer has no alpha channel at all (writes to RGB `bmp[]`). On PSX, col
 (`pad` high-nibble 4, bit 6 clear) at st0g ~(1888,1296), which this remap does not
 touch.
 
+INVESTIGATION NOTE (2026-06): the "inverted shadow" colours on st03x/st04b/st05x.
+Ground truth: screenshots/MegaManX6-BlazeHeatnix-SubStage.png shows st03x's
+platforms as GREY/SILVER metallic with orange-rust accents over dark purple walls.
+The baseline renders those platforms as SMOOTH dark NAVY (right shape/shading, wrong
+hue) — that hue error is the "inverted shadow".
+
+Confirmed facts:
+  • These are page>=8 8bpp background tiles.  The baseline draws them via `col+64`
+    into the main VRAM-snapshot CLUT (e.g. col=48 → row 112), which is a smooth but
+    navy gradient.  Measured colours: baseline (0,8,33)/(0,8,41) (R=0, high B) vs
+    reference greys (32,32,32)/(56,56,56)/(72,72,64) (R=G=B).  A pure channel
+    swap/rotate does NOT relate the two — it is a different palette, not a transform.
+  • REJECTED fix #1 — route to stage base CLUT row 64: produced high-detail *noise*
+    (a non-smooth palette misapplied to coherent index data), worse than baseline.
+    Every other static main-col row tried is likewise noise; only the col+64 snapshot
+    rows form a smooth gradient (so the index data IS coherent — the geometry is right).
+  • The real colours ARE present in the per-stage file PC/X6/col/stage/st03x/st03x.col
+    (16 rows): rows 1/2/3/8 are the grey-metal gradient ((115,115,132)/(189,189,198)/
+    (132,132,148)…) and rows 9/10 the orange rust ((173,132,33)/(255,231,123)),
+    matching the reference; rows 4-6 are the purple wall ((148,0,140)/(115,0,107)/
+    (74,0,66)).  So the colours are recoverable in principle.
+  • REJECTED fix #2 — index st03x.col directly by the 8bpp pixel value
+    (color = st03x.col[v]): renders bright magenta garbage.  The 16 rows are
+    ANIMATION FRAMES, not a flat 256-colour CLUT, so the texture index → CLUT-entry
+    mapping needs the X6 animated/chr256 palette ASSEMBLY logic (which st03x.col row
+    composes a given tile's CLUT at a given frame).  This is the same unresolved root
+    cause as the st02 ice-orb below; the renderer loads the file as `anim_col` but
+    does not wire it to tiles.
+
+Status: ROOT CAUSE + correct colour SOURCE located; the frame-assembly mapping is
+unresolved.  Do NOT reintroduce the row-64 remap, and do NOT index st03x.col flatly.
+The diagnostics live in experimental/diag_recover_clut.py / diag_clut_pollution.py /
+diag_render_candidates.py.
+
 **Fix applied (colour only):** `_stage_clut_row()` remaps high-nibble-4 tiles whose
 col has bit 6 set to CLUT row `(col & 0x3F) + 64` instead of `col + 64`. The +0x40 in
 col exactly cancels the +64 stage base, so e.g. `col=96 → row 96` — the same grey-teal
