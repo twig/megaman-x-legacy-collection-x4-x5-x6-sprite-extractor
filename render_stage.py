@@ -91,31 +91,45 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         for key, data
         in X4_LAYOUT_OFFSETS.items()
     ]),
+    # st000 (intro stage) layout is NOT in the 0x02d9xxxx region with st010+;
+    # It sits in a separate block near the ORIGINAL guess 0x02EC2D4B.
+    #
+    # Found by match_layout_to_map.py
+    # - recovering the screen-id grid from X5_ST00_00_INTRO_combined.png
+    # - then Hough-voting it across the whole EXE
+    #
+    # st010 found by trial and error.
+    # the others were within range, good enough to start debugging tile rendering.
     "X5": {
-        "st000":     (0x02EC2D4B, 15, 24), # ALMOST (Intro Stage all)
-        # "st000": (0x02EC2D78, 15, 17),  # ALMOST (Intro Stage - part 1 flat)
-        # "st000": (0x02EC2D5F, 4, 3),  # ALMOST (Intro Stage - part 2 tower)
+        # garbled at bottom
+        "st000":     (0x02EC2B18, 24, 21), # LAYOUT DONE, TILES ALMOST (Intro stage)
         "st010":     (0x02D98528, 39, 8),  # LAYOUT DONE, TILES DONE (Crescent Grizzly)
-        "st020":     (0x02D9A407, 32, 5),  # ALMOST (Dark Necrobat: Area 1)
-        "st021":     (0x02D9A404, 25, 6),  # ALMOST (Dark Necrobat: Area 2)
-        "st030":     (0x02D9A407, 22, 15), # ALMOST (Tidal Whale)
-        "st040":     (0x02D9A3DE, 23, 10), # ALMOST (Burn Dinorex: Area 1)
-        "st041":     (0x02D9A3DE, 24, 10), # ALMOST (Burn Dinorex: Area 2)
-        "st050":     (0x02D99508, 44, 7),  # ALMOST (Volt Kraken)
-        "st060":     (0x02D992B3, 29, 15), # ALMOST (Shining Firefly: Area 1)
-        "st061":     (0x02D9A690, 21, 17), # ALMOST (Shining Firefly: Area 2)
-        "st070":     (0x02D98548, 24, 14), # IN RANGE (Spike Rosered)
-        "st080":     (0x02D99A7D, 19, 13), # IN RANGE (Spiral Pegasus)
+        "st020":     (0x02D9A407, 32, 5),  # LAYOUT WRONG, TILES DONE (Dark Necrobat: Area 1)
+        # inverted highlights
+        "st021":     (0x02D9A404, 25, 6),  # LAYOUT WRONG, TILES ALMOST (Dark Necrobat: Area 2)
+        # black box, garbled mini boss
+        "st030":     (0x02D98D88, 24, 23), # LAYOUT DONE, TILES ALMOST (Tidal Whale)
+        "st040":     (0x02D9A3DE, 23, 10), # LAYOUT WRONG, TILES DONE (Burn Dinorex: Area 1)
+        "st041":     (0x02D9A3DE, 24, 10), # LAYOUT WRONG, TILES DONE (Burn Dinorex: Area 2)
+        "st050":     (0x02D99508, 44, 7),  # LAYOUT WRONG, TILES DONE (Volt Kraken)
+        "st060":     (0x02D992B3, 29, 15), # LAYOUT WRONG, TILES DONE (Shining Firefly: Area 1)
+        "st061":     (0x02D9A690, 21, 17), # LAYOUT WRONG, TILES MOST (Shining Firefly: Area 2)
+        # mismatched tiles, black box or missing tiles, rope near vines partially missing?,
+        # mystery block near capsule, garbled green at bottom, incorrect palette
+        "st070":     (0x02D98B88, 34, 15), # LAYOUT DONE, TILES MOST (Spike Rosered)
+        "st080":     (0x02D99A7D, 19, 13), # LAYOUT WRONG, TILES DONE (Spiral Pegasus)
         "st090_00":  (0x02D98697, 2, 3),   # LAYOUT DONE, TILES DONE (Dynamo: Enigma Cannon)
         "st090_01":  (0x02D98697, 2, 3),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 1)
         "st100_00":  (0x02D9852F, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Space Shuttle)
         "st100_01":  (0x02D98697, 2, 3),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 2)
-        "st160":     (0x02D98524, 12, 16), # ALMOST (Zero Space 1: Origin)
-        "st170":     (0x02D99CBA, 20, 17), # ALMOST (Zero Space 2: Grief)
-        "st180":     (0x02D99CBA, 19, 24), # ALMOST (Zero Space 3: Awakening)
-        "st120":     (0x02D9979F, 27, 19), # ALMOST (Zero Space 4: Birth)
+        "st160":     (0x02D98524, 12, 16), # LAYOUT WRONG, TILES DONE (Zero Space 1: Origin)
+        # black boxes
+        "st170":     (0x02D99CBA, 20, 17), # LAYOUT WRONG, TILES ALMOST (Zero Space 2: Grief)
+        "st180":     (0x02D99CBA, 19, 24), # LAYOUT WRONG, TILES DONE (Zero Space 3: Awakening)
+        "st120":     (0x02D9979F, 27, 19), # LAYOUT WRONG, TILES DONE (Zero Space 4: Birth)
         "st130":     (0x02D9869C, 6, 3),   # LAYOUT DONE, TILES DONE (Stage Select)
-        "st220":     (0x02D99F7D, 9, 11),  # ALMOST (Training Area)
+        # black box
+        "st220":     (0x02D99F7D, 9, 11),  # LAYOUT WRONG, TILES ALMOST (Training Area)
         "staff_eng": (0x02D9852F, 9, 6),   # LAYOUT DONE, TILES DONE (End Credits)
         "st140_eng": (0x02D98695, 2, 1),   # LAYOUT DONE, TILES DONE (Title screen)
         "st141_eng": (0x02D98695, 2, 1),   # LAYOUT DONE, TILES DONE (Player Select screen)
@@ -130,14 +144,15 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     "X6": {
         # garbled
         "st00":      (0x02DD3FF0, 26, 17),  # LAYOUT DONE, TILES ALMOST (Intro - Eurasia Ruins)
-        "st01":      (0x02DD41E0, 26, 23),  # LAYOUT DONE, TILES DONE (Commander Yammark; Amazon Area)
+        # black box
+        "st01":      (0x02DD41E0, 26, 23),  # LAYOUT DONE, TILES ALMOST (Commander Yammark; Amazon Area)
         # garbled
         "st01x":     (0x02DD6A18, 26, 20),  # LAYOUT DONE, TILES ALMOST (Commander Yammark; sub stage)
         # garbled, missing tile?
         "st02":      (0x02DD44A0, 27, 15),  # LAYOUT DONE, TILES MOST (Blizzard Wolfang; North Pole Area)
         # missing tile?
         "st02x":     (0x02DD6CD8, 15, 33),  # LAYOUT DONE, TILES ALMOST sub stage
-        # garbled, grey box, black box, inverted shadow, wrong palette, missing tile?
+        # grey box, black box, inverted shadow, wrong palette, missing tile?
         "st03":      (0x02DD46D8, 18, 39),  # LAYOUT DONE, TILES MOST (Blaze Heatnix; Magma Area)
         # inverted shadow, missing tiles
         "st03x":     (0x02DD6F80, 15, 20),  # LAYOUT DONE, TILES MOST sub stage
