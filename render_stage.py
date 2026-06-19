@@ -130,8 +130,7 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     "X6": {
         # garbled
         "st00":      (0x02DD3FF0, 26, 17),  # LAYOUT DONE, TILES ALMOST (Intro - Eurasia Ruins)
-        # page-7 background strip-tail garbage resolved (strip_tail_extend)
-        "st01":      (0x02DD41E0, 26, 23),  # LAYOUT DONE, TILES ALMOST (Commander Yammark; Amazon Area)
+        "st01":      (0x02DD41E0, 26, 23),  # LAYOUT DONE, TILES DONE (Commander Yammark; Amazon Area)
         # garbled
         "st01x":     (0x02DD6A18, 26, 20),  # LAYOUT DONE, TILES ALMOST (Commander Yammark; sub stage)
         # garbled, missing tile?
@@ -367,6 +366,7 @@ def build_x6_chr256_override(
     pg8_empty_bg: bool = True,
     garbage_page_flip: bool = True,
     strip_tail_extend: bool = True,
+    interior_gap_bridge: bool = True,
     bg_empty_hole_fill: bool = True,
 ) -> frozenset[int]:
     """
@@ -569,6 +569,94 @@ def build_x6_chr256_override(
                    for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
             continue
         extra.add(idx)
+
+    # ── Background-strip interior gap bridge (multi-tile) ─────────────────────
+    #
+    # The single-hole gap-fill above only bridges a ONE-tile hole (both immediate
+    # OCL neighbours are tex_bg).  A chr256 background strip can instead lose a SHORT
+    # RUN of interior tiles to tex: a contiguous lockstep clut_base sequence on one
+    # page is routed to tex_bg except for a 2-4 tile stretch in its middle, which the
+    # base routing pinned to tex.  This happens when those interior tiles are reused
+    # foreground/background duplicates whose later (background) occurrence carries the
+    # same col as the foreground first occurrence (col=0) plus a 0x38 hit-flash type:
+    # the same-col 0x38 blocking rule forces the whole coordinate to tex, even though
+    # in THIS placement the tile is an interior member of a tex_bg strip.  Confirmed
+    # in st01 (OCL 2605-2606, clut_base 0xD6-0xD7): a 2-tile gap inside the lockstep
+    # background run 2600-2615 (clut_base 0xD1-0xE0), drawn as a diagonal "smear"
+    # interrupting the mossy-rock cluster wherever those two slots are placed.
+    #
+    # Bridge a maximal run of tex-routed tiles when it is a genuine interior gap of a
+    # long lockstep tex_bg strip:
+    #   - the run lies on one page with clut_base advancing in lockstep with the OCL
+    #     index (idx+1 ↔ clut_base+1), and the SAME lockstep continues unbroken across
+    #     the brackets on both sides;
+    #   - the tile immediately before the run and immediately after it are BOTH already
+    #     tex_bg (the run is interior, not a strip end — strip ends are handled by
+    #     strip_tail_extend);
+    #   - the gap is at most _GAP_MAX tiles wide (a short dropout, not a foreground
+    #     object spanning the strip);
+    #   - the combined bracketing tex_bg run (left + right lockstep members) spans at
+    #     least _GAP_MIN_BRACKET tiles (a real background strip, not a stray pair); and
+    #   - tex_bg holds real pixels at every gap tile (background art to draw).
+    # The lockstep-continuity + both-sides-bracketed + bracket-length gates make this
+    # provably confined to interior dropouts of a continuous background strip; verified
+    # across every X6 stage to add only st01's 2 tiles and touch nothing else.
+    _GAP_MAX = 4
+    _GAP_MIN_BRACKET = 12
+    pre_bridge = frozenset(extra)
+
+    def _bg_run_len(start: int, step: int, page: int, cb0: int) -> int:
+        """Length of the lockstep tex_bg run from `start` going by `step` (±1)."""
+        n = 0
+        k = start
+        want = cb0
+        while (0 <= k < len(ocl) and k in pre_bridge and (ocl[k].pad & 0xF) == page
+               and ocl[k].clut_base == want):
+            n += 1; k += step; want += step
+        return n
+
+    if interior_gap_bridge:
+        idx = 1
+        while idx < len(ocl):
+            if idx in pre_bridge:
+                idx += 1; continue
+            entry = ocl[idx]
+            page = entry.pad & 0xF
+            # Left bracket: previous index must be a tex_bg lockstep predecessor.
+            prev = ocl[idx - 1]
+            if (page >= 8 or (idx - 1) not in pre_bridge
+                    or (prev.pad & 0xF) != page
+                    or prev.clut_base != entry.clut_base - 1):
+                idx += 1; continue
+            # Collect the maximal run of tex (not-bg) lockstep tiles starting at idx.
+            run = [idx]
+            j = idx + 1
+            while (j < len(ocl) and j not in pre_bridge and (ocl[j].pad & 0xF) == page
+                   and ocl[j].clut_base == ocl[j - 1].clut_base + 1
+                   and len(run) <= _GAP_MAX):
+                run.append(j); j += 1
+            # Right bracket: tile after the run must be a tex_bg lockstep successor.
+            nxt = ocl[j] if j < len(ocl) else None
+            ok = (len(run) <= _GAP_MAX and nxt is not None and j in pre_bridge
+                  and (nxt.pad & 0xF) == page
+                  and nxt.clut_base == ocl[j - 1].clut_base + 1)
+            if ok:
+                left_len = _bg_run_len(idx - 1, -1, page, entry.clut_base - 1)
+                right_len = _bg_run_len(j, +1, page, nxt.clut_base)
+                if left_len + right_len >= _GAP_MIN_BRACKET:
+                    for g in run:
+                        e = ocl[g]
+                        cordX = e.clut_base & 0xF
+                        cordY = (e.clut_base >> 4) & 0xF
+                        gx = (page % 8) * 256 + cordX * TILE_SIZE
+                        gy = (page // 8) * 256 + cordY * TILE_SIZE
+                        if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
+                            continue
+                        if not any(bg_raw[(gy + dy) * bg_w + gx + dx]
+                                   for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                            continue
+                        extra.add(g)
+            idx = j + 1 if ok else idx + 1
 
     # ── Palette-fan col split ─────────────────────────────────────────────────
     #
