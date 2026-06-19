@@ -130,8 +130,7 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     "X6": {
         # garbled
         "st00":      (0x02DD3FF0, 26, 17),  # LAYOUT DONE, TILES ALMOST (Intro - Eurasia Ruins)
-        # garbled, missing tiles?
-        "st01":      (0x02DD41E0, 26, 23),  # LAYOUT DONE, TILES ALMOST (Commander Yammark; Amazon Area)
+        "st01":      (0x02DD41E0, 26, 23),  # LAYOUT DONE, TILES DONE (Commander Yammark; Amazon Area)
         # garbled
         "st01x":     (0x02DD6A18, 26, 20),  # LAYOUT DONE, TILES ALMOST (Commander Yammark; sub stage)
         # garbled, missing tile?
@@ -365,6 +364,10 @@ def build_x6_chr256_override(
     palette_fan_guard: bool = True,
     fg_pair_fix: bool = True,
     pg8_empty_bg: bool = True,
+    garbage_page_flip: bool = True,
+    strip_tail_extend: bool = True,
+    interior_gap_bridge: bool = True,
+    bg_empty_hole_fill: bool = True,
 ) -> frozenset[int]:
     """
     Return the chr256 (tex_background) OCL-index set for an X6 stage.
@@ -567,6 +570,94 @@ def build_x6_chr256_override(
             continue
         extra.add(idx)
 
+    # ── Background-strip interior gap bridge (multi-tile) ─────────────────────
+    #
+    # The single-hole gap-fill above only bridges a ONE-tile hole (both immediate
+    # OCL neighbours are tex_bg).  A chr256 background strip can instead lose a SHORT
+    # RUN of interior tiles to tex: a contiguous lockstep clut_base sequence on one
+    # page is routed to tex_bg except for a 2-4 tile stretch in its middle, which the
+    # base routing pinned to tex.  This happens when those interior tiles are reused
+    # foreground/background duplicates whose later (background) occurrence carries the
+    # same col as the foreground first occurrence (col=0) plus a 0x38 hit-flash type:
+    # the same-col 0x38 blocking rule forces the whole coordinate to tex, even though
+    # in THIS placement the tile is an interior member of a tex_bg strip.  Confirmed
+    # in st01 (OCL 2605-2606, clut_base 0xD6-0xD7): a 2-tile gap inside the lockstep
+    # background run 2600-2615 (clut_base 0xD1-0xE0), drawn as a diagonal "smear"
+    # interrupting the mossy-rock cluster wherever those two slots are placed.
+    #
+    # Bridge a maximal run of tex-routed tiles when it is a genuine interior gap of a
+    # long lockstep tex_bg strip:
+    #   - the run lies on one page with clut_base advancing in lockstep with the OCL
+    #     index (idx+1 ↔ clut_base+1), and the SAME lockstep continues unbroken across
+    #     the brackets on both sides;
+    #   - the tile immediately before the run and immediately after it are BOTH already
+    #     tex_bg (the run is interior, not a strip end — strip ends are handled by
+    #     strip_tail_extend);
+    #   - the gap is at most _GAP_MAX tiles wide (a short dropout, not a foreground
+    #     object spanning the strip);
+    #   - the combined bracketing tex_bg run (left + right lockstep members) spans at
+    #     least _GAP_MIN_BRACKET tiles (a real background strip, not a stray pair); and
+    #   - tex_bg holds real pixels at every gap tile (background art to draw).
+    # The lockstep-continuity + both-sides-bracketed + bracket-length gates make this
+    # provably confined to interior dropouts of a continuous background strip; verified
+    # across every X6 stage to add only st01's 2 tiles and touch nothing else.
+    _GAP_MAX = 4
+    _GAP_MIN_BRACKET = 12
+    pre_bridge = frozenset(extra)
+
+    def _bg_run_len(start: int, step: int, page: int, cb0: int) -> int:
+        """Length of the lockstep tex_bg run from `start` going by `step` (±1)."""
+        n = 0
+        k = start
+        want = cb0
+        while (0 <= k < len(ocl) and k in pre_bridge and (ocl[k].pad & 0xF) == page
+               and ocl[k].clut_base == want):
+            n += 1; k += step; want += step
+        return n
+
+    if interior_gap_bridge:
+        idx = 1
+        while idx < len(ocl):
+            if idx in pre_bridge:
+                idx += 1; continue
+            entry = ocl[idx]
+            page = entry.pad & 0xF
+            # Left bracket: previous index must be a tex_bg lockstep predecessor.
+            prev = ocl[idx - 1]
+            if (page >= 8 or (idx - 1) not in pre_bridge
+                    or (prev.pad & 0xF) != page
+                    or prev.clut_base != entry.clut_base - 1):
+                idx += 1; continue
+            # Collect the maximal run of tex (not-bg) lockstep tiles starting at idx.
+            run = [idx]
+            j = idx + 1
+            while (j < len(ocl) and j not in pre_bridge and (ocl[j].pad & 0xF) == page
+                   and ocl[j].clut_base == ocl[j - 1].clut_base + 1
+                   and len(run) <= _GAP_MAX):
+                run.append(j); j += 1
+            # Right bracket: tile after the run must be a tex_bg lockstep successor.
+            nxt = ocl[j] if j < len(ocl) else None
+            ok = (len(run) <= _GAP_MAX and nxt is not None and j in pre_bridge
+                  and (nxt.pad & 0xF) == page
+                  and nxt.clut_base == ocl[j - 1].clut_base + 1)
+            if ok:
+                left_len = _bg_run_len(idx - 1, -1, page, entry.clut_base - 1)
+                right_len = _bg_run_len(j, +1, page, nxt.clut_base)
+                if left_len + right_len >= _GAP_MIN_BRACKET:
+                    for g in run:
+                        e = ocl[g]
+                        cordX = e.clut_base & 0xF
+                        cordY = (e.clut_base >> 4) & 0xF
+                        gx = (page % 8) * 256 + cordX * TILE_SIZE
+                        gy = (page // 8) * 256 + cordY * TILE_SIZE
+                        if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
+                            continue
+                        if not any(bg_raw[(gy + dy) * bg_w + gx + dx]
+                                   for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                            continue
+                        extra.add(g)
+            idx = j + 1 if ok else idx + 1
+
     # ── Palette-fan col split ─────────────────────────────────────────────────
     #
     # A texture coordinate shared by MANY distinct `col` (palette) values is a tile
@@ -726,6 +817,266 @@ def build_x6_chr256_override(
                           for dy in range(TILE_SIZE) for dx in range(TILE_SIZE))
             if fg_nonempty and differs:
                 extra.discard(s[0])            # first occurrence → foreground (tex)
+
+    # ── Garbage-foreground whole-page flip ────────────────────────────────────
+    #
+    # Some X6 stages store a background tileset across an ENTIRE page<8 as sole
+    # entries (each (page, clut_base) coordinate appears exactly once, so there
+    # are no multi-entry groups for the base routing's group rules to act on),
+    # while that page's FOREGROUND sheet (tex) is corrupt — high-frequency striped
+    # garbage — and the chr256 sheet (tex_bg) holds the real, coherent tile art.
+    # Because the entries are sole and tex is non-empty (it is garbage, not blank),
+    # none of the chr256 routing reaches them and the whole page renders as the
+    # striped/garbled mess reported on st04a (pages 2 & 3) and st03 (page 5).
+    #
+    # The distinguishing signal is NOT fill or tex≠tex_bg difference — those also
+    # match pages where tex is the CORRECT sheet and tex_bg is the garbage one
+    # (st05 pages 4-7, st08 page 7) or where tex_bg is simply EMPTY (st0g pages
+    # 2-3); routing those to tex_bg would regress them.  The only reliable
+    # discriminator is COHERENCE: striped garbage has a high mean absolute
+    # horizontal-neighbour difference of raw 8bpp indices (≈3.6-6.4 across the
+    # corrupt pages), while coherent tile art has smooth runs (≈0.5-1.2).
+    #
+    # Flip a page tex→tex_bg only when ALL hold (verified across every X6 stage to
+    # fire on exactly st03 p5, st04a p2, st04a p3 and nothing else):
+    #   - page<8 and ≥95% of its entries are sole (no group rules apply);
+    #   - ≥ _GPF_MIN_SOLE of those sole entries are still on tex;
+    #   - tex_bg is non-empty over the page (it has real art to draw);
+    #   - coh_tex ≥ _GPF_GARBAGE_MIN (tex is striped garbage); and
+    #   - coh_bg ≤ coh_tex × _GPF_CLEAN_RATIO (tex_bg is clearly more coherent).
+    # The ratio gate also excludes identical-sheet pages (coh_tex == coh_bg, e.g.
+    # st06a/st06x, where routing is irrelevant anyway).
+    _GPF_GARBAGE_MIN = 2.5
+    _GPF_CLEAN_RATIO = 0.5
+    _GPF_FRAC_SOLE = 0.95
+    _GPF_MIN_SOLE = 40
+    _GPF_BGFILL_MIN = 0.05
+
+    def _page_coherence(raw: bytes, w: int, h: int, clut_bases, page: int) -> float:
+        """Mean |horizontal-neighbour diff| of nonzero raw px over a page's tiles."""
+        tot = cnt = 0
+        for cb in clut_bases:
+            cordX = cb & 0xF; cordY = (cb >> 4) & 0xF
+            gx = (page % 8) * 256 + cordX * TILE_SIZE
+            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            if gx + TILE_SIZE > w or gy + TILE_SIZE > h:
+                continue
+            for dy in range(TILE_SIZE):
+                base = (gy + dy) * w + gx
+                for dx in range(TILE_SIZE - 1):
+                    a = raw[base + dx]; b = raw[base + dx + 1]
+                    if a or b:
+                        tot += abs(a - b); cnt += 1
+        return tot / cnt if cnt else 0.0
+
+    def _page_bg_fill(clut_bases, page: int) -> float:
+        """Fraction of nonzero tex_bg pixels over a page's tiles."""
+        nz = total = 0
+        for cb in clut_bases:
+            cordX = cb & 0xF; cordY = (cb >> 4) & 0xF
+            gx = (page % 8) * 256 + cordX * TILE_SIZE
+            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
+                continue
+            for dy in range(TILE_SIZE):
+                base = (gy + dy) * bg_w + gx
+                for dx in range(TILE_SIZE):
+                    if bg_raw[base + dx]:
+                        nz += 1
+                    total += 1
+        return nz / total if total else 0.0
+
+    if garbage_page_flip:
+        # Per page<8: collect entry indices and coordinate occurrence counts.
+        pg_entries: dict[int, list[int]] = {}
+        pg_coord_count: dict[tuple, int] = {}
+        for idx, entry in enumerate(ocl):
+            page = entry.pad & 0xF
+            if page >= 8:
+                continue
+            pg_entries.setdefault(page, []).append(idx)
+            k = (page, entry.clut_base)
+            pg_coord_count[k] = pg_coord_count.get(k, 0) + 1
+
+        for page, idxs in pg_entries.items():
+            sole = [i for i in idxs
+                    if pg_coord_count[(page, ocl[i].clut_base)] == 1]
+            if len(sole) / len(idxs) < _GPF_FRAC_SOLE:
+                continue
+            sole_on_tex = [i for i in sole if i not in extra]
+            if len(sole_on_tex) < _GPF_MIN_SOLE:
+                continue
+            distinct_cb = {ocl[i].clut_base for i in idxs}
+            if _page_bg_fill(distinct_cb, page) < _GPF_BGFILL_MIN:
+                continue
+            coh_tex = _page_coherence(tx_raw, tx_w, tx_h, distinct_cb, page)
+            coh_bg = _page_coherence(bg_raw, bg_w, bg_h, distinct_cb, page)
+            if coh_tex < _GPF_GARBAGE_MIN or coh_bg > coh_tex * _GPF_CLEAN_RATIO:
+                continue
+            # tex is striped garbage, tex_bg holds the coherent art: route every
+            # entry on this page whose tex_bg coordinate is non-empty to tex_bg.
+            for i in idxs:
+                cordX = ocl[i].clut_base & 0xF
+                cordY = (ocl[i].clut_base >> 4) & 0xF
+                gx = (page % 8) * 256 + cordX * TILE_SIZE
+                gy = (page // 8) * 256 + cordY * TILE_SIZE
+                if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
+                    continue
+                if any(bg_raw[(gy + dy) * bg_w + gx + dx]
+                       for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                    extra.add(i)
+
+    # ── Background-strip tail extension ───────────────────────────────────────
+    #
+    # A chr256 background tileset is sometimes stored as a foreground/background
+    # DUPLICATE-PAIR batch: each (page, clut_base) coordinate appears twice — the
+    # first occurrence (low OCL index) is the foreground tile (tex) and the second
+    # (high index, different col) is the chr256 background variant (tex_bg), routed
+    # by the base large-gap different-col rule (omp.py Pass 2 / Pass 3c).  The
+    # second-occurrence halves form ONE contiguous OCL run whose indices and
+    # clut_base advance in lockstep on a single page (e.g. st01 page-7 OCL
+    # 3763-3827 ↔ clut_base 0x00-0x40, the Amazon river/ground background row).
+    #
+    # When the TAIL of such a strip loses its foreground partners, those coordinates
+    # exist only as SOLE entries (n=1) — they continue the very same contiguous run
+    # (st01 OCL 3828-3838 ↔ clut_base 0x41-0x4B, same page 7) but, having no
+    # duplicate, the pair rule never fires and they default to tex.  Page 7's tex
+    # sheet there is the corrupt striped foreground (coh ≈ 4.5-6.2) while tex_bg
+    # holds the coherent art (coh ≈ 0.6-2.0), so they render as the garbled tiles
+    # reported at level (176-179, 358-360).  The per-page garbage flip can't help
+    # (page 7 is 92% paired, not a garbage page) and the single-hole gap-fill can't
+    # bridge a contiguous run (each tile's idx+1 neighbour is also still on tex).
+    #
+    # Extend the strip: a tex-routed entry whose immediate index predecessor (idx-1)
+    # is a confirmed tex_bg tile on the SAME page with clut_base exactly one less is
+    # the next member of that background strip.  Route it to tex_bg when —
+    #   - the backward lockstep tex_bg run through idx-1 spans ≥ _STE_MIN_RUN tiles
+    #     (a genuine strip, not a stray pair);
+    #   - tex_bg holds real pixels at the coordinate (background art to draw); and
+    #   - the tex tile is EITHER empty (would render a transparent hole) OR striped
+    #     garbage (coh ≥ _STE_GARBAGE_MIN and tex_bg clearly more coherent).  A
+    #     coherent foreground tile fails this content gate and halts the extension,
+    #     so the run can never bleed past the end of the real background strip.
+    # Iterating index-ascending carries the flip down the whole tail (each freshly
+    # flipped tile becomes the predecessor anchor for the next).
+    #
+    # Regression safety: structurally this only ever appends to the END of an
+    # already-confirmed background strip (lockstep index+clut_base on one page), and
+    # the content gate restricts it to empty or striped-garbage tex tiles — exactly
+    # the tiles that rendered nothing or garbage before.  Each level cell maps to one
+    # OCL index, so a flip can neither move nor occlude any other tile.  Verified
+    # across every X6 stage to add only such strip-tail tiles (st01 +11) and touch
+    # nothing on the settled stages.
+    _STE_GARBAGE_MIN = 2.5
+    _STE_CLEAN_RATIO = 0.5
+    _STE_MIN_RUN = 8
+
+    def _tile_coh(raw: bytes, w: int, gx: int, gy: int) -> float:
+        """Mean |horizontal-neighbour diff| of nonzero raw px over one tile."""
+        tot = cnt = 0
+        for dy in range(TILE_SIZE):
+            base = (gy + dy) * w + gx
+            for dx in range(TILE_SIZE - 1):
+                a = raw[base + dx]; b = raw[base + dx + 1]
+                if a or b:
+                    tot += abs(a - b); cnt += 1
+        return tot / cnt if cnt else 0.0
+
+    def _bg_strip_run_back(idx: int, page: int, cb: int) -> int:
+        """Length of the lockstep tex_bg strip ending at idx-1 (consecutive index + clut_base)."""
+        n = 0
+        k = idx - 1
+        want_cb = cb - 1
+        while (k >= 0 and k in extra and (ocl[k].pad & 0xF) == page
+               and ocl[k].clut_base == want_cb):
+            n += 1; k -= 1; want_cb -= 1
+        return n
+
+    if strip_tail_extend:
+        for idx in range(1, len(ocl)):
+            if idx in extra:
+                continue
+            entry = ocl[idx]
+            page = entry.pad & 0xF
+            if page >= 8:
+                continue
+            if (idx - 1) not in extra:
+                continue
+            prev = ocl[idx - 1]
+            if (prev.pad & 0xF) != page or prev.clut_base != entry.clut_base - 1:
+                continue
+            cordX = entry.clut_base & 0xF
+            cordY = (entry.clut_base >> 4) & 0xF
+            gx = (page % 8) * 256 + cordX * TILE_SIZE
+            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
+                    gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h):
+                continue
+            if not any(bg_raw[(gy + dy) * bg_w + gx + dx]
+                       for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                continue
+            if _bg_strip_run_back(idx, page, entry.clut_base) < _STE_MIN_RUN:
+                continue
+            # Content gate: empty tex (transparent hole) or striped garbage tex.
+            fg_empty = not any(tx_raw[(gy + dy) * tx_w + gx + dx]
+                               for dy in range(TILE_SIZE) for dx in range(TILE_SIZE))
+            if not fg_empty:
+                coh_tex = _tile_coh(tx_raw, tx_w, gx, gy)
+                coh_bg = _tile_coh(bg_raw, bg_w, gx, gy)
+                if coh_tex < _STE_GARBAGE_MIN or coh_bg > coh_tex * _STE_CLEAN_RATIO:
+                    continue
+            extra.add(idx)
+
+    # ── Background-batch empty-hole suppression ───────────────────────────────
+    #
+    # After all routing (including the garbage-page flip above), a few tiles can
+    # remain on tex as INTERIOR stragglers inside a chr256 background batch: both
+    # their OCL-index neighbours route to tex_bg on the same page, but the tile's
+    # OWN tex_bg slot is empty, so the base/flip routing left it on tex.  When that
+    # tile's tex slot holds the corrupt striped-garbage foreground, it renders as a
+    # garbage box surrounded by clean background (st03's two remaining holes:
+    # ocl 2676 page 4, ocl 2747 page 5).  There is no real art for the tile in
+    # EITHER sheet, so the correct render is transparent — route it to the empty
+    # tex_bg slot (all-zero pixels → fully transparent paste) instead of drawing
+    # the garbage.
+    #
+    # Gates (verified to touch EXACTLY these 2 placed tiles across all X6 stages —
+    # zero impact elsewhere):
+    #   - tile currently on tex (not already chr256), page<8;
+    #   - both OCL neighbours (idx-1, idx+1) route to tex_bg, on the SAME page
+    #     (interior to a contiguous background batch — not a lone foreground tile);
+    #   - tex_bg is fully empty at the tile's coordinate (no background art); and
+    #   - tex is non-empty (there is garbage to suppress; an already-empty tex tile
+    #     renders nothing regardless, so adding it would be a redundant no-op).
+    # The neighbour gate is what keeps genuine sparse foreground tiles (sparkles,
+    # edges, glyph pixels with high coherence but no surrounding bg batch) on tex.
+    if bg_empty_hole_fill:
+        for idx in range(1, len(ocl) - 1):
+            if idx in extra:
+                continue
+            entry = ocl[idx]
+            page = entry.pad & 0xF
+            if page >= 8:
+                continue
+            if (idx - 1) not in extra or (idx + 1) not in extra:
+                continue
+            if (ocl[idx - 1].pad & 0xF) != page or (ocl[idx + 1].pad & 0xF) != page:
+                continue
+            cordX = entry.clut_base & 0xF
+            cordY = (entry.clut_base >> 4) & 0xF
+            gx = (page % 8) * 256 + cordX * TILE_SIZE
+            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
+                    gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h):
+                continue
+            # tex_bg fully empty (no real art) and tex non-empty (garbage to hide).
+            if any(bg_raw[(gy + dy) * bg_w + gx + dx]
+                   for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                continue
+            if not any(tx_raw[(gy + dy) * tx_w + gx + dx]
+                       for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
+                continue
+            extra.add(idx)
 
     return frozenset(extra)
 
