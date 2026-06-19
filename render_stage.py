@@ -112,7 +112,7 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         # garbled dragon heads
         "st040":     (0x02EC3398, 18, 36), # LAYOUT DONE, TILES ALMOST (Burn Dinorex: Area 1)
         # garbled background
-        "st041":     (0x02D9A3DE, 24, 10), # LAYOUT DONE, TILES ALMOST (Burn Dinorex: Area 2)
+        "st041":     (0x02EC36A0, 20, 12), # LAYOUT DONE, TILES ALMOST (Burn Dinorex: Area 2)
         "st050":     (0x02D98890, 36, 21), # LAYOUT DONE, TILES DONE (Volt Kraken)
         "st060":     (0x02EC3C70, 34, 9),  # LAYOUT DONE, TILES DONE (Shining Firefly: Area 1)
         "st061":     (0x02D99058, 21, 33), # LAYOUT DONE, TILES MOST (Shining Firefly: Area 2)
