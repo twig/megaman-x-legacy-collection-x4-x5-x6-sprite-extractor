@@ -1349,66 +1349,47 @@ def build_x6_clut_row_override(
 # ROOT CAUSE of the page>=8 "wrong colour" machinery tiles: the OCL ``pad`` byte's
 # HIGH nibble ``(pad >> 4) & 0xF`` is an X6 CLUT-bank selector that the universal
 # ``col + 64`` lookup ignores — both this renderer and the game's own TeheManX4
-# Draw16xTile discard it via ``page = (val >> 24) & 0xF``.  Empirically (st04a, placed
-# page>=8 tiles): ``pad_hi == 0`` partitions cleanly to "correct at col+64" for all 14
-# cols, while ``pad_hi == 4`` occurs ONLY on the machinery tiles and needs an alternate
-# CLUT bank.  This is why ``col`` looked non-uniform (col=16 split 432 tiles@pad_hi0 →
-# row 80 vs 78@pad_hi4 → row 192): we were dropping the bank bit.
+# Draw16xTile discard it via ``page = (val >> 24) & 0xF``.  ``pad_hi == 0`` is correct
+# at col+64 for all cols; ``pad_hi == 4`` occurs ONLY on the machinery tiles and needs
+# an alternate CLUT bank in the BOTTOM half of VRAM.
 #
-# The alternate-bank row is col-independent and (observed) per-page-constant.  RMS-vs-
-# ground-truth-validated for st04a: pad_hi=4 → 192 (col=16, pages 9-10, err ~3) and 288
-# (col=0, page 11, err ~7).  page-10 col=0 → 192 is contact-sheet-only (not RMS'd).  The
-# 192/288 values are st04a-derived and are a HYPOTHESIS for other stages (st04b also uses
-# pad_hi=4 but its rows are unpinned) — kept on so other-stage changes can be inspected.
+# DATA-DERIVED DEFAULT: ``alt_row = X6_PADHI_DEFAULT_BANK + col`` (= 320 + col).  This is
+# the +96 stage-CLUT offset (X6_STAGE_CLUT_OFFSET) mirrored into VRAM's bottom half: in
+# normalized-palette space the page>=8 CLUTs sit at row 320+col.  Verified exact for st02
+# (col0→320, col16→336), st06a col0→320, st04b col0→320, and st0g col0/16/80/96
+# (→320/336/400/416).  See experimental/diag_bank_table_search.py for the reconciliation
+# (full RXC2.exe survey found no separate per-stage bank table; the clut-anime tables hold
+# only crystal dests 64-127).
 #
-# This rule does NOT replace X6_CLUT_ROW_FIXES yet: in main() the explicit per-index
-# table is merged ON TOP (takes precedence), so every validated st04a tile is unchanged
-# and only previously-uncovered pad_hi=4 tiles move (the declined page-10 col=0 batch,
-# st04b, …).  Pages without a table entry are left untouched (col+64).
-#
-# The alt-bank ROW is per-(stage, col) — NOT per-page.  st04a col=16→192 / col=0→288;
-# st02 col=16→336 / col=0→320.  (In st04a the two cols happened to separate by page, so a
-# per-page map worked there; st02 mixes col=0 and col=16 on the SAME page 11, exposing
-# that col is the real key — keying by page alone gave the col=0 right side col=16's row
-# and a gross mismatch.)  In st04a col=0 also splits by page (p10→192, p11→288), so the
-# table is keyed (col, page).  A wrong row shows as a slight hue shift (right col band,
-# wrong row) or a gross mismatch (wrong col entirely).  Validated by RMS (st04a) and
-# seam-match (st02, experimental/seam_pin.py).
+# Per-stage EXCEPTIONS (X6_PADHI_ROW_BY_STAGE) override the default where a stage uploaded
+# its alt CLUTs to a different bottom-half row.  These are genuine deviations (re-confirmed
+# vs the rule, not mis-pins): st04a (whole stage, lower bank), st04b col=16, st0g col=32.
+# A wrong row shows as a slight hue shift (right col band, wrong row) or a gross mismatch
+# (wrong col entirely).  Validated by RMS (st04a) and ground-truth match (st04b, st0g).
+# X6_CLUT_ROW_FIXES is still merged ON TOP in main() (takes precedence) for per-index cases
+# the (col,page) table can't express (st04b col=0 tile_type split).
 X6_PADHI_ALT_BANK = 4
+X6_PADHI_DEFAULT_BANK = 320  # alt_row = 320 + col  (+96 stage-CLUT offset, bottom VRAM half)
 X6_PADHI_ROW_BY_STAGE: dict[str, dict[tuple[int, int], int]] = {
-    # stage -> {(col, page): alt_clut_row}.  Rows seam-pinned (experimental/seam_pin_all.py)
-    # unless noted; (col, page) groups absent here fall back to X6_PADHI_ROW_BY_PAGE_DEFAULT.
+    # stage -> {(col, page): alt_clut_row} for groups that DEVIATE from the 320+col default.
+    # Everything not listed uses 320 + col.
+    # st04a: whole-stage lower bank (col0→288, col16→192).  RMS-validated (err ~3-7);
+    # (0,10)→192 is contact-sheet-only.
     "st04a": {(16, 9): 192, (16, 10): 192, (16, 11): 192, (0, 10): 192, (0, 11): 288},
-    "st02":  {(16, 11): 336, (0, 11): 320},
-    # Seam-pinned high-confidence groups only (low mean seam + multi-tile consensus).
-    # Un-pinned groups (st06a col 16/32/48; st0g col 32/48/64; st04b col=0) had too few
-    # seam-able neighbours or degenerate (dark) matches — left on the per-page fallback
-    # pending ground truth.
-    "st06a": {(0, 11): 320},                                           # 63/70 tiles, seam 27
-    "st0g":  {(0, 11): 320, (16, 10): 336, (16, 11): 336,
-              (80, 11): 400, (96, 11): 416,
-              (32, 10): 288, (32, 11): 288},                           # col32 BOTH pages → 288 (p10 default
-                                                                       # 192 was the wrong one; p11 already 288).
-                                                                       # Verified vs ref OCL1813: 192 reds out
-                                                                       # 1565/1577/1551, 288 is clean teal/green.
-    "st04b": {(16, 10): 368},                                          # silver spikes (visually confirmed)
-    # st04b col=0 splits by tile_type (0x3A vs 0x3F → different palettes), which this
-    # (col,page) table can't express — handled per-index in X6_CLUT_ROW_FIXES below.
+    # st04b col=16: silver spikes at 368 (default 336 renders garbage — coherence-confirmed).
+    "st04b": {(16, 10): 368},
+    # st0g col=32: both pages → 288 (default 352 disagrees).  Verified vs ref OCL1813.
+    "st0g":  {(32, 10): 288, (32, 11): 288},
 }
-# Fallback (per-page) for not-yet-pinned stages (st04b/st06a/st0g): keeps their partial
-# improvement.  NOT final — st02 proved per-page is wrong when a stage mixes cols on one
-# page.  st04b is KNOWN wrong on it (→ purple).  Pin each via seam_pin.py / GT, then add
-# a per-(col,page) entry above.
-X6_PADHI_ROW_BY_PAGE_DEFAULT = {9: 192, 10: 192, 11: 288}
 
 
 def build_x6_padhi_clut_override(ocl: list[OclEntry], stage_stem: str) -> "dict[int, int]":
     """
     Return {ocl_idx: alt_clut_row} for every page>=8 tile whose ``pad`` high nibble is
-    the alternate-bank selector (X6_PADHI_ALT_BANK).  Pinned stages use their per-(col,
-    page) entry in X6_PADHI_ROW_BY_STAGE; unpinned stages fall back to the per-page
-    X6_PADHI_ROW_BY_PAGE_DEFAULT.  Tiles whose (col, page) / page is absent are skipped
-    (left at the default col+64).  Game-version-agnostic input; only meaningful for X6.
+    the alternate-bank selector (X6_PADHI_ALT_BANK).  The default row is the data-derived
+    ``X6_PADHI_DEFAULT_BANK + col`` (320 + col); a per-(col, page) entry in
+    X6_PADHI_ROW_BY_STAGE overrides it for stages whose alt CLUTs live elsewhere.
+    Game-version-agnostic input; only meaningful for X6.
     """
     by_col_page = X6_PADHI_ROW_BY_STAGE.get(stage_stem, {})
     out: dict[int, int] = {}
@@ -1416,13 +1397,8 @@ def build_x6_padhi_clut_override(ocl: list[OclEntry], stage_stem: str) -> "dict[
         if (entry.pad >> 4) & 0xF != X6_PADHI_ALT_BANK:
             continue
         page = entry.pad & 0xF
-        # Pinned (col, page) wins; otherwise fall back to the per-page heuristic so a
-        # partially-pinned stage keeps its broad improvement on the un-pinned groups.
-        row = by_col_page.get((entry.col, page))
-        if row is None:
-            row = X6_PADHI_ROW_BY_PAGE_DEFAULT.get(page)
-        if row is not None:
-            out[idx] = row
+        # Per-stage deviation wins; otherwise the universal 320 + col rule.
+        out[idx] = by_col_page.get((entry.col, page), X6_PADHI_DEFAULT_BANK + entry.col)
     return out
 
 
