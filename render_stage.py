@@ -1293,11 +1293,24 @@ X6_CLUT_ROW_FIXES: dict[str, dict[int, int]] = {
     #     but no CLUT row tested — incl. 64 and 288 — gives clearly-correct colours, so
     #     their true palette is unknown without a ground-truth capture.  Left at col+64.
     #   - patch-4 top tiles 869-882 / 920-922 are sprite-occluded in the capture.
+    #
+    # A SECOND col=16 machinery batch (OCL 202 + a 1516-1615 subset, page 10/11) was
+    # flagged "too orange": identical class to 923-952 (col=16 renders orange-rust at row
+    # 80, grey-steel at row 192).  Discriminator confirmed by adjacent tiles that render
+    # fine (col=128 -> 192, col=208 -> 272 via col+64) and a row-80-vs-192 contact sheet
+    # (every flagged index turns clean grey-steel at 192).  Inference from the validated
+    # col=16->192 precedent, not a per-pixel capture — none covers these.  Kept as an
+    # explicit index list because OTHER col=16 page>=8 tiles (436-652, 968+) ARE correct
+    # at row 80, so col=16 must never be blanket-remapped.
     "st04a": _rows(
         (range(923, 953), 192),
         ([152], 288),
         (range(179, 192), 288),   # 179-191 (confirmed)
         (range(193, 202), 288),   # 193-201 (195-201 confirmed; 193-194 inferred)
+        ([202, 1516, 1517, 1520, 1521, 1522, 1525, 1526, 1527, 1536, 1537, 1538, 1539,
+          1543, 1544, 1545, 1546, 1547, 1548, 1549, 1550, 1551, 1552, 1565, 1566, 1567,
+          1568, 1569, 1570, 1571, 1574, 1575, 1576, 1577, 1578, 1579, 1580, 1581, 1582,
+          1583, 1584, 1587, 1588, 1589, 1611, 1613, 1614, 1615], 192),  # user-flagged "too orange"
     ),
 }
 
