@@ -1246,6 +1246,59 @@ def build_x6_chr256_override(
     return frozenset(extra)
 
 
+# ── X6 per-stage CLUT-row fixes ─────────────────────────────────────────────────
+#
+# Some X6 page>=8 (second-VRAM-half) tiles render with the wrong colours because
+# their true static palette is NOT at the universal ``col + 64`` CLUT row.  The
+# shared colXX.col VRAM dump does hold the correct colours, but at a different row.
+#
+# The correction is genuinely PER-TILE, NOT per-col: tiles that share the same ``col``
+# can need different CLUT rows.  In st04a the hydraulic-press tiles (OCL 923-952, col=16)
+# need row 192, yet HUNDREDS of OTHER col=16 page>=8 tiles (OCL 436-652, 968+) are
+# already correct at row 80 — keying a fix by abs_clut/col remaps all of them and
+# regresses those regions.  Fixes are therefore keyed by explicit OCL INDEX, each
+# range validated against an in-game screenshot (experimental/diag_groundtruth_match.py
+# + diag_align_recover.py).  page<8 tiles are unaffected — their ``col + 64`` is correct.
+#
+# Keyed by OMP stem -> {ocl_idx : corrected CLUT row}.
+def _rows(*ranges_or_idx):
+    out: dict[int, int] = {}
+    for r in ranges_or_idx:
+        idxs, row = r
+        for i in (idxs if isinstance(idxs, range) else idxs):
+            out[i] = row
+    return out
+
+
+X6_CLUT_ROW_FIXES: dict[str, dict[int, int]] = {
+    # st04a (Recycle Lab Area 1): the hydraulic-press / scrap-machinery tiles at OCL
+    # 923-952 (col=16) render muddy red-brown at row 80; their real grey-steel palette
+    # is at row 192 (raw shared row 224).  Validated vs screenshots/x6-metal-shark.png
+    # (err 1.8) and the in-game ST04A-B capture (grey steel + orange rust).  Other col=16
+    # page>=8 tiles (e.g. OCL 436-652, 968+) are correct as-is and must NOT be remapped.
+    "st04a": _rows((range(923, 953), 192)),
+}
+
+
+def build_x6_clut_row_override(
+    stage_stem: str,
+    ocl: list[OclEntry],
+    chr256_set: "frozenset[int]",
+) -> "dict[int, int] | None":
+    """
+    Return {ocl_idx: corrected_clut_row} for an X6 stage from X6_CLUT_ROW_FIXES, or
+    None when the stage has no fixes.  Fixes are keyed by explicit OCL index (see
+    X6_CLUT_ROW_FIXES) so only the validated tiles are relocated.  Indices beyond the
+    stage's OCL table are dropped.  The chr256_set argument is accepted for signature
+    stability but is not used (the CLUT row is texture-routing-independent).
+    """
+    fixes = X6_CLUT_ROW_FIXES.get(stage_stem)
+    if not fixes:
+        return None
+    override = {idx: row for idx, row in fixes.items() if 0 <= idx < len(ocl)}
+    return override or None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Render a stage OMP to PNG (level + catalog)."
@@ -1281,8 +1334,10 @@ def main() -> None:
     [omp, ocl, tex, tex_background, flags_to_palette, game_version] = preload_related_files(omp_path)
 
     chr256_extra: "frozenset[int] | None" = None
+    clut_row_fix: "dict[int, int] | None" = None
     if game_version == GameVersion.X6:
         chr256_extra = build_x6_chr256_override(ocl, tex, tex_background)
+        clut_row_fix = build_x6_clut_row_override(omp_stem, ocl, chr256_extra or frozenset())
 
     # Catalog render
     if not args.skip_catalog:
@@ -1297,6 +1352,7 @@ def main() -> None:
             flags_to_palette=flags_to_palette,
             preset=LayerPreset.MAIN,
             chr256_override=chr256_extra,
+            clut_row_override=clut_row_fix,
         )
         if args.debug:
             _debug_overlay_catalog(catalog_img, omp.n_screens)
@@ -1359,6 +1415,7 @@ def main() -> None:
             # tex_fg=tex_foreground,
             flags_to_palette=flags_to_palette,
             chr256_override=chr256_extra,
+            clut_row_override=clut_row_fix,
         )
         if args.debug:
             _debug_overlay_level(level_img, layout, n_sx, n_sy)

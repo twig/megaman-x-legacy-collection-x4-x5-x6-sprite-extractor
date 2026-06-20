@@ -1009,6 +1009,7 @@ def render_omp(
     row_end: int | None = None,
     tile_size: int = TILE_SIZE,
     chr256_override: "frozenset[int] | None" = None,
+    clut_row_override: "dict[int, int] | None" = None,
 ) -> PILImage:
     """
     Render the raw OMP screen catalog to a PIL RGBA image for debugging.
@@ -1124,7 +1125,10 @@ def render_omp(
             raw_tile = _resolve_tile(entry, tile_id)
             if raw_tile is None:
                 continue  # tile not found in TEX
-            rgba_pixels = _apply_palette_to_tile(raw_tile, entry.abs_clut_stage(), palette)
+            clut_row = entry.abs_clut_stage()
+            if clut_row_override is not None and tile_id in clut_row_override:
+                clut_row = clut_row_override[tile_id]
+            rgba_pixels = _apply_palette_to_tile(raw_tile, clut_row, palette)
 
             tile_img = Image.new("RGBA", (tile_size, tile_size))
             tile_img.putdata(rgba_pixels)
@@ -1148,9 +1152,15 @@ def render_level(
     flags_to_palette: dict[OclPaletteGroup, Palette],
     tile_size: int = TILE_SIZE,
     chr256_override: "frozenset[int] | None" = None,
+    clut_row_override: "dict[int, int] | None" = None,
 ) -> PILImage:
     """
     Render the level using the correct screen-based addressing.
+
+    clut_row_override (optional): maps an OCL index to a CLUT row that replaces the
+    entry's default ``abs_clut_stage()``.  Used by the X6 per-stage palette-fix table
+    (see render_stage.build_x6_clut_row_override) to relocate page>=8 tiles whose true
+    static palette lives at a different CLUT row than ``col + 64``.  None = no override.
 
     Unlike render_omp() (which dumps the raw screen catalog), this function
     uses the LayoutTable to map level tile positions to the correct OMP screens.
@@ -1236,7 +1246,10 @@ def render_level(
                     if raw_tile is None:
                         continue
 
-                    rgba_pixels = _apply_palette_to_tile(raw_tile, entry.abs_clut_stage(), palette)
+                    clut_row = entry.abs_clut_stage()
+                    if clut_row_override is not None and ocl_idx in clut_row_override:
+                        clut_row = clut_row_override[ocl_idx]
+                    rgba_pixels = _apply_palette_to_tile(raw_tile, clut_row, palette)
 
                     tile_img = Image.new("RGBA", (tile_size, tile_size))
                     tile_img.putdata(rgba_pixels)
