@@ -1276,7 +1276,29 @@ X6_CLUT_ROW_FIXES: dict[str, dict[int, int]] = {
     # is at row 192 (raw shared row 224).  Validated vs screenshots/x6-metal-shark.png
     # (err 1.8) and the in-game ST04A-B capture (grey steel + orange rust).  Other col=16
     # page>=8 tiles (e.g. OCL 436-652, 968+) are correct as-is and must NOT be remapped.
-    "st04a": _rows((range(923, 953), 192)),
+    #
+    # OCL 152 + 179-201 (page 11, col=0) are the grey-steel scrap-machinery tileset; at
+    # their col+64 row 64 they render orange-rust, but their true palette is row 288 — the
+    # same grey-steel CLUT the col=224 machinery tiles already use.  Confirmed tiles
+    # (152, 179-191, 195-201) validated by matching the four x6-st04a-patch-*.png ground-
+    # truth captures (per-tile RMS over opaque pixels, layer-1/2 red background excluded):
+    # error drops from ~80-190 at row 64 to ~3-10 at row 288.  193-194 are inferred — they
+    # sit inside the same clut_base-contiguous col=0 strip between confirmed members; no
+    # capture covers them.  Scoped to these indices only: col=0 -> row 64 is CORRECT for
+    # the hundreds of page 9-10 background tiles, so this is NOT generalised.
+    #
+    # Deliberately EXCLUDED (no confident fix yet):
+    #   - page-11 col=0 tiles 523-530 (placed up to 768x): tex and chr256 hold IDENTICAL
+    #     coherent index data here (not a routing bug, not corrupt; 527 is a flat fill),
+    #     but no CLUT row tested — incl. 64 and 288 — gives clearly-correct colours, so
+    #     their true palette is unknown without a ground-truth capture.  Left at col+64.
+    #   - patch-4 top tiles 869-882 / 920-922 are sprite-occluded in the capture.
+    "st04a": _rows(
+        (range(923, 953), 192),
+        ([152], 288),
+        (range(179, 192), 288),   # 179-191 (confirmed)
+        (range(193, 202), 288),   # 193-201 (195-201 confirmed; 193-194 inferred)
+    ),
 }
 
 
