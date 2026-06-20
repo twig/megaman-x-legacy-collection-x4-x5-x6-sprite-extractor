@@ -370,10 +370,36 @@ def preload_related_files(omp_path: Path):
     return [omp, ocl, tex, tex_background, flags_to_palette, game_version]
 
 
+# ── X6 per-stage chr256 routing exclusions (force-to-tex) ────────────────────────
+#
+# A few page>=8 tiles carry col=0 — the X6 chr256 background indicator — yet are
+# genuinely FOREGROUND tiles whose pixels live in the standard tex sheet, NOT the chr256
+# (tex_bg) sheet.  build_x6_chr256_override's unpaired-sole-background pass adds them to
+# chr256 anyway, because the col=0 indicator is EXEMPT from that pass's sole-entry gate
+# (X6_BG_INDICATOR_COLS).  They then draw from tex_bg, which at their coordinates holds
+# unrelated art (chains/mesh), rendering as garbage.  Listed OCL indices are force-routed
+# back to tex; their CLUT row is unaffected (the pad_hi rule already relocates them — see
+# X6_PADHI_ROW_BY_STAGE).  Keyed by OMP stem.
+#
+# st04a: the hydraulic-press / Metal-Shark machinery TOP band (col=0, page=10, pad_hi=4)
+# at level x[2816..3200] y[288..336].  Its BODY directly below (OCL 923-952) carries
+# col=16 (not an indicator col) and already reads from tex — only the col=0 top was
+# mis-routed, drawing chains instead of the grey-steel armor plating.  Validated vs
+# x6-st04a-patch-x3136_y304-x3199_y431.png: tex@192 matches (mean RMS 120.7 -> 48.9, the
+# residual being sprite occlusion in the capture) while tex_bg renders chains.  The
+# 868-883 run skips 874/879 (the structure's col=64 pad_hi=0 left-edge tiles, already on
+# tex).  NOT extended to the col=0/page-10/pad_hi=4 batch OCL 1505-1612 (level y816-848, a
+# separate structure) — no ground-truth capture covers it.
+X6_CHR256_FORCE_TEX: dict[str, frozenset[int]] = {
+    "st04a": frozenset((set(range(868, 884)) - {874, 879}) | {920, 921, 922}),
+}
+
+
 def build_x6_chr256_override(
     ocl: list[OclEntry],
     tex: TexData,
     tex_background: TexData,
+    stage_stem: "str | None" = None,
     gap_fill: bool = True,
     palette_fan_guard: bool = True,
     fg_pair_fix: bool = True,
@@ -407,6 +433,11 @@ def build_x6_chr256_override(
     fragments instead of the smooth chr256 hill.  Background indicator cols (0/112)
     are exempt: a same-indicator-col duplicate (e.g. st04a page>=8 col=0 pairs) is
     genuinely background and must still be added.
+
+    Finally, any OCL index in X6_CHR256_FORCE_TEX[stage_stem] is REMOVED from the result
+    (force-routed back to tex): a few page>=8 col=0 FOREGROUND tiles are swept in by the
+    indicator-col exemption above but belong on the standard tex sheet.  No-op when
+    stage_stem is None or absent from the table.
     """
     base_chr256 = _build_chr256_ocl_indices(ocl, tex, tex_background)
     extra = set(base_chr256)
@@ -1240,7 +1271,10 @@ def build_x6_chr256_override(
                 continue
             extra.add(idx)
 
-    return frozenset(extra)
+    result = frozenset(extra)
+    if stage_stem:
+        result -= X6_CHR256_FORCE_TEX.get(stage_stem, frozenset())
+    return result
 
 
 # ── X6 per-stage CLUT-row fixes ─────────────────────────────────────────────────
@@ -1304,6 +1338,15 @@ X6_CLUT_ROW_FIXES: dict[str, dict[int, int]] = {
         ([152], 288),
         (range(179, 192), 288),   # 179-191 (confirmed)
         (range(193, 202), 288),   # 193-201 (195-201 confirmed; 193-194 inferred)
+        # Machinery-TOP band (col=0, page=10, pad_hi=4): the grey-steel armor plating
+        # above the col=16 body (923-952 -> 192).  Routed back to tex by
+        # X6_CHR256_FORCE_TEX; at the pad_hi (0,10)->192 default it renders rusty-brown,
+        # so pin it to row 288 — the same col=0 grey-steel CLUT as the page-11 scrap tiles
+        # (152/179-201).  RMS-validated vs x6-st04a-patch-x3136_y304-x3199_y431.png:
+        # mean 7.1 @288 vs 81.2 @192 (experimental/diag_top_palette_st04a.py).  Skips
+        # 874/879 (col=64 pad_hi=0 left-edge tiles).  NOT applied to the col=0/page-10
+        # batch 1505-1612 (separate structure, no capture) — hence per-index, not (0,10).
+        (sorted((set(range(868, 884)) - {874, 879}) | {920, 921, 922}), 288),
         ([202, 1516, 1517, 1520, 1521, 1522, 1525, 1526, 1527, 1536, 1537, 1538, 1539,
           1543, 1544, 1545, 1546, 1547, 1548, 1549, 1550, 1551, 1552, 1565, 1566, 1567,
           1568, 1569, 1570, 1571, 1574, 1575, 1576, 1577, 1578, 1579, 1580, 1581, 1582,
@@ -1439,7 +1482,7 @@ def main() -> None:
     chr256_extra: "frozenset[int] | None" = None
     clut_row_fix: "dict[int, int] | None" = None
     if game_version == GameVersion.X6:
-        chr256_extra = build_x6_chr256_override(ocl, tex, tex_background)
+        chr256_extra = build_x6_chr256_override(ocl, tex, tex_background, omp_stem)
         # pad_hi CLUT-bank rule (data-driven, all stages) with the explicit per-index
         # X6_CLUT_ROW_FIXES merged ON TOP so validated rows win on any conflict (e.g.
         # st04a OCL 202).  Result: st04a's validated tiles are unchanged; only newly
