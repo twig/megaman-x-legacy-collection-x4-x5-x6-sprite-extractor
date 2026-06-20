@@ -146,20 +146,18 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     "X6": {
         # garbled
         "st00":      (0x02DD3FF0, 26, 17),  # LAYOUT DONE, TILES ALMOST (Intro - Eurasia Ruins)
-        # black box
-        "st01":      (0x02DD41E0, 26, 23),  # LAYOUT DONE, TILES ALMOST (Commander Yammark; Amazon Area)
-        # garbled
+        "st01":      (0x02DD41E0, 26, 23),  # LAYOUT DONE, TILES DONE (Commander Yammark; Amazon Area)
+        # inverted shadows
         "st01x":     (0x02DD6A18, 26, 20),  # LAYOUT DONE, TILES ALMOST (Commander Yammark; sub stage)
-        # garbled, missing tile?
-        "st02":      (0x02DD44A0, 27, 15),  # LAYOUT DONE, TILES MOST (Blizzard Wolfang; North Pole Area)
+        "st02":      (0x02DD44A0, 27, 15),  # LAYOUT DONE, TILES DONE (Blizzard Wolfang; North Pole Area)
         # missing tile?
         "st02x":     (0x02DD6CD8, 15, 33),  # LAYOUT DONE, TILES ALMOST sub stage
         # grey box, black box, inverted shadow, wrong palette, missing tile?
         "st03":      (0x02DD46D8, 18, 39),  # LAYOUT DONE, TILES MOST (Blaze Heatnix; Magma Area)
         # inverted shadow, missing tiles
         "st03x":     (0x02DD6F80, 15, 20),  # LAYOUT DONE, TILES MOST sub stage
-        # striped, inverted shadows, garbled, wrong palette
-        "st04a":     (0x02DD4998, 22, 23),  # LAYOUT DONE, TILES MOST (Recycle Lab: Area 1)
+        # garbled
+        "st04a":     (0x02DD4998, 22, 23),  # LAYOUT DONE, TILES ALMOST (Recycle Lab: Area 1)
         # inverted shadows
         "st04b":     (0x02DD4BA8, 26, 15),  # LAYOUT DONE, TILES ALMOST (Recycle Lab: Area 2)
         # inverted shadows
@@ -176,8 +174,7 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st07":      (0x02DD52E7, 24, 19),  # LAYOUT DONE, TILES DONE (Shield Sheldon; Laser Institute)
         # inverted highlight
         "st07x":     (0x02DD7378, 26,  8),  # LAYOUT DONE, TILES ALMOST sub stage
-        # missing tiles?
-        "st08":      (0x02DD5540, 24, 19),  # LAYOUT DONE, TILES ALMOST (Infinity Mijinion; Weapons Facility)
+        "st08":      (0x02DD5540, 24, 19),  # LAYOUT DONE, TILES DONE (Infinity Mijinion; Weapons Facility)
         "st08x":     (0x02DD7468, 10, 11),  # LAYOUT DONE, TILES DONE sub stage
         "st0ca":     (0x02DD5750, 12, 34),  # LAYOUT DONE, TILES ALMOST (Secret Lab 3: Area 1)
         "st0cb":     (0x02DD5948, 16, 10),  # LAYOUT DONE, TILES ALMOST (Secret Lab 3: Area 2)
