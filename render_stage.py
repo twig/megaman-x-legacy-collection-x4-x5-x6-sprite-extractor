@@ -395,6 +395,36 @@ X6_CHR256_FORCE_TEX: dict[str, frozenset[int]] = {
 }
 
 
+# ── X6 per-stage chr256 routing inclusions (force-to-tex_bg) ─────────────────────
+#
+# Mirror of X6_CHR256_FORCE_TEX.  A few pad_hi=4 (alternate-VRAM-bank) tile groups read
+# their pixels from the chr256 (tex_bg) sheet, but the content heuristic leaves them on tex.
+# They are page>=8 SOLE entries whose col is not a background indicator (0/112) — so Pass
+# 3a-3c never consider them — and their tex tile is non-empty (a smooth, low-detail fill) so
+# the pg8_empty_bg / unpaired-sole passes skip them too; yet the real art lives in tex_bg.
+#
+# This is NOT derivable from a single bit: tex-vs-tex_bg is not a function of any OCL/OMP
+# field.  pad_hi=4 marks the alt CLUT bank (X6_PADHI_ROW_BY_STAGE) but NOT the texture sheet
+# — the same (col,page,pad_hi=4) signature reads tex_bg in st0g yet tex in st04a (the
+# X6_CHR256_FORCE_TEX group, RMS-validated).  So, like the CLUT bank, the sheet is a per-stage
+# property listed explicitly.  Keyed by stem -> {(col, page)}; consulted ONLY for pad_hi=4
+# tiles (same gate as build_x6_padhi_clut_override), so the col=48 pad_hi=0 FOREGROUND tiles
+# in the same (col,page) groups are unaffected.
+#
+# st0g: the dormant-mechaniloid structure (Secret Lab 1).  col=48 pad_hi=4 on pages 10/11
+# (OCL 1586-1794 / 1795-2115) drew dark garbage from tex.  Validated vs st0g-goal.png over
+# the (2128,912) region: composing from tex_bg gives RMS 9.9 (vs 63.8 from tex), 45/45 tiles
+# match per-tile and many at RMS 0.0 (experimental/diag_st0g_offset_search.py,
+# diag_st0g_truth_aligned.py).  The col=16/32 pad_hi=4 tiles here were already routed to
+# tex_bg by the heuristic; only col=48 needed the explicit entry.  Tiles of the same
+# contiguous OCL batch outside the captured region are inferred (same (col,page,pad_hi) class,
+# same tex_bg art), not separately captured.
+X6_CHR256_FORCE_BG_BY_STAGE: dict[str, "frozenset[tuple[int, int]]"] = {
+    # stem -> {(col, page)} pad_hi=4 groups that read tex_bg.
+    "st0g": frozenset({(48, 10), (48, 11)}),
+}
+
+
 def build_x6_chr256_override(
     ocl: list[OclEntry],
     tex: TexData,
@@ -434,10 +464,12 @@ def build_x6_chr256_override(
     are exempt: a same-indicator-col duplicate (e.g. st04a page>=8 col=0 pairs) is
     genuinely background and must still be added.
 
-    Finally, any OCL index in X6_CHR256_FORCE_TEX[stage_stem] is REMOVED from the result
-    (force-routed back to tex): a few page>=8 col=0 FOREGROUND tiles are swept in by the
-    indicator-col exemption above but belong on the standard tex sheet.  No-op when
-    stage_stem is None or absent from the table.
+    Two per-stage corrections close out (both no-op when stage_stem is None/absent):
+    first, pad_hi=4 tiles whose (col, page) is listed in X6_CHR256_FORCE_BG_BY_STAGE[stage_stem]
+    are ADDED (force-routed to tex_bg) — alt-bank tiles whose art lives in the chr256 sheet but
+    which the content passes leave on tex.  Then any OCL index in X6_CHR256_FORCE_TEX[stage_stem]
+    is REMOVED (force-routed back to tex): a few page>=8 col=0 FOREGROUND tiles swept in by the
+    indicator-col exemption above that belong on the standard tex sheet.
     """
     base_chr256 = _build_chr256_ocl_indices(ocl, tex, tex_background)
     extra = set(base_chr256)
@@ -1271,10 +1303,16 @@ def build_x6_chr256_override(
                 continue
             extra.add(idx)
 
-    result = frozenset(extra)
     if stage_stem:
-        result -= X6_CHR256_FORCE_TEX.get(stage_stem, frozenset())
-    return result
+        # Force the listed pad_hi=4 (col, page) groups INTO chr256 (read tex_bg).
+        force_bg = X6_CHR256_FORCE_BG_BY_STAGE.get(stage_stem)
+        if force_bg:
+            extra |= {idx for idx, entry in enumerate(ocl)
+                      if ((entry.pad >> 4) & 0xF) == X6_PADHI_ALT_BANK
+                      and (entry.col, entry.pad & 0xF) in force_bg}
+        # ...then force the listed indices back OUT to tex.
+        extra -= X6_CHR256_FORCE_TEX.get(stage_stem, frozenset())
+    return frozenset(extra)
 
 
 # ── X6 per-stage CLUT-row fixes ─────────────────────────────────────────────────
