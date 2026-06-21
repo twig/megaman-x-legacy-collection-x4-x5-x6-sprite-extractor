@@ -394,9 +394,13 @@ X6_SHEET_OVERRIDE_INDICES: dict[str, "dict[int, str]"] = {
     "st03":  {i: "bg" for i in range(2444, 2452)},
     "st06a": {i: "bg" for i in (2190, 2191, 2194, 2195, 2196, 2198, 2199, 2200, 2201, 2202,
                                 2203, 2204, 2205, 2206, 2207, 2208, 2209, 2210, 2211, 2212,
-                                2213, 2214, 2215, 2218, 2219, 2220, 2221, 2222, 2223, 2224,
-                                2225, 2226, 2227, 2230, 2231, 2232)},
+                                2213, 2214, 2215, 2217, 2218, 2219, 2220, 2221, 2222, 2223,
+                                2224, 2225, 2226, 2227, 2230, 2231, 2232)},
     "st08":  {i: "bg" for i in range(2578, 2584)},
+    # st0h: the temple-banner top tiles 523/524 (col=24, page=1, tile_type 0x39 animated)
+    #   render bright cyan/magenta stripes from tex_bg; the real gold/dark-blue banner art
+    #   lives in tex, matching their 0x38 sibling 483 (tex@88).  Route them back to tex.
+    "st0h":  {523: "tex", 524: "tex"},
 }
 
 
@@ -430,7 +434,17 @@ X6_SHEET_OVERRIDE_BY_STAGE: dict[str, "dict[tuple[int, int, int], str]"] = {
     "st0g":  {(48, 10, 4): "bg", (48, 11, 4): "bg"},
     "st00":  {(96, 9, 0): "bg", (4, 9, 0): "bg"},
     "st05":  {(128, 9, 0): "bg", (144, 9, 0): "bg", (160, 9, 0): "bg",
-              (128, 10, 0): "bg", (160, 10, 0): "bg", (160, 11, 0): "bg"},
+              (128, 10, 0): "bg", (160, 10, 0): "bg", (160, 11, 0): "bg",
+              # Underwater-room water (col 41/42, pages 1-2): the base router split these
+              # mixed groups, sending ~half to tex_bg where they draw black/white noise; the
+              # coherent smooth-water art is on tex.  Force the whole groups to tex.
+              (41, 1, 0): "tex", (41, 2, 0): "tex", (42, 1, 0): "tex", (42, 2, 0): "tex",
+              # Egyptian sunset background (col 54-65, pages 2-3, at x240-320 / y8608-8960):
+              # the pharaoh statue + sunset sky tiles routed to tex_bg render as blocky garble;
+              # the real art is on tex (the page 5-7 siblings of these cols are already tex).
+              (54, 2, 0): "tex", (56, 2, 0): "tex", (56, 3, 0): "tex", (59, 2, 0): "tex",
+              (60, 2, 0): "tex", (60, 3, 0): "tex", (61, 2, 0): "tex", (63, 2, 0): "tex",
+              (64, 2, 0): "tex", (65, 3, 0): "tex"},
     "st0h":  {(80, 11, 0): "bg"},
     "st06a": {(16, 11, 4): "bg", (32, 11, 4): "bg", (48, 11, 4): "bg"},
     "st0i":  {(64, 10, 0): "bg"},
@@ -1414,6 +1428,16 @@ X6_CLUT_ROW_FIXES: dict[str, dict[int, int]] = {
           1543, 1544, 1545, 1546, 1547, 1548, 1549, 1550, 1551, 1552, 1565, 1566, 1567,
           1568, 1569, 1570, 1571, 1574, 1575, 1576, 1577, 1578, 1579, 1580, 1581, 1582,
           1583, 1584, 1587, 1588, 1589, 1611, 1613, 1614, 1615], 192),  # user-flagged "too orange"
+        # Recurring scrap-pile prop (col=0, page=10, pad_hi=4) — the SECOND col=0/pg10/pad_hi=4
+        # batch left at tex_bg@192 in earlier sessions for lack of ground truth.  At the
+        # (0,10)->192 padhi default it renders rusty-brown with a pink/white speckle streak;
+        # the correct grey-steel palette is row 288 (the same col=0 grey-steel CLUT as the top
+        # band 868-922 and the page-11 scrap 152/179-201).  USER-FLAGGED at level (1904-1951,
+        # 816-863) — should match the reference tiles 187/191; confirmed that 288 removes the
+        # speckle and yields clean grey steel.  Stays on tex_bg (its art lives there; tex is
+        # empty at these page-10 coords, so routing to tex would punch a transparent hole).
+        ([1505, 1506, 1507, 1508, 1509, 1511, 1512, 1528, 1532, 1553, 1554, 1555, 1556,
+          1557, 1560, 1561, 1562, 1609, 1610, 1612], 288),
     ),
     # st04b col=0 pad_hi=4 tiles split by tile_type into two palettes (whole-tile matched
     # to the user's reference tiles): type 0x3A → col=6 light-grey ref (row 70); type 0x3F
