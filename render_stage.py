@@ -1357,6 +1357,14 @@ def _rows(*ranges_or_idx):
 
 
 X6_CLUT_ROW_FIXES: dict[str, dict[int, int]] = {
+    # st00 (Intro Stage): the large flat background-fill tile at OCL 2446 (col=43, page=2,
+    # cb=77) is a single-value v=3 fill routed to chr256 that blankets x~1584-2864, y~2368-2784.
+    # At its col+64 row 107 — a tan/brown rock ramp — v=3 renders RGB(66,41,41), a brown block
+    # that stands out against the dark scene.  Its true palette is the dark-red ramp at row 129
+    # (v=3 -> the CLUT's RGB(8,0,0)), the dominant dark-red flat-fill row in st00 (24 other
+    # tiles already use it).  OCL 3038 is the same (col=43,cb=77) flat tile — a 3-tile strip at
+    # x=2304 embedded in the same block — so it is pinned to 129 too.
+    "st00": _rows(([2446, 3038], 129)),
     # st04a (Recycle Lab Area 1): the hydraulic-press / scrap-machinery tiles at OCL
     # 923-952 (col=16) render muddy red-brown at row 80; their real grey-steel palette
     # is at row 192 (raw shared row 224).  Validated vs screenshots/x6-metal-shark.png
@@ -1461,11 +1469,9 @@ def build_x6_clut_row_override(
 #
 # Per-stage EXCEPTIONS (X6_PADHI_ROW_BY_STAGE) override the default where a stage uploaded
 # its alt CLUTs to a different bottom-half row.  These are genuine deviations (re-confirmed
-# vs the rule, not mis-pins): st04a (whole stage, lower bank), st04b col=16, st0g col=32.
+# vs the rule, not mis-pins): st04a (whole stage, lower bank), st04b col=16.
 # A wrong row shows as a slight hue shift (right col band, wrong row) or a gross mismatch
-# (wrong col entirely).  Validated by RMS (st04a) and ground-truth match (st04b, st0g).
-# X6_CLUT_ROW_FIXES is still merged ON TOP in main() (takes precedence) for per-index cases
-# the (col,page) table can't express (st04b col=0 tile_type split).
+# (wrong col entirely).  Validated by RMS (st04a) and ground-truth match (st04b).
 X6_PADHI_ALT_BANK = 4
 X6_PADHI_DEFAULT_BANK = 320  # alt_row = 320 + col  (+96 stage-CLUT offset, bottom VRAM half)
 X6_PADHI_ROW_BY_STAGE: dict[str, dict[tuple[int, int], int]] = {
@@ -1476,8 +1482,6 @@ X6_PADHI_ROW_BY_STAGE: dict[str, dict[tuple[int, int], int]] = {
     "st04a": {(16, 9): 192, (16, 10): 192, (16, 11): 192, (0, 10): 192, (0, 11): 288},
     # st04b col=16: silver spikes at 368 (default 336 renders garbage — coherence-confirmed).
     "st04b": {(16, 10): 368},
-    # st0g col=32: both pages → 288 (default 352 disagrees).  Verified vs ref OCL1813.
-    "st0g":  {(32, 10): 288, (32, 11): 288},
 }
 
 
