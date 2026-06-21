@@ -384,14 +384,13 @@ def preload_related_files(omp_path: Path):
 #   chains/mesh.  868-883 skips 874/879 (col=64 left-edge, already tex).  NOT the whole
 #   (0,10,4) class — the separate 1505-1612 structure IS background — hence per-index.
 # "bg" runs: page>=8 (and a few page<8) background tiles left on tex by the heuristic, in
-#   mixed groups (st00 col4/pg9, st06a col240/pg11, st03 col21/pg4, st07 col123/pg6,
-#   st08 col3/pg5, st01, st02).
+#   small mixed groups (st06a col240/pg11, st03 col21/pg4, st08 col3/pg5, st01, st02) that do
+#   NOT form a clean (col, page, pad_hi) group.  st00's tan-blob run and st05's page>=8 cols
+#   DID form clean groups and live in X6_SHEET_OVERRIDE_BY_STAGE below instead.
 X6_SHEET_OVERRIDE_INDICES: dict[str, "dict[int, str]"] = {
     "st04a": {i: "tex" for i in (set(range(868, 884)) - {874, 879}) | {920, 921, 922}},
-    "st00":  {i: "bg" for i in (3025, 3026, 3027, 3028, 3029, 3030, 3031, 3032, 3033,
-                                3034, 3035, 3036, 3037, 3039, 3042, 3044)},
     "st01":  {2627: "bg"},
-    "st02":  {2628: "bg"},
+    "st02":  {i: "bg" for i in (2627, 2628)},
     "st03":  {i: "bg" for i in range(2444, 2452)},
     "st06a": {i: "bg" for i in (2190, 2191, 2194, 2195, 2196, 2198, 2199, 2200, 2201, 2202,
                                 2203, 2204, 2205, 2206, 2207, 2208, 2209, 2210, 2211, 2212,
@@ -415,8 +414,12 @@ X6_SHEET_OVERRIDE_INDICES: dict[str, "dict[int, str]"] = {
 #
 #   st0g  (48,10/11,4)->bg     dormant-mechaniloid armour; RMS 9.9 vs st0g-goal.png (tex 63.8).
 #   st06a (16/32/48,11,4)->bg  same pad_hi=4 machinery class as st0g.
-#   st00  (96,9,0)->bg / st0h (80,11,0)->bg / st0i (64,10,0)->bg
-#                              page>=8 background groups the heuristic left on tex.
+#   st00  (96,9,0)+(4,9,0)->bg   page>=8 bg groups the heuristic left on tex; (4,9,0) is the
+#                                out-of-place tan-blob run at x~2560,y~2590.
+#   st05  (128/144/160, 9/10/11, 0)->bg   the machine-room block in the SE corner — page>=8 bg
+#                                cols carrying real data in BOTH sheets, on cols never anchored
+#                                as background, so no heuristic pass caught them.
+#   st0h  (80,11,0)->bg / st0i (64,10,0)->bg   more page>=8 bg groups left on tex.
 #   st04a (40/47/50/51,1,0)->tex   page-1 foreground tiles the duplicate-pair rule over-routed
 #                                  to chr256.
 # (st04a's page-10 col=0 sub-batch is handled per-index in X6_SHEET_OVERRIDE_INDICES above:
@@ -425,7 +428,9 @@ X6_SHEET_OVERRIDE_INDICES: dict[str, "dict[int, str]"] = {
 X6_SHEET_OVERRIDE_BY_STAGE: dict[str, "dict[tuple[int, int, int], str]"] = {
     # stem -> {(col, page, pad_hi): "bg" | "tex"}
     "st0g":  {(48, 10, 4): "bg", (48, 11, 4): "bg"},
-    "st00":  {(96, 9, 0): "bg"},
+    "st00":  {(96, 9, 0): "bg", (4, 9, 0): "bg"},
+    "st05":  {(128, 9, 0): "bg", (144, 9, 0): "bg", (160, 9, 0): "bg",
+              (128, 10, 0): "bg", (160, 10, 0): "bg", (160, 11, 0): "bg"},
     "st0h":  {(80, 11, 0): "bg"},
     "st06a": {(16, 11, 4): "bg", (32, 11, 4): "bg", (48, 11, 4): "bg"},
     "st0i":  {(64, 10, 0): "bg"},
