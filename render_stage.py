@@ -1459,7 +1459,7 @@ def main() -> None:
         help="Only produce the catalog PNG, skip level render",
     )
     parser.add_argument(
-        "--skip-catalog", action="store_true",
+        "--skip-catalog", action="store_true", default=True,
         help="Skip catalog PNG generation",
     )
     parser.add_argument(
