@@ -370,58 +370,66 @@ def preload_related_files(omp_path: Path):
     return [omp, ocl, tex, tex_background, flags_to_palette, game_version]
 
 
-# ── X6 per-stage chr256 routing exclusions (force-to-tex) ────────────────────────
+# ── X6 per-stage chr256 routing overrides, by explicit OCL INDEX ─────────────────
 #
-# A few page>=8 tiles carry col=0 — the X6 chr256 background indicator — yet are
-# genuinely FOREGROUND tiles whose pixels live in the standard tex sheet, NOT the chr256
-# (tex_bg) sheet.  build_x6_chr256_override's unpaired-sole-background pass adds them to
-# chr256 anyway, because the col=0 indicator is EXEMPT from that pass's sole-entry gate
-# (X6_BG_INDICATOR_COLS).  They then draw from tex_bg, which at their coordinates holds
-# unrelated art (chains/mesh), rendering as garbage.  Listed OCL indices are force-routed
-# back to tex; their CLUT row is unaffected (the pad_hi rule already relocates them — see
-# X6_PADHI_ROW_BY_STAGE).  Keyed by OMP stem.
+# Companion to the (col, page, pad_hi) group table X6_SHEET_OVERRIDE_BY_STAGE below, for
+# tiles the content heuristic mis-routes that do NOT form a clean group — their
+# (col, page, pad_hi) group also contains correctly-routed sibling tiles, so only specific
+# OCL indices can be corrected.  ``"bg"`` forces the index INTO chr256 (read tex_bg),
+# ``"tex"`` forces it OUT (read tex).  Each index was ground-truth-confirmed (no counter-
+# examples among its placements); see the scrapbook per-index salvage analysis.
 #
-# st04a: the hydraulic-press / Metal-Shark machinery TOP band (col=0, page=10, pad_hi=4)
-# at level x[2816..3200] y[288..336].  Its BODY directly below (OCL 923-952) carries
-# col=16 (not an indicator col) and already reads from tex — only the col=0 top was
-# mis-routed, drawing chains instead of the grey-steel armor plating.  Validated vs
-# x6-st04a-patch-x3136_y304-x3199_y431.png: tex@192 matches (mean RMS 120.7 -> 48.9, the
-# residual being sprite occlusion in the capture) while tex_bg renders chains.  The
-# 868-883 run skips 874/879 (the structure's col=64 pad_hi=0 left-edge tiles, already on
-# tex).  NOT extended to the col=0/page-10/pad_hi=4 batch OCL 1505-1612 (level y816-848, a
-# separate structure) — no ground-truth capture covers it.
-X6_CHR256_FORCE_TEX: dict[str, frozenset[int]] = {
-    "st04a": frozenset((set(range(868, 884)) - {874, 879}) | {920, 921, 922}),
+# st04a "tex": the hydraulic-press / Metal-Shark machinery TOP band (col=0, page=10, pad_hi=4)
+#   — genuinely FOREGROUND, but the col=0 chr256 indicator sweeps it into tex_bg where it draws
+#   chains/mesh.  868-883 skips 874/879 (col=64 left-edge, already tex).  NOT the whole
+#   (0,10,4) class — the separate 1505-1612 structure IS background — hence per-index.
+# "bg" runs: page>=8 (and a few page<8) background tiles left on tex by the heuristic, in
+#   mixed groups (st00 col4/pg9, st06a col240/pg11, st03 col21/pg4, st07 col123/pg6,
+#   st08 col3/pg5, st01, st02).
+X6_SHEET_OVERRIDE_INDICES: dict[str, "dict[int, str]"] = {
+    "st04a": {i: "tex" for i in (set(range(868, 884)) - {874, 879}) | {920, 921, 922}},
+    "st00":  {i: "bg" for i in (3025, 3026, 3027, 3028, 3029, 3030, 3031, 3032, 3033,
+                                3034, 3035, 3036, 3037, 3039, 3042, 3044)},
+    "st01":  {2627: "bg"},
+    "st02":  {2628: "bg"},
+    "st03":  {i: "bg" for i in range(2444, 2452)},
+    "st06a": {i: "bg" for i in (2190, 2191, 2194, 2195, 2196, 2198, 2199, 2200, 2201, 2202,
+                                2203, 2204, 2205, 2206, 2207, 2208, 2209, 2210, 2211, 2212,
+                                2213, 2214, 2215, 2218, 2219, 2220, 2221, 2222, 2223, 2224,
+                                2225, 2226, 2227, 2230, 2231, 2232)},
+    "st08":  {i: "bg" for i in range(2578, 2584)},
 }
 
 
-# ── X6 per-stage chr256 routing inclusions (force-to-tex_bg) ─────────────────────
+# ── X6 per-stage tile-sheet overrides ────────────────────────────────────────────
 #
-# Mirror of X6_CHR256_FORCE_TEX.  A few pad_hi=4 (alternate-VRAM-bank) tile groups read
-# their pixels from the chr256 (tex_bg) sheet, but the content heuristic leaves them on tex.
-# They are page>=8 SOLE entries whose col is not a background indicator (0/112) — so Pass
-# 3a-3c never consider them — and their tex tile is non-empty (a smooth, low-detail fill) so
-# the pg8_empty_bg / unpaired-sole passes skip them too; yet the real art lives in tex_bg.
+# Per-stage (col, page, pad_hi) -> sheet corrections for tiles the content heuristic in
+# build_x6_chr256_override mis-routes.  tex-vs-tex_bg is NOT a function of any single OCL/OMP
+# field — the same (col, page, pad_hi) reads tex_bg in one stage and tex in another — so these
+# groups are listed per stage and each was validated against ground truth (in-game captures).
+# ``"bg"`` forces the group INTO chr256 (read tex_bg); ``"tex"`` forces it OUT (read tex).
+# A group is listed only when ALL of its visibly-affected placements were confirmed correct
+# (zero counter-examples) — see the scrapbook salvage analysis.  This (col,page,pad_hi) table
+# is consulted regardless of pad_hi, so it cleanly handles both the pad_hi=4 alt-bank machinery
+# and ordinary pad_hi=0 background groups in one mechanism.
 #
-# This is NOT derivable from a single bit: tex-vs-tex_bg is not a function of any OCL/OMP
-# field.  pad_hi=4 marks the alt CLUT bank (X6_PADHI_ROW_BY_STAGE) but NOT the texture sheet
-# — the same (col,page,pad_hi=4) signature reads tex_bg in st0g yet tex in st04a (the
-# X6_CHR256_FORCE_TEX group, RMS-validated).  So, like the CLUT bank, the sheet is a per-stage
-# property listed explicitly.  Keyed by stem -> {(col, page)}; consulted ONLY for pad_hi=4
-# tiles (same gate as build_x6_padhi_clut_override), so the col=48 pad_hi=0 FOREGROUND tiles
-# in the same (col,page) groups are unaffected.
-#
-# st0g: the dormant-mechaniloid structure (Secret Lab 1).  col=48 pad_hi=4 on pages 10/11
-# (OCL 1586-1794 / 1795-2115) drew dark garbage from tex.  Validated vs st0g-goal.png over
-# the (2128,912) region: composing from tex_bg gives RMS 9.9 (vs 63.8 from tex), 45/45 tiles
-# match per-tile and many at RMS 0.0 (experimental/diag_st0g_offset_search.py,
-# diag_st0g_truth_aligned.py).  The col=16/32 pad_hi=4 tiles here were already routed to
-# tex_bg by the heuristic; only col=48 needed the explicit entry.  Tiles of the same
-# contiguous OCL batch outside the captured region are inferred (same (col,page,pad_hi) class,
-# same tex_bg art), not separately captured.
-X6_CHR256_FORCE_BG_BY_STAGE: dict[str, "frozenset[tuple[int, int]]"] = {
-    # stem -> {(col, page)} pad_hi=4 groups that read tex_bg.
-    "st0g": frozenset({(48, 10), (48, 11)}),
+#   st0g  (48,10/11,4)->bg     dormant-mechaniloid armour; RMS 9.9 vs st0g-goal.png (tex 63.8).
+#   st06a (16/32/48,11,4)->bg  same pad_hi=4 machinery class as st0g.
+#   st00  (96,9,0)->bg / st0h (80,11,0)->bg / st0i (64,10,0)->bg
+#                              page>=8 background groups the heuristic left on tex.
+#   st04a (40/47/50/51,1,0)->tex   page-1 foreground tiles the duplicate-pair rule over-routed
+#                                  to chr256.
+# (st04a's page-10 col=0 sub-batch is handled per-index in X6_SHEET_OVERRIDE_INDICES above:
+# other (0,10,4) tiles in that stage ARE genuine background, so it is not a clean
+# (col,page,pad_hi) group.)
+X6_SHEET_OVERRIDE_BY_STAGE: dict[str, "dict[tuple[int, int, int], str]"] = {
+    # stem -> {(col, page, pad_hi): "bg" | "tex"}
+    "st0g":  {(48, 10, 4): "bg", (48, 11, 4): "bg"},
+    "st00":  {(96, 9, 0): "bg"},
+    "st0h":  {(80, 11, 0): "bg"},
+    "st06a": {(16, 11, 4): "bg", (32, 11, 4): "bg", (48, 11, 4): "bg"},
+    "st0i":  {(64, 10, 0): "bg"},
+    "st04a": {(40, 1, 0): "tex", (47, 1, 0): "tex", (50, 1, 0): "tex", (51, 1, 0): "tex"},
 }
 
 
@@ -464,12 +472,11 @@ def build_x6_chr256_override(
     are exempt: a same-indicator-col duplicate (e.g. st04a page>=8 col=0 pairs) is
     genuinely background and must still be added.
 
-    Two per-stage corrections close out (both no-op when stage_stem is None/absent):
-    first, pad_hi=4 tiles whose (col, page) is listed in X6_CHR256_FORCE_BG_BY_STAGE[stage_stem]
-    are ADDED (force-routed to tex_bg) — alt-bank tiles whose art lives in the chr256 sheet but
-    which the content passes leave on tex.  Then any OCL index in X6_CHR256_FORCE_TEX[stage_stem]
-    is REMOVED (force-routed back to tex): a few page>=8 col=0 FOREGROUND tiles swept in by the
-    indicator-col exemption above that belong on the standard tex sheet.
+    Per-stage sheet overrides close out (no-op when stage_stem is None/absent): the
+    (col, page, pad_hi) groups in X6_SHEET_OVERRIDE_BY_STAGE[stage_stem] and the explicit OCL
+    indices in X6_SHEET_OVERRIDE_INDICES[stage_stem] are each forced to their named sheet —
+    ``"bg"`` ADDS the tile to chr256 (art the content passes leave on tex but really lives in
+    tex_bg), ``"tex"`` REMOVES it.  Index entries take precedence over group entries.
     """
     base_chr256 = _build_chr256_ocl_indices(ocl, tex, tex_background)
     extra = set(base_chr256)
@@ -1304,14 +1311,19 @@ def build_x6_chr256_override(
             extra.add(idx)
 
     if stage_stem:
-        # Force the listed pad_hi=4 (col, page) groups INTO chr256 (read tex_bg).
-        force_bg = X6_CHR256_FORCE_BG_BY_STAGE.get(stage_stem)
-        if force_bg:
-            extra |= {idx for idx, entry in enumerate(ocl)
-                      if ((entry.pad >> 4) & 0xF) == X6_PADHI_ALT_BANK
-                      and (entry.col, entry.pad & 0xF) in force_bg}
-        # ...then force the listed indices back OUT to tex.
-        extra -= X6_CHR256_FORCE_TEX.get(stage_stem, frozenset())
+        # Per-stage sheet overrides: (col, page, pad_hi) GROUP table, plus a per-OCL-index
+        # table for fixes that don't form a clean group.  Index entries win (more specific).
+        # "bg" forces a tile INTO chr256 (read tex_bg); "tex" forces it OUT (read tex).
+        group_ov = X6_SHEET_OVERRIDE_BY_STAGE.get(stage_stem, {})
+        idx_ov = X6_SHEET_OVERRIDE_INDICES.get(stage_stem, {})
+        if group_ov or idx_ov:
+            for idx, entry in enumerate(ocl):
+                sheet = idx_ov.get(idx) or group_ov.get(
+                    (entry.col, entry.pad & 0xF, (entry.pad >> 4) & 0xF))
+                if sheet == "bg":
+                    extra.add(idx)
+                elif sheet == "tex":
+                    extra.discard(idx)
     return frozenset(extra)
 
 
@@ -1378,7 +1390,7 @@ X6_CLUT_ROW_FIXES: dict[str, dict[int, int]] = {
         (range(193, 202), 288),   # 193-201 (195-201 confirmed; 193-194 inferred)
         # Machinery-TOP band (col=0, page=10, pad_hi=4): the grey-steel armor plating
         # above the col=16 body (923-952 -> 192).  Routed back to tex by
-        # X6_CHR256_FORCE_TEX; at the pad_hi (0,10)->192 default it renders rusty-brown,
+        # X6_SHEET_OVERRIDE_INDICES; at the pad_hi (0,10)->192 default it renders rusty-brown,
         # so pin it to row 288 — the same col=0 grey-steel CLUT as the page-11 scrap tiles
         # (152/179-201).  RMS-validated vs x6-st04a-patch-x3136_y304-x3199_y431.png:
         # mean 7.1 @288 vs 81.2 @192 (experimental/diag_top_palette_st04a.py).  Skips
