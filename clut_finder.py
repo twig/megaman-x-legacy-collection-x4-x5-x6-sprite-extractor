@@ -41,6 +41,8 @@ class CLUTFinderApp:
         self.tex_w = 0
         self.tex_h = 0
         self.matching_indexes: list[tuple[int, float]] = []
+        self.preview_tex_pil: PILImage | None = None
+        self.ss_rect_coords: tuple[int, int, int, int] | None = None
         self.tex_start_x = None
         self.tex_start_y = None
         self.tex_rect_id = None
@@ -124,6 +126,20 @@ class CLUTFinderApp:
             command=self.save_tex_preview,
         )
         self.save_tex_button.pack(fill="x", pady=(0, 2), padx=10)
+
+        self.save_ss_selection_button = tk.Button(
+            self.side_panel,
+            text="Save screenshot selection",
+            command=self.save_screenshot_selection,
+        )
+        self.save_ss_selection_button.pack(fill="x", pady=(0, 2), padx=10)
+
+        self.save_tex_selection_button = tk.Button(
+            self.side_panel,
+            text="Save TEX selection",
+            command=self.save_tex_selection,
+        )
+        self.save_tex_selection_button.pack(fill="x", pady=(0, 2), padx=10)
 
         self.unique_colours_label = tk.Label(self.side_panel, text="", anchor="w")
         self.unique_colours_label.pack(fill="x", padx=10, pady=(4, 2))
@@ -270,6 +286,8 @@ class CLUTFinderApp:
 
         if self.rect_id is not None:
             self.canvas.coords(self.rect_id, px0, py0, px1, py1)
+
+        self.ss_rect_coords = (px0, py0, px1, py1)
 
         print(
             f"Selected screenshot grid ({grid_x0},{grid_y0}) to ({grid_x1},{grid_y1}) "
@@ -433,6 +451,43 @@ class CLUTFinderApp:
         except Exception as e:
             messagebox.showerror("Save TEX preview", f"Failed to save image: {e}")
 
+    def _save_crop(self, source: PILImage, coords: tuple[int, int, int, int]):
+        px0, py0, px1, py1 = coords
+        # selection coords are inclusive pixels; crop is exclusive on the far edge
+        crop = source.crop((px0, py0, px1 + 1, py1 + 1))
+
+        default_name = f"x{px0}_y{py0}-x{px1}_y{py1}.png"
+        path = filedialog.asksaveasfilename(
+            title="Save selection as PNG",
+            initialfile=default_name,
+            defaultextension=".png",
+            filetypes=[("PNG images", "*.png"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+
+        try:
+            crop.save(path)
+            print(f"Saved selection to {path}", flush=True)
+        except Exception as e:
+            messagebox.showerror("Save selection", f"Failed to save image: {e}")
+
+    def save_screenshot_selection(self):
+        if self.ss_rect_coords is None:
+            messagebox.showinfo(
+                "Save screenshot selection", "Select an area on the screenshot first."
+            )
+            return
+        self._save_crop(self.image, self.ss_rect_coords)
+
+    def save_tex_selection(self):
+        if self.tex_rect_coords is None or self.preview_tex_pil is None:
+            messagebox.showinfo(
+                "Save TEX selection", "Select an area on the TEX preview first."
+            )
+            return
+        self._save_crop(self.preview_tex_pil, self.tex_rect_coords)
+
     def on_lock_clut_toggled(self):
         if self.is_clut_locked.get():
             self.unique_colours_label.config(text=f"Unique colors: {len(self.colour_set)}")
@@ -462,7 +517,7 @@ class CLUTFinderApp:
         self.clut_index = clut_index
 
         self.busy_label.config(text="Rendering TEX preview...")
-        self.tex_canvas.delete("all")
+        # self.tex_canvas.delete("all")
         self.tex_canvas.create_text(
             10,
             10,
@@ -508,6 +563,7 @@ class CLUTFinderApp:
             return
 
         self.tex_w, self.tex_h = preview_image.size
+        self.preview_tex_pil = preview_image
         self.preview_tex_image = ImageTk.PhotoImage(preview_image)
         self.tex_canvas.delete("all")
         self.tex_canvas.create_image(0, 0, anchor="nw", image=self.preview_tex_image)
@@ -541,6 +597,7 @@ class CLUTFinderApp:
         if self.rect_id is not None:
             self.canvas.delete(self.rect_id)
             self.rect_id = None
+        self.ss_rect_coords = None
         self.start_x = None
         self.start_y = None
         self.moved = False

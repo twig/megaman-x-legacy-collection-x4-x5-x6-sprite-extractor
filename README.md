@@ -8,15 +8,26 @@ Trying to find ways to make it easier for sprite rippers to get accurate sprites
 - MegaMan X5: all stages parse and render tiles accurately; only Crescent Grizzly stage has correct layout
 - MegaMan X6: tiles and colours rendering ok for some stages; remaining stages are WIP
 
-Remaining
-
-- Find the remaining X5 offsets
-- X5 - Shining Firefly (Area 2): Aqua tube is rendered as dark blue and some incorrect tiles rendered around it
-- `WIP` MegaMan X6: confirm the remaining stage layout offsets and fix rendering issues
-
 Maybe
 
 - Animation sprites
+
+# Remaining issues
+
+X5
+
+- Shining Firefly (Area 2): Aqua tube is rendered as dark blue and some incorrect tiles rendered around it
+
+X6
+
+- st0h 2 tiles at start area
+- st01 1 tile in water background
+- st01x boss bg wrong palette
+- st04a row 2 junk pile partially wrong palette
+- st05 water/egyptian garble
+- st06 tree pixel remnant
+- black/grey boxes
+- inverted highlights/lowlights
 
 # References for code
 

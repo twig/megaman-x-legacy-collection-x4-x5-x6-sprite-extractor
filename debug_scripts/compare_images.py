@@ -70,6 +70,10 @@ def compare(sample_path, baseline_path, tile=TILE, save_diff=False, crop=True):
                     bbox[2] = max(bbox[2], x1)
                     bbox[3] = max(bbox[3], y1)
 
+    if diff_tiles == 0:
+        print(f"{diff_tiles}/{total_tiles} tiles differ -> no diff file written")
+        return diff_tiles
+
     if save_diff:
         root, ext = os.path.splitext(sample_path)
         out_path = f"{root}-diff{ext}"
@@ -91,7 +95,7 @@ def main():
     parser.add_argument("baseline", help="path to the baseline image")
     parser.add_argument(
         "--diff",
-        action="store_true",
+        action="store_true", default=True,
         help="save to <sample_filename>_diff instead of overwriting the sample",
     )
     parser.add_argument(
