@@ -149,17 +149,14 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st01x":     (0x02DD6A18, 26, 20),  # LAYOUT DONE, TILES ALMOST (Commander Yammark; sub stage)
         "st02":      (0x02DD44A0, 27, 15),  # LAYOUT DONE, TILES DONE (Blizzard Wolfang; North Pole Area)
         "st02x":     (0x02DD6CD8, 15, 33),  # LAYOUT DONE, TILES ALMOST sub stage
-        # grey box, black box, inverted shadow, wrong palette, missing tile?
+        # grey box, black box, wrong palette, missing tile?
         "st03":      (0x02DD46D8, 18, 39),  # LAYOUT DONE, TILES MOST (Blaze Heatnix; Magma Area)
-        # inverted shadow, missing tiles
+        # missing tiles?
         "st03x":     (0x02DD6F80, 15, 20),  # LAYOUT DONE, TILES MOST sub stage
         "st04a":     (0x02DD4998, 22, 23),  # LAYOUT DONE, TILES ALMOST (Recycle Lab: Area 1)
-        # inverted shadows
         "st04b":     (0x02DD4BA8, 26, 15),  # LAYOUT DONE, TILES ALMOST (Recycle Lab: Area 2)
-        # inverted shadows
         "st04x":     (0x02DD7118, 15, 14),  # LAYOUT DONE, TILES ALMOST sub-stage
         "st05":      (0x02DD4D30, 16, 36),  # LAYOUT DONE, TILES ALMOST (Ground Scaravich; Central Museum)
-        # inverted shadows
         "st05x":     (0x02DD7228,  6, 16),  # LAYOUT DONE, TILES ALMOST sub stage
         # black box
         "st06a":     (0x02DD5030, 37, 16),  # LAYOUT DONE, TILES ALMOST (Rainy Turtloid; Inami Temple)
