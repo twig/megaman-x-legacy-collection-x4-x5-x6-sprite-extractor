@@ -447,6 +447,48 @@ X6_SHEET_OVERRIDE_BY_STAGE: dict[str, "dict[tuple[int, int, int], str]"] = {
 }
 
 
+# ── X5 per-stage chr256 (tex_bg) routing overrides, by OCL index ─────────────────
+#
+# Some X5 stages store a background-LAYER tileset as a block of OCL indices whose
+# foreground-sheet (tex) data is leftover garbage while the real art lives in the chr256
+# sheet (tex_bg).  The game-agnostic _build_chr256_ocl_indices leaves these on tex — they
+# are sole page<8 entries that fall OUTSIDE the chr256-batch region (no no-large-gap group
+# anchors the trailing block), so the sole-entry tex≠tex_bg rule keeps them on tex — and
+# they render as vertical-stripe ("comb") garble.  Each listed index is forced INTO chr256
+# (read tex_bg).  Ranges below are exclusive to the BG2 layer (no foreground/BG1 placement
+# falls in them — verified), so forcing the whole range only repaints those background
+# tiles and cannot touch the foreground.
+#
+# These are PER-STAGE because a safe automatic rule does not exist (investigated):
+#   - "background-layer-exclusive tile" mis-fires: st050's decorative band and pillars are
+#     bg-only yet correctly read from tex; routing them to tex_bg turns them to noise.
+#   - "tex tile is comb-noise" (high horizontal-transition density >=140) mis-fires too:
+#     st050's detailed pillar-top art legitimately has htr>=140, so a noise threshold
+#     misclassifies real foreground/background art as garbage and corrupts it.
+#   Detailed-but-correct tex art and unused-garbage tex are not separable from the PC data
+#   alone; only the original PSX VRAM layout disambiguates.  So each stage is opted in only
+#   after validating the result visually against the chr256 art.
+#
+# st061 (Shining Firefly: Area 2): OCL 2736-2940 is the final OCL block — the BG2 sky
+#   tileset (blue sky + white clouds).  From tex it draws comb noise; from tex_bg the
+#   coherent sky.  Validated against st061_chr256.tex at full level scale.
+# st070 (Spike Rosered): OCL 4772-4925 is the BG2 jungle-backdrop tileset (dark-green
+#   foliage, logs, barrels, red signal lights).  Same comb-from-tex / coherent-from-tex_bg
+#   failure; the user-reported garble at (7936,3616)-(8383,3759) etc. lies entirely in
+#   this range.  Validated visually.
+# st160 (Zero Space 1: Origin): OCL 4299-4638 is the final OCL block — the BG2 "flickering
+#   screen" backdrop (a purple/magenta plasma cloud rendered with horizontal CRT scanlines,
+#   the Origin's monitor-static aesthetic).  From tex it reads as directionless comb noise;
+#   from tex_bg the scanline plasma is coherent.  The scanlines are INTENDED, not garble —
+#   the rest of this stage's BG2 is a (separate, already-correct) starfield.  Validated
+#   visually against the user-reported garble at (2304,13312)-(2623,13551) etc.
+X5_CHR256_FORCE_BG: "dict[str, frozenset[int]]" = {
+    "st061": frozenset(range(2736, 2941)),
+    "st070": frozenset(range(4772, 4926)),
+    "st160": frozenset(range(4299, 4639)),
+}
+
+
 def build_x6_chr256_override(
     ocl: list[OclEntry],
     tex: TexData,
@@ -1589,6 +1631,15 @@ def main() -> None:
         n_padhi_only = len(set(padhi_fix) - set(explicit_fix))
         print(f"  CLUT-row overrides: {len(padhi_fix)} pad_hi + {len(explicit_fix)} explicit "
               f"= {len(merged)} ({n_padhi_only} from pad_hi rule alone)")
+    elif game_version == GameVersion.X5:
+        # X5 background-layer tilesets that the game-agnostic router leaves on tex but
+        # really live in chr256 (tex_bg); see X5_CHR256_FORCE_BG.  Union the forced
+        # indices onto the base routing so only the named tiles move.
+        force_bg = X5_CHR256_FORCE_BG.get(omp_stem)
+        if force_bg:
+            base_chr256 = _build_chr256_ocl_indices(ocl, tex, tex_background)
+            chr256_extra = frozenset(set(base_chr256) | force_bg)
+            print(f"  X5 chr256 force-bg overrides: +{len(force_bg)} indices")
 
     # Catalog render
     if not args.skip_catalog:
