@@ -444,6 +444,143 @@ X6_SHEET_OVERRIDE_BY_STAGE: dict[str, "dict[tuple[int, int, int], str]"] = {
 }
 
 
+# ── X5 background-tileset chr256 (tex_bg) recovery (generic, no per-stage data) ──
+#
+# Some X5 stages store a background-LAYER tileset as a contiguous batch of OCL entries
+# whose foreground-sheet (tex) data is leftover garbage while the real art lives in the
+# chr256 sheet (tex_bg).  The game-agnostic _build_chr256_ocl_indices leaves these on tex
+# (sole page<8 entries outside its chr256-batch region) so they render as vertical-stripe
+# "comb" garble — e.g. st061's sky, st070's jungle, st160's scanline plasma, st000's
+# skyline.  This recovers them WITHOUT a per-stage table, using three independent signals
+# that together exclude every settled stage (all move 0; the foreground layer is never
+# touched):
+#
+#   1. SHEET-WALK RUN (structure): a maximal run of >= MIN_RUN_LEN consecutive OCL indices
+#      whose tile coordinate (page*256 + clut_base) increments by exactly 1 — i.e. a
+#      tileset batch dumped in sheet order.  Authored foreground/object tilesets reference
+#      tiles in semantic order, so their coordinates jump around and never form long runs.
+#   2. BACKGROUND-EXCLUSIVE (placement): NO tile of the run is placed in the foreground
+#      layer (layer 0 = the top third of the 3-layer vertical-stacked layout).  This is
+#      what excludes mixed foreground/background batches (e.g. st050's run 259-1091) and
+#      guarantees the foreground render is byte-identical.
+#   3. TEX IS A COMB (content): the run's not-yet-chr256 tiles have, in tex, a horizontal-
+#      minus-vertical transition count >= COMB_THRESHOLD (median).  A comb (vertical
+#      stripes, columns ~constant) is the signature of garbage tex; real art — foreground
+#      detail OR a coherent background already correctly on tex — is isotropic (htr ~ vtr)
+#      or horizontal-scanline (htr < vtr), so it scores below threshold.  This is what the
+#      earlier plain "tex is noisy (high htr)" rule lacked: st050's detailed pillar tops
+#      have high htr but htr ~ vtr, so they are NOT combs and stay on tex.
+#
+# Only tiles not already routed by the base heuristic are added (the base correctly handles
+# most background batches, e.g. st160's starfield); tex_bg must be non-empty for them.
+MIN_RUN_LEN = 16
+COMB_THRESHOLD = 50
+
+
+def build_x5_chr256_bg_override(
+    ocl: list[OclEntry],
+    tex: "TexData",
+    tex_bg: "TexData",
+    layout: LayoutTable,
+    n_screens: int,
+    omp_tiles: list[list[int]],
+    level_width_screens: int,
+    level_height_screens: int,
+) -> "tuple[frozenset[int], int]":
+    """Return (chr256_indices, n_moved): the base chr256 set unioned with the recovered
+    background-tileset tiles.  n_moved is how many tiles this pass added (0 = unchanged).
+
+    See the module comment above for the three-signal rule.  Pure function of the OCL
+    table, the two TEX sheets and the level layout — no per-stage data."""
+    TILE = TILE_SIZE
+    base = set(_build_chr256_ocl_indices(ocl, tex, tex_bg))
+
+    def _grid(t: "TexData", e: OclEntry) -> "list[list[int]] | None":
+        cordX = e.clut_base & 0xF
+        cordY = (e.clut_base >> 4) & 0xF
+        page = e.pad & 0xF
+        raw = t["raw_image"]; w = t["width"]; h = len(raw) // w
+        gx = (page % 8) * 256 + cordX * TILE
+        gy = (page // 8) * 256 + cordY * TILE
+        if gx + TILE > w or gy + TILE > h:
+            return None
+        return [list(raw[(gy + r) * w + gx : (gy + r) * w + gx + TILE]) for r in range(TILE)]
+
+    def _htr(g: list[list[int]]) -> int:
+        return sum(1 for row in g for i in range(TILE - 1) if row[i] != row[i + 1])
+
+    def _vtr(g: list[list[int]]) -> int:
+        return sum(1 for c in range(TILE) for r in range(TILE - 1) if g[r][c] != g[r + 1][c])
+
+    def _nonempty(g: list[list[int]]) -> bool:
+        return any(p for row in g for p in row)
+
+    def _tilepos(e: OclEntry) -> int:
+        return (e.pad & 0xF) * 256 + e.clut_base
+
+    # Placement: which OCL indices appear in the foreground layer (top third of the
+    # vertical-stacked 3-layer layout) and which appear anywhere.
+    fg_rows = (level_height_screens // 3) * 16  # tile rows belonging to layer 0
+    placed_fg: set[int] = set()
+    placed_all: set[int] = set()
+    for sy in range(level_height_screens):
+        for sx in range(level_width_screens):
+            sid = layout.get(sx, sy)
+            if sid is None or sid >= n_screens:
+                continue
+            screen = omp_tiles[sid]
+            for wy in range(16):
+                ly = sy * 16 + wy
+                for wx in range(16):
+                    raw = screen[wy * 16 + wx]
+                    if not raw:
+                        continue
+                    idx = raw & 0x3FFF
+                    placed_all.add(idx)
+                    if ly < fg_rows:
+                        placed_fg.add(idx)
+
+    # Maximal sheet-walk runs (page<8, tilepos increments by exactly 1).
+    moved: set[int] = set()
+    n = len(ocl)
+    i = 0
+    while i < n:
+        if (ocl[i].pad & 0xF) >= 8:
+            i += 1
+            continue
+        j = i
+        while (j + 1 < n and (ocl[j + 1].pad & 0xF) < 8
+               and _tilepos(ocl[j + 1]) == _tilepos(ocl[j]) + 1):
+            j += 1
+        run = range(i, j + 1)
+        i = j + 1
+        if (j - (run.start)) + 1 < MIN_RUN_LEN:
+            continue
+        # Run-level background-exclusive: no member placed in the foreground layer.
+        if any(k in placed_fg for k in run):
+            continue
+        notbase = [k for k in run if k not in base and k in placed_all]
+        if not notbase:
+            continue
+        combs: list[int] = []
+        bg_ok = 0
+        for k in notbase:
+            gt = _grid(tex, ocl[k]); gb = _grid(tex_bg, ocl[k])
+            if gt is None or gb is None:
+                continue
+            combs.append(_htr(gt) - _vtr(gt))
+            if _nonempty(gb):
+                bg_ok += 1
+        if not combs:
+            continue
+        combs.sort()
+        median = combs[len(combs) // 2]
+        if median >= COMB_THRESHOLD and bg_ok >= 0.5 * len(notbase):
+            moved.update(notbase)
+
+    return frozenset(base | moved), len(moved)
+
+
 def build_x6_chr256_override(
     ocl: list[OclEntry],
     tex: TexData,
@@ -1586,6 +1723,8 @@ def main() -> None:
         n_padhi_only = len(set(padhi_fix) - set(explicit_fix))
         print(f"  CLUT-row overrides: {len(padhi_fix)} pad_hi + {len(explicit_fix)} explicit "
               f"= {len(merged)} ({n_padhi_only} from pad_hi rule alone)")
+    # X5 background-tileset chr256 recovery is computed in the level-render block below,
+    # where the layout (needed for the background-exclusive signal) is available.
 
     # Catalog render
     if not args.skip_catalog:
@@ -1651,6 +1790,18 @@ def main() -> None:
         n_sy = len(layout.screens)
         print(f"  {n_sx} screens wide × {n_sy} screens tall")
 
+        level_chr256 = chr256_extra
+        if game_version == GameVersion.X5:
+            # Recover background tilesets the base router leaves on tex as comb garble
+            # (st061 sky, st070 jungle, st160 scanline plasma, st000 skyline, …).  Generic
+            # — no per-stage data; see build_x5_chr256_bg_override.  Needs the layout for
+            # its background-exclusive signal, so it is computed here.
+            level_chr256, n_moved = build_x5_chr256_bg_override(
+                ocl, tex, tex_background, layout,
+                omp.n_screens, omp.tiles, n_sx, n_sy,
+            )
+            print(f"  X5 chr256 bg-recovery: +{n_moved} tiles routed to tex_bg")
+
         print()
         print("Rendering full level...")
         level_img = render_level(
@@ -1663,7 +1814,7 @@ def main() -> None:
             tex_bg=tex_background,
             # tex_fg=tex_foreground,
             flags_to_palette=flags_to_palette,
-            chr256_override=chr256_extra,
+            chr256_override=level_chr256,
             clut_row_override=clut_row_fix,
             x6_page8_palette=x6_page8_palette,
         )
