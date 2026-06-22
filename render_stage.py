@@ -1455,22 +1455,56 @@ X6_CLUT_ROW_FIXES: dict[str, dict[int, int]] = {
 }
 
 
+# ── X6 per-stage page>=8 CLUT-row rule, keyed by (col, page) ─────────────────────
+#
+# Companion to the per-INDEX X6_CLUT_ROW_FIXES, for page>=8 pad_hi=0 tiles whose true
+# static CLUT block is not at the universal ``col + 64`` row and which form a clean
+# (col, page) group (so enumerating every OCL index would be noise).  This is the
+# pad_hi=0 analogue of X6_PADHI_ROW_BY_STAGE (which covers only the pad_hi=4 alt-bank).
+#
+#   st01x (Commander Yammark sub-stage) boss room: the page>=8 stone-idol/jungle
+#   background tiles (the only drawn page>=8 tiles in the stage) render with scattered
+#   bright "spots" because they read the NORMALIZED ``col + 64`` row, but their true
+#   palette is at the RAW stage-CLUT position ``col + 96`` (X6_STAGE_CLUT_OFFSET) — the
+#   normalize_x6_stage_palette col+96->col+64 relocation does not hold for these tiles.
+#   Validated by per-pixel RMS against the user's tile-aligned ground-truth crop
+#   screenshots/MegaManX6-CommanderYammark-SubStage.png (2240,0)==level(1120,4704):
+#   col48 pg11 -> 144 = RMS 0.0 (pixel-exact), col32 pg10 -> 128 = RMS 0.0, col32 pg11 ->
+#   128 = RMS 5.9 (residual = foreground occlusion in the capture).  All three = col + 96.
+X6_PAGE8_CLUT_ROW_BY_STAGE: dict[str, "dict[tuple[int, int], int]"] = {
+    # stem -> {(col, page): clut_row} for page>=8 pad_hi=0 tiles off the col+64 default.
+    "st01x": {(48, 11): 144, (32, 11): 128, (32, 10): 128},   # all = col + 96
+}
+
+
 def build_x6_clut_row_override(
     stage_stem: str,
     ocl: list[OclEntry],
     chr256_set: "frozenset[int]",
 ) -> "dict[int, int] | None":
     """
-    Return {ocl_idx: corrected_clut_row} for an X6 stage from X6_CLUT_ROW_FIXES, or
-    None when the stage has no fixes.  Fixes are keyed by explicit OCL index (see
-    X6_CLUT_ROW_FIXES) so only the validated tiles are relocated.  Indices beyond the
-    stage's OCL table are dropped.  The chr256_set argument is accepted for signature
-    stability but is not used (the CLUT row is texture-routing-independent).
+    Return {ocl_idx: corrected_clut_row} for an X6 stage, or None when it has no fixes.
+
+    Two sources are merged (explicit per-index wins on conflict):
+      - X6_PAGE8_CLUT_ROW_BY_STAGE: a (col, page) rule applied to every page>=8 pad_hi=0
+        tile of the stage (pad_hi=4 tiles are handled by build_x6_padhi_clut_override).
+      - X6_CLUT_ROW_FIXES: explicit per-OCL-index corrections (the validated tiles).
+    Indices beyond the stage's OCL table are dropped.  The chr256_set argument is accepted
+    for signature stability but is not used (the CLUT row is texture-routing-independent).
     """
+    override: dict[int, int] = {}
+    colpage = X6_PAGE8_CLUT_ROW_BY_STAGE.get(stage_stem)
+    if colpage:
+        for idx, e in enumerate(ocl):
+            if (e.pad >> 4) & 0xF == 0 and (e.pad & 0xF) >= 8:
+                row = colpage.get((e.col, e.pad & 0xF))
+                if row is not None:
+                    override[idx] = row
     fixes = X6_CLUT_ROW_FIXES.get(stage_stem)
-    if not fixes:
-        return None
-    override = {idx: row for idx, row in fixes.items() if 0 <= idx < len(ocl)}
+    if fixes:
+        for idx, row in fixes.items():
+            if 0 <= idx < len(ocl):
+                override[idx] = row    # explicit per-index wins over the (col, page) rule
     return override or None
 
 
