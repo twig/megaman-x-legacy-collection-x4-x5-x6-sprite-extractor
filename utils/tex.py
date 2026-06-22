@@ -109,8 +109,11 @@ def convert_tex_to_image(
 
     # Each pixel in TEX data is a palette index into the active 16-entry CLUT block:
     #   final_index = clut_index * 16 + colour_index
-    # Index 0 in any CLUT is always transparent (PSX convention).
     # clut_index is supplied externally — it is not encoded in the pixel data.
+    # Transparency is value-based (matching utils/omp._apply_palette_to_tile): a pixel
+    # is transparent only when the CLUT colour it selects is the all-zero sentinel
+    # (RGB 0,0,0), NOT whenever the index is 0 — some CLUTs hold an opaque real colour
+    # (e.g. a near-white highlight) at index 0.
     #
     # Format details:
     #   FORMAT_32BPP (0x07): 4 bytes/pixel; palette index is stored in the alpha
@@ -141,15 +144,16 @@ def convert_tex_to_image(
         #         palette[final_index],
         #     )
 
-        if colour_index == 0:
-            # Index 0 in any CLUT is always transparent (PSX convention).
-            pixels.append((255, 0, 255, 0))
+        if final_index >= len(palette):
+            pixels.append((255, 0, 255, 0))  # out of palette range — transparent
+            continue
+        r, g, b, _stp = palette[final_index]
+        # Value-based transparency: only the all-zero CLUT colour is the transparent
+        # sentinel.  The STP bit (stored as alpha) is a polygon-level blend flag, not a
+        # per-pixel alpha, so every non-sentinel pixel is fully opaque regardless of STP.
+        if r == 0 and g == 0 and b == 0:
+            pixels.append((255, 0, 255, 0))  # transparent (debug magenta marker)
         else:
-            r, g, b, _stp = palette[final_index]
-            # The STP bit (stored as alpha in the palette entry) is a polygon-level
-            # blending flag, not a per-pixel alpha. It only activates semi-transparency
-            # when the *polygon* is also flagged for blending. All non-index-0 pixels
-            # on solid sprites are fully opaque regardless of STP.
             pixels.append((r, g, b, 255))
 
     image = Image.new("RGBA", (width, height))

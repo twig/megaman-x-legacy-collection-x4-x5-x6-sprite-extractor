@@ -5,8 +5,8 @@ Trying to find ways to make it easier for sprite rippers to get accurate sprites
 # Features
 
 - MegaMan X4: all stages render correctly
-- MegaMan X5: all stages parse and render tiles accurately; only Crescent Grizzly stage has correct layout
-- MegaMan X6: tiles and colours rendering ok for some stages; remaining stages are WIP
+- MegaMan X5: all stages render correctly, except for one issue on Shining Firefly stage Area 2
+- MegaMan X6: all stages render correctly, except for one issue on Commander Yammark stage
 
 Maybe
 
@@ -20,14 +20,7 @@ X5
 
 X6
 
-- st0h 2 tiles at start area
-- st01 1 tile in water background
-- st01x boss bg wrong palette
-- st04a row 2 junk pile partially wrong palette
-- st05 water/egyptian garble
-- st06 tree pixel remnant
-- black/grey boxes
-- inverted highlights/lowlights
+- Commander Yammark stage has 1 incorrect tile in water background (a sole 4bpp gradient tile; needs a tile-aligned ground-truth capture)
 
 # References for code
 

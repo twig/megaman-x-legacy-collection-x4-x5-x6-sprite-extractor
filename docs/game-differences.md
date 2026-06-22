@@ -22,10 +22,19 @@ All three PAT files share magic `PAT\x00` and version LE u32 = 3. The header lay
 (magic / version / animation count / per-animation frame-count array) is identical;
 only the values differ (see Quantitative Differences below).
 
-> **One render-time caveat (content, not format):** X6's `col00_0x.col` is a VRAM
-> snapshot whose static stage CLUTs live at col+96 rather than col+64 (where X4/X5
-> store them). Parsing is unchanged, but the renderer normalizes the X6 palette
-> back onto col+64 via `normalize_x6_stage_palette()` in `utils/palette.py`.
+> **Render-time caveats (content, not format):**
+>
+> - X6's `col00_0x.col` is a VRAM snapshot whose static stage CLUTs live at col+96
+>   rather than col+64 (where X4/X5 store them). Parsing is unchanged, but the renderer
+>   normalizes the X6 **page<8** palette back onto col+64 via
+>   `normalize_x6_stage_palette()` in `utils/palette.py`. X6 **page>=8** (8bpp) tiles
+>   instead read the RAW palette at col+96 directly (the +32 relocation mis-sources
+>   their CLUTs). See `render_stage.py`'s `x6_page8_palette` and
+>   `utils/omp._X6_PAGE8_CLUT_OFFSET`.
+> - **Per-pixel transparency is value-based** (all three games): a pixel is transparent
+>   only when its CLUT colour is the all-zero sentinel (RGB 0,0,0), not whenever the tile
+>   index is 0 — some CLUTs store an opaque colour (e.g. a highlight) at index 0. See
+>   `utils/omp._apply_palette_to_tile`.
 
 ---
 

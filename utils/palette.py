@@ -129,9 +129,11 @@ def load_col_palettes(palette_path: Path) -> Palette:
         g8 = (g << 3) | (g >> 2)
         b8 = (b << 3) | (b >> 2)
 
-        # STP is a PSX semi-transparency flag; for PC rendering we always use
-        # full opacity.  Transparency is handled at the pixel level (index 0
-        # in the palette is treated as transparent in _apply_palette_to_tile).
+        # STP is a PSX semi-transparency flag; for PC rendering we always use full
+        # opacity.  Per-pixel transparency is decided in _apply_palette_to_tile, which
+        # treats a CLUT entry as transparent only when its colour is the all-zero
+        # sentinel (RGB 0,0,0) — NOT merely when the tile index is 0 (some CLUTs store
+        # an opaque real colour, e.g. a highlight, at index 0).
         alpha = 255
 
         palette.append((r8, g8, b8, alpha))
@@ -205,12 +207,11 @@ def normalize_x6_stage_palette(col: Palette) -> Palette:
     wrongly suppressed relocation and left polluted snapshot colours (see col=104 /
     CLUT #198 region in st07).
 
-    KNOWN GAP: the fixed +32-row relocation is wrong for stage CLUTs whose col has
-    bit 6 set (col 64/80/96 → dst rows 128/144/160 ← src rows 160/176/192).  In the
-    shared col0g_0x.col VRAM dump those src rows are the "enemy bank", not stage data,
-    so X6 page-10/11 tiles using those cols render with the wrong CLUT (e.g. st0g's
-    blue band).  Left unresolved by choice — see docs/unconfirmed/issues.md
-    ("X6 page-10/11 tiles with col bit 6 set render with wrong CLUT").
+    This normalized col+64 lookup is for page<8 (4bpp) tiles only.  page>=8 (8bpp) tiles
+    instead read their stage CLUT from the RAW palette at col+96 directly (see
+    render_level's ``x6_page8_palette`` and utils/omp._X6_PAGE8_CLUT_OFFSET): the fixed
+    +32 relocation mis-sources their CLUTs — dark CLUTs hit the null-keep above, and
+    bit-6 cols (64/80/96) hit the "enemy bank" rows 160/176/192 — so they bypass it.
 
     The input is not mutated; a new list is returned.
     """
