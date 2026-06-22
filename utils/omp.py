@@ -990,19 +990,32 @@ def _apply_palette_to_tile(
     """
     Convert a list of raw 8bpp tile pixel values to RGBA colours using a palette.
 
-    Each pixel value v selects: palette[clut_base * 16 + v]
-    v == 0 is transparent (alpha=0); all other values are fully opaque.
+    Each pixel value v selects: palette[clut_base * 16 + v].
+
+    Transparency follows the PSX rule — a pixel is transparent only when its CLUT
+    colour is the all-zero sentinel (RGB 0,0,0), NOT whenever the index is 0.  Index 0
+    is the usual transparent slot, but some tiles store an opaque real colour there
+    (e.g. X6 metallic specular highlights with a near-white index 0); the old blanket
+    ``v == 0 -> transparent`` rule wrongly dropped those to the black canvas — the
+    "inverted highlights" defect.  Out-of-range indices are transparent.
+
+    (PSX also distinguishes opaque black 0x8000 from transparent 0x0000 via the STP
+    bit, which load_col_palettes discards; an opaque-black pixel therefore still reads
+    as transparent here, but that is visually identical over the renderer's black
+    canvas, so only genuinely-coloured index-0 pixels change vs the old behaviour.)
     """
     result: list[ColourRGBA] = []
     base = clut_base * 16
     pal_size = len(palette)
     for v in raw_tile:
-        if v == 0:
-            result.append((0, 0, 0, 0))
-        elif base + v >= pal_size:
+        idx = base + v
+        if idx >= pal_size:
             result.append((0, 0, 0, 0))  # out of palette range — transparent
+            continue
+        r, g, b, _a = palette[idx]
+        if r == 0 and g == 0 and b == 0:
+            result.append((0, 0, 0, 0))  # all-zero CLUT colour — transparent sentinel
         else:
-            r, g, b, _a = palette[base + v]
             result.append((r, g, b, 255))
     return result
 
