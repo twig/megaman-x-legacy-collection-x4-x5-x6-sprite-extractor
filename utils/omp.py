@@ -152,14 +152,11 @@ OMP_MAGIC = b"OMP\x00"
 OMP_HEADER_SIZE = 12  # magic(4) + reserved(4) + n_rows(4)
 TILE_SIZE = 16  # pixels per tile edge (assumed 16×16)
 
-# X6 page>=8 (8bpp) tiles index the UN-normalized stage CLUT at col + this offset.
-# normalize_x6_stage_palette relocates the raw col+96 rows onto col+64 for the page<8
-# lookup, but its null-keep (max brightness < 30) misclassifies DARK-but-real stage CLUTs
-# as empty and leaves the polluted col+64 VRAM snapshot in place — which renders the
-# page>=8 8bpp tiles' shadows as bright speckle ("inverted shadows" across the X6
-# sub-stages).  Those tiles read the raw palette at col+96 directly instead (the true
-# static stage CLUT position == palette.X6_STAGE_CLUT_OFFSET).  pad_hi=4 page>=8 tiles
-# are NOT included — they use the alt CLUT bank handled by build_x6_padhi_clut_override.
+# X6 page>=8 (8bpp) tiles index the UN-normalized stage CLUT at col + this offset, not
+# col+64: normalize_x6_stage_palette's col+96->col+64 relocation has a null-keep that
+# treats dark-but-real stage CLUTs as empty and leaves the polluted col+64 VRAM snapshot
+# (the page>=8 "inverted shadows"), so these tiles read raw col+96 directly instead.
+# pad_hi=4 page>=8 tiles are excluded — they use build_x6_padhi_clut_override's alt bank.
 _X6_PAGE8_CLUT_OFFSET = 96
 
 # LayerPreset row boundaries — estimated, adjust after visual confirmation
@@ -965,8 +962,8 @@ def extract_tile_pixels(
     tile_id:    tile index (from OMP, after confirming it is non-zero)
     tile_size:  pixels per tile edge (default 16)
 
-    Returns tile_size×tile_size values (0–255 each), row-major top-to-bottom.
-    Pixel value 0 is conventionally transparent.
+    Returns tile_size×tile_size raw CLUT indices (0–255), row-major; transparency is
+    decided later in _apply_palette_to_tile (value-based, not index-0-based).
     """
     tiles_per_row = tex_width // tile_size
     tile_col = tile_id % tiles_per_row
@@ -989,20 +986,14 @@ def _apply_palette_to_tile(
 ) -> list[ColourRGBA]:
     """
     Convert a list of raw 8bpp tile pixel values to RGBA colours using a palette.
+    Each pixel value v selects palette[clut_base * 16 + v].
 
-    Each pixel value v selects: palette[clut_base * 16 + v].
-
-    Transparency follows the PSX rule — a pixel is transparent only when its CLUT
-    colour is the all-zero sentinel (RGB 0,0,0), NOT whenever the index is 0.  Index 0
-    is the usual transparent slot, but some tiles store an opaque real colour there
-    (e.g. X6 metallic specular highlights with a near-white index 0); the old blanket
-    ``v == 0 -> transparent`` rule wrongly dropped those to the black canvas — the
-    "inverted highlights" defect.  Out-of-range indices are transparent.
-
-    (PSX also distinguishes opaque black 0x8000 from transparent 0x0000 via the STP
-    bit, which load_col_palettes discards; an opaque-black pixel therefore still reads
-    as transparent here, but that is visually identical over the renderer's black
-    canvas, so only genuinely-coloured index-0 pixels change vs the old behaviour.)
+    Transparency is value-based (PSX rule): a pixel is transparent only when the CLUT
+    colour it selects is the all-zero sentinel (RGB 0,0,0), not merely when the index is
+    0 — some tiles store an opaque colour (e.g. a near-white highlight) at index 0.
+    Out-of-range indices are transparent.  (load_col_palettes drops the STP bit, so PSX
+    opaque-black 0x8000 reads as transparent here too; identical over the black canvas,
+    so only genuinely-coloured index-0 pixels differ.)
     """
     result: list[ColourRGBA] = []
     base = clut_base * 16

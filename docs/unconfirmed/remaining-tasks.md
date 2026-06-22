@@ -1,5 +1,8 @@
 # Missing pieces for full stage rendering
 
+> **Historical bring-up checklist.** The pipeline below is implemented; the main open
+> piece is item 4 (X6 animated-palette cores) — see `docs/unconfirmed/issues.md`.
+
 ## What you have ✅
 
 - `utils/tex.py` — renders TEX to PIL Image given palette + CLUT index

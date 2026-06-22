@@ -131,6 +131,10 @@ class OclEntry:
         """
         Return the absolute CLUT row index for this stage tile entry.
         Formula confirmed against omp-to-expected-tiles.csv: abs_clut = col + 64.
+
+        This is the base row.  The renderer may relocate it for X6: pad_hi=4 alt-bank
+        tiles (render_stage.build_x6_padhi_clut_override, 320+col) and page>=8 8bpp tiles
+        (which read the raw palette at col+96; see utils/omp._X6_PAGE8_CLUT_OFFSET).
         """
         return self.col + STAGE_CLUT_BASE_ROW
 
