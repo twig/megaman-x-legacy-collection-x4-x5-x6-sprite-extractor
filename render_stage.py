@@ -85,9 +85,11 @@ X6_CHR256_COL_MIN = 112           # within such a fan, col >= this is the chr256
 # Block 2 size table: SIZE_TABLE_2   = 0x02E8DF71  (4-byte entries: w, h, f1, f2)
 
 STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
+    # Web Spider Area 1 (SCR01_00)
+    # - water/waterfall wrong colour
     "X4": dict([
         (key, (
-        data["pc_offset"], data["w"], data["h"]))
+        data["pc_offset"], data["w"], data["h"] * 3))
         for key, data
         in X4_LAYOUT_OFFSETS.items()
     ]),
