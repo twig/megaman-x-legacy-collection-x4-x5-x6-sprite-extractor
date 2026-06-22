@@ -53,7 +53,7 @@ from PIL import ImageDraw, ImageFont
 from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset, LayoutTable, _build_chr256_ocl_indices
 from utils.ocl import load_ocl, OclEntry, OclPaletteGroup
 from utils.tex import load_tex
-from utils.palette import load_col_palettes, normalize_x6_stage_palette
+from utils.palette import load_col_palettes, normalize_x6_stage_palette, x6_palette_is_vram_snapshot
 from utils.types import GameVersion, TexData
 from x4_pc_mmxlc1_layout_offsets import X4_LAYOUT_OFFSETS
 
@@ -144,29 +144,24 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # These are the offsets the GAME uses and verified to be correct after
     # width/height guesses using explore_layout.py
     "X6": {
-        # garbled
         "st00":      (0x02DD3FF0, 26, 17),  # LAYOUT DONE, TILES ALMOST (Intro - Eurasia Ruins)
         "st01":      (0x02DD41E0, 26, 23),  # LAYOUT DONE, TILES DONE (Commander Yammark; Amazon Area)
-        # inverted shadows
         "st01x":     (0x02DD6A18, 26, 20),  # LAYOUT DONE, TILES ALMOST (Commander Yammark; sub stage)
         "st02":      (0x02DD44A0, 27, 15),  # LAYOUT DONE, TILES DONE (Blizzard Wolfang; North Pole Area)
-        # missing tile?
         "st02x":     (0x02DD6CD8, 15, 33),  # LAYOUT DONE, TILES ALMOST sub stage
         # grey box, black box, inverted shadow, wrong palette, missing tile?
         "st03":      (0x02DD46D8, 18, 39),  # LAYOUT DONE, TILES MOST (Blaze Heatnix; Magma Area)
         # inverted shadow, missing tiles
         "st03x":     (0x02DD6F80, 15, 20),  # LAYOUT DONE, TILES MOST sub stage
-        # garbled
         "st04a":     (0x02DD4998, 22, 23),  # LAYOUT DONE, TILES ALMOST (Recycle Lab: Area 1)
         # inverted shadows
         "st04b":     (0x02DD4BA8, 26, 15),  # LAYOUT DONE, TILES ALMOST (Recycle Lab: Area 2)
         # inverted shadows
         "st04x":     (0x02DD7118, 15, 14),  # LAYOUT DONE, TILES ALMOST sub-stage
-        # garbled, maybe missing tiles?
         "st05":      (0x02DD4D30, 16, 36),  # LAYOUT DONE, TILES ALMOST (Ground Scaravich; Central Museum)
         # inverted shadows
         "st05x":     (0x02DD7228,  6, 16),  # LAYOUT DONE, TILES ALMOST sub stage
-        # garbled, black box, missing tiles?
+        # black box
         "st06a":     (0x02DD5030, 37, 16),  # LAYOUT DONE, TILES ALMOST (Rainy Turtloid; Inami Temple)
         # black box, missing tile?
         "st06x":     (0x02DD7300,  8, 14),  # LAYOUT DONE, TILES ALMOST sub stage
@@ -1455,56 +1450,27 @@ X6_CLUT_ROW_FIXES: dict[str, dict[int, int]] = {
 }
 
 
-# ── X6 per-stage page>=8 CLUT-row rule, keyed by (col, page) ─────────────────────
-#
-# Companion to the per-INDEX X6_CLUT_ROW_FIXES, for page>=8 pad_hi=0 tiles whose true
-# static CLUT block is not at the universal ``col + 64`` row and which form a clean
-# (col, page) group (so enumerating every OCL index would be noise).  This is the
-# pad_hi=0 analogue of X6_PADHI_ROW_BY_STAGE (which covers only the pad_hi=4 alt-bank).
-#
-#   st01x (Commander Yammark sub-stage) boss room: the page>=8 stone-idol/jungle
-#   background tiles (the only drawn page>=8 tiles in the stage) render with scattered
-#   bright "spots" because they read the NORMALIZED ``col + 64`` row, but their true
-#   palette is at the RAW stage-CLUT position ``col + 96`` (X6_STAGE_CLUT_OFFSET) — the
-#   normalize_x6_stage_palette col+96->col+64 relocation does not hold for these tiles.
-#   Validated by per-pixel RMS against the user's tile-aligned ground-truth crop
-#   screenshots/MegaManX6-CommanderYammark-SubStage.png (2240,0)==level(1120,4704):
-#   col48 pg11 -> 144 = RMS 0.0 (pixel-exact), col32 pg10 -> 128 = RMS 0.0, col32 pg11 ->
-#   128 = RMS 5.9 (residual = foreground occlusion in the capture).  All three = col + 96.
-X6_PAGE8_CLUT_ROW_BY_STAGE: dict[str, "dict[tuple[int, int], int]"] = {
-    # stem -> {(col, page): clut_row} for page>=8 pad_hi=0 tiles off the col+64 default.
-    "st01x": {(48, 11): 144, (32, 11): 128, (32, 10): 128},   # all = col + 96
-}
-
-
 def build_x6_clut_row_override(
     stage_stem: str,
     ocl: list[OclEntry],
     chr256_set: "frozenset[int]",
 ) -> "dict[int, int] | None":
     """
-    Return {ocl_idx: corrected_clut_row} for an X6 stage, or None when it has no fixes.
+    Return {ocl_idx: corrected_clut_row} for an X6 stage from X6_CLUT_ROW_FIXES, or
+    None when the stage has no fixes.  Fixes are keyed by explicit OCL index (see
+    X6_CLUT_ROW_FIXES) so only the validated tiles are relocated.  Indices beyond the
+    stage's OCL table are dropped.  The chr256_set argument is accepted for signature
+    stability but is not used (the CLUT row is texture-routing-independent).
 
-    Two sources are merged (explicit per-index wins on conflict):
-      - X6_PAGE8_CLUT_ROW_BY_STAGE: a (col, page) rule applied to every page>=8 pad_hi=0
-        tile of the stage (pad_hi=4 tiles are handled by build_x6_padhi_clut_override).
-      - X6_CLUT_ROW_FIXES: explicit per-OCL-index corrections (the validated tiles).
-    Indices beyond the stage's OCL table are dropped.  The chr256_set argument is accepted
-    for signature stability but is not used (the CLUT row is texture-routing-independent).
+    NOTE: the X6 "inverted shadows" class (page>=8 pad_hi=0 8bpp tiles, e.g. the boss-bg
+    of the sub-stages) is NOT handled here.  It is a GENERAL renderer rule — those tiles
+    read the raw, un-normalized stage CLUT at col+96 — applied via the x6_page8_palette
+    argument to render_level/render_omp.  See utils/omp._X6_PAGE8_CLUT_OFFSET.
     """
-    override: dict[int, int] = {}
-    colpage = X6_PAGE8_CLUT_ROW_BY_STAGE.get(stage_stem)
-    if colpage:
-        for idx, e in enumerate(ocl):
-            if (e.pad >> 4) & 0xF == 0 and (e.pad & 0xF) >= 8:
-                row = colpage.get((e.col, e.pad & 0xF))
-                if row is not None:
-                    override[idx] = row
     fixes = X6_CLUT_ROW_FIXES.get(stage_stem)
-    if fixes:
-        for idx, row in fixes.items():
-            if 0 <= idx < len(ocl):
-                override[idx] = row    # explicit per-index wins over the (col, page) rule
+    if not fixes:
+        return None
+    override = {idx: row for idx, row in fixes.items() if 0 <= idx < len(ocl)}
     return override or None
 
 
@@ -1598,8 +1564,20 @@ def main() -> None:
 
     chr256_extra: "frozenset[int] | None" = None
     clut_row_fix: "dict[int, int] | None" = None
+    x6_page8_palette = None
     if game_version == GameVersion.X6:
         chr256_extra = build_x6_chr256_override(ocl, tex, tex_background, omp_stem)
+        # X6 "inverted shadows" general fix: page>=8 pad_hi=0 8bpp tiles read the RAW
+        # (un-normalized) stage CLUT at col+96, bypassing normalize_x6_stage_palette's
+        # null-keep (which leaves the polluted col+64 VRAM snapshot on dark stage CLUTs).
+        # Gated to VRAM-snapshot COL files (every gameplay stage); static menu palettes
+        # like the stage-select screen's are skipped — their col+64 is already correct.
+        # See utils/omp render_level + _X6_PAGE8_CLUT_OFFSET.
+        _gf = get_game_files(game_version, omp_path)
+        if _gf is not None:
+            _raw_col = load_col_palettes(_gf[3])
+            if x6_palette_is_vram_snapshot(_raw_col):
+                x6_page8_palette = _raw_col
         # pad_hi CLUT-bank rule (data-driven, all stages) with the explicit per-index
         # X6_CLUT_ROW_FIXES merged ON TOP so validated rows win on any conflict (e.g.
         # st04a OCL 202).  Result: st04a's validated tiles are unchanged; only newly
@@ -1626,6 +1604,7 @@ def main() -> None:
             preset=LayerPreset.MAIN,
             chr256_override=chr256_extra,
             clut_row_override=clut_row_fix,
+            x6_page8_palette=x6_page8_palette,
         )
         if args.debug:
             _debug_overlay_catalog(catalog_img, omp.n_screens)
@@ -1689,6 +1668,7 @@ def main() -> None:
             flags_to_palette=flags_to_palette,
             chr256_override=chr256_extra,
             clut_row_override=clut_row_fix,
+            x6_page8_palette=x6_page8_palette,
         )
         if args.debug:
             _debug_overlay_level(level_img, layout, n_sx, n_sy)

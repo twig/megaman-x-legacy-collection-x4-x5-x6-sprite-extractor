@@ -152,6 +152,16 @@ OMP_MAGIC = b"OMP\x00"
 OMP_HEADER_SIZE = 12  # magic(4) + reserved(4) + n_rows(4)
 TILE_SIZE = 16  # pixels per tile edge (assumed 16×16)
 
+# X6 page>=8 (8bpp) tiles index the UN-normalized stage CLUT at col + this offset.
+# normalize_x6_stage_palette relocates the raw col+96 rows onto col+64 for the page<8
+# lookup, but its null-keep (max brightness < 30) misclassifies DARK-but-real stage CLUTs
+# as empty and leaves the polluted col+64 VRAM snapshot in place — which renders the
+# page>=8 8bpp tiles' shadows as bright speckle ("inverted shadows" across the X6
+# sub-stages).  Those tiles read the raw palette at col+96 directly instead (the true
+# static stage CLUT position == palette.X6_STAGE_CLUT_OFFSET).  pad_hi=4 page>=8 tiles
+# are NOT included — they use the alt CLUT bank handled by build_x6_padhi_clut_override.
+_X6_PAGE8_CLUT_OFFSET = 96
+
 # LayerPreset row boundaries — estimated, adjust after visual confirmation
 _BACKGROUND_MAX_ROW = 25    # rows 0–24 = sparse sky / upper stage area
 _PLATFORM_MIN_ROW = 25      # rows 25–106 = main platforms + ground
@@ -1010,6 +1020,7 @@ def render_omp(
     tile_size: int = TILE_SIZE,
     chr256_override: "frozenset[int] | None" = None,
     clut_row_override: "dict[int, int] | None" = None,
+    x6_page8_palette: "Palette | None" = None,
 ) -> PILImage:
     """
     Render the raw OMP screen catalog to a PIL RGBA image for debugging.
@@ -1125,10 +1136,16 @@ def render_omp(
             raw_tile = _resolve_tile(entry, tile_id)
             if raw_tile is None:
                 continue  # tile not found in TEX
+            active_palette = palette
             clut_row = entry.abs_clut_stage()
             if clut_row_override is not None and tile_id in clut_row_override:
-                clut_row = clut_row_override[tile_id]
-            rgba_pixels = _apply_palette_to_tile(raw_tile, clut_row, palette)
+                clut_row = clut_row_override[tile_id]   # explicit per-index wins
+            elif (x6_page8_palette is not None
+                  and (entry.pad >> 4) & 0xF == 0 and 8 <= (entry.pad & 0xF) <= 0xB):
+                # X6 page>=8 pad_hi=0 8bpp tile: read the raw stage CLUT at col+96.
+                active_palette = x6_page8_palette
+                clut_row = entry.col + _X6_PAGE8_CLUT_OFFSET
+            rgba_pixels = _apply_palette_to_tile(raw_tile, clut_row, active_palette)
 
             tile_img = Image.new("RGBA", (tile_size, tile_size))
             tile_img.putdata(rgba_pixels)
@@ -1153,6 +1170,7 @@ def render_level(
     tile_size: int = TILE_SIZE,
     chr256_override: "frozenset[int] | None" = None,
     clut_row_override: "dict[int, int] | None" = None,
+    x6_page8_palette: "Palette | None" = None,
 ) -> PILImage:
     """
     Render the level using the correct screen-based addressing.
@@ -1246,10 +1264,17 @@ def render_level(
                     if raw_tile is None:
                         continue
 
+                    active_palette = palette
                     clut_row = entry.abs_clut_stage()
                     if clut_row_override is not None and ocl_idx in clut_row_override:
-                        clut_row = clut_row_override[ocl_idx]
-                    rgba_pixels = _apply_palette_to_tile(raw_tile, clut_row, palette)
+                        clut_row = clut_row_override[ocl_idx]   # explicit per-index wins
+                    elif (x6_page8_palette is not None
+                          and (entry.pad >> 4) & 0xF == 0 and 8 <= (entry.pad & 0xF) <= 0xB):
+                        # X6 page>=8 pad_hi=0 8bpp tile: read the raw stage CLUT at col+96
+                        # (bypasses normalize's null-keep — the 'inverted shadows' fix).
+                        active_palette = x6_page8_palette
+                        clut_row = entry.col + _X6_PAGE8_CLUT_OFFSET
+                    rgba_pixels = _apply_palette_to_tile(raw_tile, clut_row, active_palette)
 
                     tile_img = Image.new("RGBA", (tile_size, tile_size))
                     tile_img.putdata(rgba_pixels)

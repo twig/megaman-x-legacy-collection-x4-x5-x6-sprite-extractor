@@ -157,6 +157,35 @@ def _clut_max_brightness(palette: Palette, clut_row: int) -> int:
     return max(max(palette[base + j][:3]) for j in range(16))
 
 
+def x6_palette_is_vram_snapshot(col: Palette) -> bool:
+    """
+    True if an X6 COL file is a runtime VRAM snapshot (the col00_0x-style full dump used
+    by every gameplay stage) rather than a static menu palette (e.g. the stage-select
+    screen's col0d_00.col).
+
+    Detected by the live player-animation cycling markers — the bright-green sentinel
+    ~(0,231,33) — which a snapshot captures across the player/animation CLUT region
+    (rows 64-82) but a static palette does not.  Across X6: every gameplay COL file has
+    >= 9 such cells here; the menu palette has 1.
+
+    Gates the page>=8 raw-col+96 stage-CLUT rule (utils/omp), which exists ONLY to undo
+    the col+64 snapshot pollution — so it must not touch non-snapshot (menu) palettes,
+    whose col+64 rows already hold the correct static colours.
+    """
+    GREEN_SENTINELS_MIN = 4
+    n = 0
+    for row in range(STAGE_CLUT_BASE_ROW, STAGE_CLUT_BASE_ROW + 19):  # rows 64-82
+        base = row * 16
+        if base + 16 > len(col):
+            break
+        for r, g, b, _a in col[base:base + 16]:
+            if r < 40 and g > 180 and b < 90:   # bright-green sentinel ~(0,231,33)
+                n += 1
+                if n >= GREEN_SENTINELS_MIN:
+                    return True
+    return False
+
+
 def normalize_x6_stage_palette(col: Palette) -> Palette:
     """
     Produce an X6 stage palette whose col+64 rows hold the correct static stage
