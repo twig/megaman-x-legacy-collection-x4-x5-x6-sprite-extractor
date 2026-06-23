@@ -577,6 +577,50 @@ def build_x5_chr256_bg_override(
     return frozenset(base | moved), len(moved)
 
 
+# ── X5 per-stage CLUT-row fixes ──────────────────────────────────────────────────
+#
+# A few X5 background-tileset (tex_bg) batches reference a CLUT row whose static colours
+# are the wrong palette phase: the tile's ``col + 64`` row holds a dark/saturated variant
+# while the correct (in-game) colours live at a different row of the same stage COL.  This
+# is NOT the generic X6 page>=8 / pad_hi mechanism (X5 COL files are plain static palettes,
+# not VRAM snapshots) and there is no clean cross-stage rule — a blanket per-route offset
+# regresses other tiles — so the affected (col, page) groups are listed per stage and the
+# corrected row validated against ground truth.  Applied ONLY to chr256/tex_bg-routed tiles
+# so any same-(col,page) foreground tile is untouched.
+#
+#   st061 (Shining Firefly Area 2): the spiral "aqua column" background-water batch
+#     (col=11, pages 2-3, OCL 1972-2080 — a single contiguous sheet-walk run, the ONLY
+#     col=11 tiles in the stage) renders saturated deep-blue at col+64 (row 75).  The
+#     in-game glow is the light pastel-cyan gradient at row 80 (col 16); confirmed against
+#     x5-izzy-glow-ingame.png and the stitched map MegaManX5-IzzyGlow-Area2.png.
+X5_CLUT_ROW_FIXES: dict[str, dict[tuple[int, int], int]] = {
+    # stem -> {(col, page): corrected_clut_row}, applied to tex_bg-routed tiles only.
+    "st061": {(11, 2): 80, (11, 3): 80},
+}
+
+
+def build_x5_clut_row_override(
+    stage_stem: "str | None",
+    ocl: list[OclEntry],
+    chr256_set: "frozenset[int]",
+) -> "dict[int, int] | None":
+    """Return {ocl_idx: corrected_clut_row} for an X5 stage from X5_CLUT_ROW_FIXES, or None.
+
+    Only chr256/tex_bg-routed tiles (idx in chr256_set) whose (col, page) is listed for the
+    stage are relocated, so foreground tiles sharing the same (col, page) are never touched.
+    Pure function of the OCL table and the routing set — no pixel data."""
+    fixes = stage_stem and X5_CLUT_ROW_FIXES.get(stage_stem)
+    if not fixes:
+        return None
+    out: dict[int, int] = {}
+    for idx in chr256_set:
+        if 0 <= idx < len(ocl):
+            row = fixes.get((ocl[idx].col, ocl[idx].pad & 0xF))
+            if row is not None:
+                out[idx] = row
+    return out or None
+
+
 def build_x6_chr256_override(
     ocl: list[OclEntry],
     tex: TexData,
@@ -1797,6 +1841,11 @@ def main() -> None:
                 omp.n_screens, omp.tiles, n_sx, n_sy,
             )
             print(f"  X5 chr256 bg-recovery: +{n_moved} tiles routed to tex_bg")
+            # Per-stage CLUT-row corrections for background batches on the wrong palette
+            # phase (e.g. st061's aqua-column water; see X5_CLUT_ROW_FIXES).
+            clut_row_fix = build_x5_clut_row_override(omp_stem, ocl, level_chr256)
+            if clut_row_fix:
+                print(f"  X5 CLUT-row fixes: {len(clut_row_fix)} tiles relocated")
 
         print()
         print("Rendering full level...")
