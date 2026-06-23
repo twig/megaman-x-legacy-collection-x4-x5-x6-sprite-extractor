@@ -108,7 +108,6 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st021":     (0x02EC2FC0, 22, 12), # LAYOUT DONE, TILES DONE (Dark Necrobat: Area 2)
         # garbled mini boss
         "st030":     (0x02D98D88, 24, 23), # LAYOUT DONE, TILES ALMOST (Tidal Whale)
-        # garbled dragon heads
         "st040":     (0x02EC3398, 18, 36), # LAYOUT DONE, TILES ALMOST (Burn Dinorex: Area 1)
         # missing tiles?
         "st041":     (0x02EC36A0, 20, 18), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 2)
@@ -686,6 +685,75 @@ def build_x5_chr256_bg_override(
                         moved.add(k); moved_tp.add(_tp_key(k)); changed = True
 
     return frozenset(base | moved), len(moved)
+
+
+# ── X5 per-stage tile-sheet (tex vs tex_bg) overrides ────────────────────────────
+#
+# Companion to the generic build_x5_chr256_bg_override: per-stage sheet corrections for
+# page>=8 tiles whose true art lives in the OPPOSITE sheet from where the base router puts
+# them.  Direct analogue of the X6 pair X6_SHEET_OVERRIDE_BY_STAGE (a (col, page) GROUP
+# table) and X6_SHEET_OVERRIDE_INDICES (an explicit OCL-INDEX table for fixes that don't
+# form a clean group).  ``"bg"`` forces a tile to read tex_bg (chr256); ``"tex"`` forces
+# tex.  Index entries win over group entries (more specific).
+#
+# Background — the routing rule from the game itself (TeheManX4 editor Draw16xTile) is
+# purely PAGE-based: page<8 reads the 4bpp sheet (tex), page>=8 reads the 8bpp sheet
+# (chr256/tex_bg), with NO col component.  The renderer can't apply that rule blanket on
+# the PC HD port, though: the port re-packed the two sheets so the real art for a given
+# page>=8 tile ended up on tex in some stages and on tex_bg in others.  No per-tile content
+# signal separates the two — the wrong sheet holds coherent fragments of OTHER real tiles,
+# so coherence and level-seam-continuity metrics both mis-classify it — so the corrections
+# are listed per stage against ground truth.
+#
+#   st040 (Burn Dinorex / Axle the Red, Area 1): the wall-mounted dragon-head flamethrowers
+#     are an 8bpp chr256 tileset, but col=16 is not a chr256 palette indicator (0/112) so
+#     the base router left the whole class on tex.  CRUCIALLY this stage has TWO col=16
+#     page-10/11 batches that REUSE the same texture coordinates but resolve to OPPOSITE
+#     sheets: OCL 738-848 is a complete dragon copy that is coherent on tex (verified, must
+#     stay), while OCL 1585-2161 is a second set of placements whose art is only coherent on
+#     tex_bg (the originally-reported "garbled dragon heads", garbage on tex).  Because the
+#     two batches share (col, page) AND texture coords, a group key cannot tell them apart —
+#     the discriminator is the OCL-index batch.  Hence the 1585-2161 indices are listed
+#     explicitly (the 25 placed col=16 page-10/11 tiles in that range) and routed to tex_bg;
+#     everything else in the class is left on its default tex.  Validated vs the in-game
+#     sprite (metal head, yellow eye, gear/flame mouth) for both batches.
+X5_SHEET_OVERRIDE_BY_STAGE: dict[str, "dict[tuple[int, int], str]"] = {
+    # stem -> {(col, page): "bg" | "tex"}  (none needed yet; index table below covers st040)
+}
+X5_SHEET_OVERRIDE_INDICES: dict[str, "dict[int, str]"] = {
+    # stem -> {ocl_idx: "bg" | "tex"}
+    # st040 dragon-head batch B (OCL 1585-2161, col=16 pages 10/11) → tex_bg.  Batch A
+    # (738-848, same coords) is deliberately absent so it stays on its correct tex sheet.
+    "st040": {i: "bg" for i in (1585, 1586, 1587, 1588, 1589, 1590, 1591, 1592, 1593,
+                                1596, 1597, 1598, 1599, 1600, 1601, 1603, 1604, 1605,
+                                1666, 1667, 2157, 2158, 2159, 2160, 2161)},
+}
+
+
+def build_x5_sheet_override(
+    stage_stem: "str | None",
+    ocl: list[OclEntry],
+    chr256_set: "frozenset[int]",
+) -> "frozenset[int]":
+    """Apply the X5 per-stage sheet overrides to an already-computed chr256 routing set.
+
+    The (col, page) GROUP table (X5_SHEET_OVERRIDE_BY_STAGE) and the explicit OCL-INDEX
+    table (X5_SHEET_OVERRIDE_INDICES) are each consulted; index entries win on conflict.
+    ``"bg"`` adds a tile to the chr256 set (read tex_bg); ``"tex"`` removes it.  Returns
+    chr256_set unchanged when the stage has no overrides.  Pure function of the OCL table."""
+    group_ov = stage_stem and X5_SHEET_OVERRIDE_BY_STAGE.get(stage_stem)
+    idx_ov = (stage_stem and X5_SHEET_OVERRIDE_INDICES.get(stage_stem)) or {}
+    if not group_ov and not idx_ov:
+        return chr256_set
+    group_ov = group_ov or {}
+    out = set(chr256_set)
+    for idx, e in enumerate(ocl):
+        sheet = idx_ov.get(idx) or group_ov.get((e.col, e.pad & 0xF))
+        if sheet == "bg":
+            out.add(idx)
+        elif sheet == "tex":
+            out.discard(idx)
+    return frozenset(out)
 
 
 # ── X5 per-stage CLUT-row fixes ──────────────────────────────────────────────────
@@ -1952,6 +2020,13 @@ def main() -> None:
                 omp.n_screens, omp.tiles, n_sx, n_sy,
             )
             print(f"  X5 chr256 bg-recovery: +{n_moved} tiles routed to tex_bg")
+            # Per-stage tex/tex_bg sheet corrections for page>=8 tiles the PC port re-packed
+            # onto the opposite sheet (e.g. st040's dragon-head flamethrowers; see
+            # X5_SHEET_OVERRIDE_BY_STAGE).  No-op for stages without an entry.
+            n_before = len(level_chr256)
+            level_chr256 = build_x5_sheet_override(omp_stem, ocl, level_chr256)
+            if len(level_chr256) != n_before:
+                print(f"  X5 sheet override: {len(level_chr256) - n_before:+d} tiles re-routed")
             # Per-stage CLUT-row corrections for background batches on the wrong palette
             # phase (e.g. st061's aqua-column water; see X5_CLUT_ROW_FIXES).
             clut_row_fix = build_x5_clut_row_override(omp_stem, ocl, level_chr256)
