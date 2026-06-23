@@ -276,7 +276,7 @@ def get_game_files(game_version: GameVersion, omp_path: Path):
 #     st1_0 blue one matching x4-spider-water-foreground*.png; a per-entry source COL is
 #     supported for the other if it turns out to use a different bank.)
 CLUT_ANIM_STILL_FRAMES: "dict[str, tuple[str | None, list[tuple[int, int, int]]]]" = {
-    "SCR01_00": (None, [(77, 0, 4)]),
+    "SCR01_00": (None, [(77, 0, 2)]),
     # SCR01_01 (Web Spider Area 2): the OTHER section — col_animate is the teal st1_1.col.
     # Only col=13 -> row 77 is waterfall (col 14/15 unused); static col01_1X_eng.col row 77 is
     # a blue ramp with pink high-indices.  Copy st1_1 row 0 -> CLUT row 77 (length 1).
