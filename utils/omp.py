@@ -386,7 +386,8 @@ def load_layout_from_exe(
         layer:    0 = foreground layer (default), 1 = BG1, 2 = BG2
     """
     layer_size = width * height
-    total_size = layer_size * 3
+    # total_size = layer_size * 3
+    total_size = layer_size
     data = exe_path.read_bytes()
     if offset + total_size > len(data):
         raise ValueError(
@@ -1003,11 +1004,11 @@ def _apply_palette_to_tile(
         if idx >= pal_size:
             result.append((0, 0, 0, 0))  # out of palette range — transparent
             continue
-        r, g, b, _a = palette[idx]
+        r, g, b, a = palette[idx]
         if r == 0 and g == 0 and b == 0:
             result.append((0, 0, 0, 0))  # all-zero CLUT colour — transparent sentinel
         else:
-            result.append((r, g, b, 255))
+            result.append((r, g, b, a))   # honour stored alpha (255 unless STP-derived)
     return result
 
 
@@ -1156,7 +1157,7 @@ def render_omp(
 
             px = col_idx * tile_size
             py = canvas_row * tile_size
-            canvas.paste(tile_img, (px, py), mask=tile_img)
+            canvas.alpha_composite(tile_img, (px, py))  # see render_level note
 
     return canvas
 
@@ -1288,6 +1289,10 @@ def render_level(
                     ly = sy * 16 + wy
                     px = lx * tile_size
                     py = ly * tile_size
-                    canvas.paste(tile_img, (px, py), mask=tile_img)
+                    # alpha_composite (not paste+mask) so semi-transparent pixels keep an
+                    # un-premultiplied (r,g,b,a) — paste blends RGB by alpha, corrupting
+                    # translucent tiles (e.g. STP waterfalls).  Tiles never overlap and the
+                    # canvas under each is transparent, so opaque output is byte-identical.
+                    canvas.alpha_composite(tile_img, (px, py))
 
     return canvas

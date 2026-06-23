@@ -78,7 +78,16 @@ def convert_palette_to_clut(palette: Palette) -> CLUT:
     return [palette[i : i + 16] for i in range(0, len(palette), 16)]
 
 
-def load_col_palettes(palette_path: Path) -> Palette:
+def load_col_palettes(palette_path: Path, stp_as_alpha: bool = False) -> Palette:
+    """Load a COL file into a flat Palette of (r,g,b,a) tuples.
+
+    stp_as_alpha: by default the PSX STP (semi-transparency) bit is dropped and every
+    colour is opaque (alpha=255) — STP only blends under a semi-transparent draw
+    primitive, which we don't track per tile, and ~90% of stage entries set it, so
+    honouring it globally would wrongly make almost everything translucent.  When True,
+    a non-black STP-flagged entry gets alpha=128 (PSX 50% blend).  Use this ONLY for the
+    animated-COL rows substituted into known semi-transparent effects (e.g. waterfalls);
+    see render_stage.CLUT_ANIM_STILL_FRAMES."""
     if not palette_path.exists():
         raise FileNotFoundError(f"Palette file does not exist: {palette_path}")
 
@@ -129,12 +138,13 @@ def load_col_palettes(palette_path: Path) -> Palette:
         g8 = (g << 3) | (g >> 2)
         b8 = (b << 3) | (b >> 2)
 
-        # STP is a PSX semi-transparency flag; for PC rendering we always use full
-        # opacity.  Per-pixel transparency is decided in _apply_palette_to_tile, which
-        # treats a CLUT entry as transparent only when its colour is the all-zero
-        # sentinel (RGB 0,0,0) — NOT merely when the tile index is 0 (some CLUTs store
-        # an opaque real colour, e.g. a highlight, at index 0).
-        alpha = 255
+        # STP is a PSX semi-transparency flag; normally ignored (full opacity — see
+        # stp_as_alpha docstring).  Per-pixel transparency is otherwise decided in
+        # _apply_palette_to_tile, which treats a CLUT entry as transparent only when its
+        # colour is the all-zero sentinel (RGB 0,0,0) — NOT merely when the tile index is
+        # 0 (some CLUTs store an opaque real colour, e.g. a highlight, at index 0).
+        # With stp_as_alpha, a non-black STP entry becomes 50% translucent (alpha=128).
+        alpha = 128 if (stp_as_alpha and stp and (r8 or g8 or b8)) else 255
 
         palette.append((r8, g8, b8, alpha))
         offset += COL_BLOCK_SIZE

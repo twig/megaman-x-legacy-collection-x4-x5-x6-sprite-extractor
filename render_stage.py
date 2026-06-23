@@ -257,6 +257,29 @@ def get_game_files(game_version: GameVersion, omp_path: Path):
     ]
 
 
+# ── Still-image CLUT-animation substitution ──────────────────────────────────────
+#
+# OMP stem -> (anim_col_filename | None, [(dest_clut_row, anim_src_row, length), ...]).
+# Copy `length` consecutive CLUTs from an animated COL starting at anim_src_row into the
+# static stage palette starting at dest_clut_row, BEFORE rendering.  anim_col_filename
+# selects the source COL (resolved next to the game-files col_animate path); None uses the
+# stage's default col_animate.  This substitutes one frame of a CLUT animation so a still
+# PNG shows the intended colours instead of the stale placeholder baked into the static COL.
+# The animated COL is loaded with stp_as_alpha, so STP-flagged effect rows render translucent.
+#
+#   SCR01_00 (X4, Web Spider Area 1): the waterfall spans FOUR CLUT rows — body col=13
+#     (row 77), edge col=14 (78), and smaller water features col=15 (79) / col=16 (80).
+#     Static col01_0X_eng.col holds green/pink/orange placeholder frames there.  The
+#     waterfall animation is the default col_animate st1_0.col rows 0-3 (a 4-CLUT downward
+#     scroll, all blue + STP); copy frame-0 rows 0-3 -> CLUT rows 77-80 (length 4).
+#     (The stage has two waterfall sections with slightly different tones — this is the
+#     st1_0 blue one matching x4-spider-water-foreground*.png; a per-entry source COL is
+#     supported for the other if it turns out to use a different bank.)
+CLUT_ANIM_STILL_FRAMES: "dict[str, tuple[str | None, list[tuple[int, int, int]]]]" = {
+    "SCR01_00": (None, [(77, 0, 2)]),
+}
+
+
 def preload_related_files(omp_path: Path):
     if not omp_path.exists():
         raise FileNotFoundError(f"ERROR: OMP file not found: {omp_path}")
@@ -331,7 +354,11 @@ def preload_related_files(omp_path: Path):
     # In a combined render, crystal placeholder tiles (tile_type=0x39, col=0) are
     # suppressed inside omp.py; the background layer shows through instead.
     if col_path_animated and col_path_animated.exists():
-        anim_col = load_col_palettes(col_path_animated)
+        # stp_as_alpha: the animated COL is only consumed by the still-frame substitution
+        # below, where its rows replace a known semi-transparent effect's CLUT (e.g. the
+        # SCR01_00 waterfall).  Carrying STP→alpha here lets that effect render translucent
+        # while STP=0 animated effects stay opaque — scoped, not the global-STP mistake.
+        anim_col = load_col_palettes(col_path_animated, stp_as_alpha=True)
         # print(f"  {col_path_animated.name}  ({len(anim_col)//16} CLUTs, animated tiles)")
     else:
         print(f"  WARNING: animated COL palette not found at {col_path_animated}, using static palette as fallback.")
@@ -345,6 +372,35 @@ def preload_related_files(omp_path: Path):
     # renderer can use the universal col+64 lookup.  X4/X5 store stage CLUTs at
     # col+64 directly, so their palette is used unchanged.
     stage_palette = normalize_x6_stage_palette(col) if game_version == GameVersion.X6 else col
+
+    # Still-image CLUT-animation substitution.  Some animated effects (e.g. X4 waterfalls)
+    # point their tiles at a CLUT row that the engine fills at runtime from a per-stage
+    # animated COL.  The STATIC stage palette holds a stale placeholder frame there — for
+    # X4 SCR01_00 the waterfall's row 77 is a green/pink leftover, not the blue water.  We
+    # render to a still PNG, so rather than emulate the cycling animation we copy frame-0 of
+    # the animation range from the animated COL into those CLUT rows.  CLUT_ANIM_STILL_FRAMES
+    # gives (source-COL filename | None, frames); the named COL is resolved next to the
+    # game-files col_animate path, else the default col_animate is used.
+    still_entry = CLUT_ANIM_STILL_FRAMES.get(omp_stem)
+    if still_entry is not None:
+        src_name, frames = still_entry
+        src_col = anim_col
+        if src_name and col_path_animated is not None:
+            src_path = col_path_animated.with_name(src_name)
+            src_col = load_col_palettes(src_path, stp_as_alpha=True) if src_path.exists() else None
+        if src_col is not None:
+            stage_palette = list(stage_palette)
+            n_anim = len(src_col) // 16
+            applied = 0
+            for dest, src, length in frames:
+                for k in range(length):
+                    if src + k >= n_anim or dest + k < 0:
+                        continue
+                    stage_palette[(dest + k) * 16:(dest + k + 1) * 16] = \
+                        src_col[(src + k) * 16:(src + k + 1) * 16]
+                    applied += 1
+            print(f"  CLUT-anime still-frame: {applied} row(s) from {src_name or col_path_animated.name}")
+
     flags_to_palette = {group: stage_palette for group in OclPaletteGroup}
 
     # NOTE: animated-crystal tiles (tile_type 0x39) are left on the static stage
