@@ -85,8 +85,6 @@ X6_CHR256_COL_MIN = 112           # within such a fan, col >= this is the chr256
 # Block 2 size table: SIZE_TABLE_2   = 0x02E8DF71  (4-byte entries: w, h, f1, f2)
 
 STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
-    # Web Spider Area 1 (SCR01_00)
-    # - water/waterfall wrong colour
     "X4": dict([
         (key, (
         data["pc_offset"], data["w"], data["h"] * 3))
@@ -116,8 +114,7 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st041":     (0x02EC36A0, 20, 18), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 2)
         "st050":     (0x02D98890, 36, 21), # LAYOUT DONE, TILES DONE (Volt Kraken)
         "st060":     (0x02EC3C70, 34, 9),  # LAYOUT DONE, TILES DONE (Shining Firefly: Area 1)
-        # garbled bg
-        "st061":     (0x02D99058, 21, 33), # LAYOUT DONE, TILES ALMOST (Shining Firefly: Area 2)
+        "st061":     (0x02D99058, 21, 33), # LAYOUT DONE, TILES DONE (Shining Firefly: Area 2)
         # water tiles too dark, rope near vines partially missing?, mystery block near capsule
         # incorrect palette in vine climb bg
         "st070":     (0x02D98B88, 34, 15), # LAYOUT DONE, TILES MOST (Spike Rosered)
@@ -596,7 +593,51 @@ def build_x5_chr256_bg_override(
                     if ly < fg_rows:
                         placed_fg.add(idx)
 
-    # Maximal sheet-walk runs (page<8, tilepos increments by exactly 1).
+    # Maximal sheet-walk runs (page<8, consecutive OCL index whose tilepos increments
+    # by exactly 1) are the background-tileset batches.  Classify every run by the
+    # three signals INDEPENDENT of its length:
+    #   clean = background-exclusive (no member placed in the foreground layer)
+    #           AND tex is a comb (median htr-vtr >= COMB_THRESHOLD)
+    #           AND tex_bg holds real pixels for >= half its movable tiles.
+    # A long (>= MIN_RUN_LEN) clean run is a confirmed background tileset and seeds
+    # `moved`.  Shorter clean runs are NOT trusted on their own (a brief comb run inside
+    # a foreground region would be a false positive) — they are only adopted when they
+    # CONNECT to a confirmed one, in the absorption pass below.
+    #
+    # Why short fragments arise: the OCL order interleaves one tileset's batch with
+    # entries from OTHER, already-routed background batches (on different pages), which
+    # chops a single logical sheet into short index-fragments even though that sheet's
+    # per-page tilepos sequence stays perfectly contiguous.  e.g. st061's page-4 sky/
+    # water sheet (tilepos 1047..1202) is split every ~4 tiles by interleaved page-2/3
+    # background entries, leaving its head (OCL 2580-2601) and a lone tile (2734) as
+    # sub-MIN_RUN_LEN fragments that this length gate would otherwise drop — they render
+    # as comb garble on tex while their real art sits in tex_bg.
+    def _classify(run: "list[int]") -> "tuple[list[int], bool] | None":
+        """Return (movable_indices, clean) for a run, or None if it cannot move.
+
+        None when any member is foreground (background-exclusive guard) or the run has
+        no not-yet-base, placed tile.  `clean` is the comb + tex_bg-non-empty verdict."""
+        if any(k in placed_fg for k in run):
+            return None
+        notbase = [k for k in run if k not in base and k in placed_all]
+        if not notbase:
+            return None
+        combs: list[int] = []
+        bg_ok = 0
+        for k in notbase:
+            gt = _grid(tex, ocl[k]); gb = _grid(tex_bg, ocl[k])
+            if gt is None or gb is None:
+                continue
+            combs.append(_htr(gt) - _vtr(gt))
+            if _nonempty(gb):
+                bg_ok += 1
+        if not combs:
+            return None
+        combs.sort()
+        median = combs[len(combs) // 2]
+        return notbase, (median >= COMB_THRESHOLD and bg_ok >= 0.5 * len(notbase))
+
+    runs: "list[list[int]]" = []   # movable indices of every clean, non-foreground run
     moved: set[int] = set()
     n = len(ocl)
     i = 0
@@ -608,31 +649,41 @@ def build_x5_chr256_bg_override(
         while (j + 1 < n and (ocl[j + 1].pad & 0xF) < 8
                and _tilepos(ocl[j + 1]) == _tilepos(ocl[j]) + 1):
             j += 1
-        run = range(i, j + 1)
+        run = list(range(i, j + 1))
         i = j + 1
-        if (j - (run.start)) + 1 < MIN_RUN_LEN:
+        info = _classify(run)
+        if info is None:
             continue
-        # Run-level background-exclusive: no member placed in the foreground layer.
-        if any(k in placed_fg for k in run):
+        notbase, clean = info
+        if not clean:
             continue
-        notbase = [k for k in run if k not in base and k in placed_all]
-        if not notbase:
-            continue
-        combs: list[int] = []
-        bg_ok = 0
-        for k in notbase:
-            gt = _grid(tex, ocl[k]); gb = _grid(tex_bg, ocl[k])
-            if gt is None or gb is None:
+        runs.append(notbase)
+        if len(run) >= MIN_RUN_LEN:
+            moved.update(notbase)   # confirmed background tileset — seed
+
+    # Absorption: re-join short clean fragments to the sheet they belong to.  A fragment
+    # is adopted when one of its tiles is tilepos-adjacent (same page, +/-1) to a tile
+    # already confirmed as background, bridging the OCL-order splits described above.
+    # Iterated to a fixpoint so a chain of fragments (each adjacent only to the next)
+    # all reach the confirmed anchor.  The per-fragment foreground guard is preserved
+    # (each fragment was already vetted in _classify), so a foreground placement in one
+    # part of a sheet can never drag in the rest — unlike merging into one run.
+    def _tp_key(k: int) -> "tuple[int, int]":
+        return (ocl[k].pad & 0xF, _tilepos(ocl[k]))
+
+    moved_tp = {_tp_key(k) for k in moved}
+    changed = True
+    while changed:
+        changed = False
+        for notbase in runs:
+            if all(k in moved for k in notbase):
                 continue
-            combs.append(_htr(gt) - _vtr(gt))
-            if _nonempty(gb):
-                bg_ok += 1
-        if not combs:
-            continue
-        combs.sort()
-        median = combs[len(combs) // 2]
-        if median >= COMB_THRESHOLD and bg_ok >= 0.5 * len(notbase):
-            moved.update(notbase)
+            if any((ocl[k].pad & 0xF, _tilepos(ocl[k]) - 1) in moved_tp
+                   or (ocl[k].pad & 0xF, _tilepos(ocl[k]) + 1) in moved_tp
+                   for k in notbase):
+                for k in notbase:
+                    if k not in moved:
+                        moved.add(k); moved_tp.add(_tp_key(k)); changed = True
 
     return frozenset(base | moved), len(moved)
 

@@ -1077,7 +1077,14 @@ def render_omp(
         #   gy = (page // 8) * 256 + cordY * tile_size
         cordX = entry.clut_base & 0xF
         cordY = (entry.clut_base >> 4) & 0xF
-        page = entry.pad & 0xF
+        # page is the low SIX bits of pad, not the low four.  Bit 0x10 is a page-band
+        # selector (pad=0x10 → page 16 → the third 256px band, gy=512: the X5 rose /
+        # st000 / st170 / stsel background tilesets live there).  Bit 0x40 is the X6
+        # pad_hi=4 alt-CLUT-bank marker and is NOT part of the page, so it is masked off
+        # — keeping X6's 0x49/0x4a/0x4b machinery tiles on pages 9/10/11 exactly as
+        # before (0x4b & 0x3F == 0x4b & 0xF == 11).  pad=0xFF is filtered by the
+        # page>0xB skip in the caller before reaching here.
+        page = entry.pad & 0x3F
 
         # Texture routing:
         #   Pages 0–7: _build_chr256_ocl_indices() decides; chr256 entries use tex_bg.
@@ -1132,10 +1139,12 @@ def render_omp(
                 continue  # no palette registered at all — skip
 
             # Skip non-drawable slots, matching TeheManX4_Editor's Draw16xTile,
-            # which derives page = pad & 0xF and draws nothing when page > 0xB.
-            #   pad=0xFF (page 15): crystal sky-fill placeholder ("no TEX data")
-            #   pad=0x10 (page 0):  background-layer-only tile (e.g. st070/st000)
-            if (entry.pad & 0xF) > 0xB or (entry.pad & 0xF0) == 0x10:
+            # which draws nothing when the page nibble > 0xB.
+            #   pad=0xFF (page nibble 15): crystal sky-fill placeholder ("no TEX data")
+            # NOTE: pad=0x10 is NOT skipped — its page nibble is 0 and bit 0x10 selects
+            # page band 2 (see _resolve_tile); those are the rose / st000 background
+            # tiles, which used to be wrongly dropped here.
+            if (entry.pad & 0xF) > 0xB:
                 continue
 
             raw_tile = _resolve_tile(entry, tile_id)
@@ -1205,7 +1214,11 @@ def render_level(
     def _resolve_tile(entry: OclEntry, ocl_idx: int) -> list[int] | None:
         cordX = entry.clut_base & 0xF
         cordY = (entry.clut_base >> 4) & 0xF
-        page = entry.pad & 0xF
+        # See render_omp's _resolve_tile: page is pad's low SIX bits.  Bit 0x10 is a
+        # page-band selector (pad=0x10 → page 16, gy=512 — the X5 rose / st000 / st170 /
+        # stsel background tilesets); bit 0x40 (X6 pad_hi=4 alt-CLUT-bank) is masked off
+        # so X6 machinery pages are unchanged.  pad=0xFF is filtered by the caller.
+        page = entry.pad & 0x3F
 
         # Texture routing: see render_omp for full explanation.
         if page < 8:
@@ -1259,10 +1272,12 @@ def render_level(
                         continue  # no palette registered at all — skip
 
                     # Skip non-drawable slots, matching TeheManX4_Editor's Draw16xTile,
-                    # which derives page = pad & 0xF and draws nothing when page > 0xB.
-                    #   pad=0xFF (page 15): crystal sky-fill placeholder ("no TEX data")
-                    #   pad=0x10 (page 0):  background-layer-only tile (e.g. st070/st000)
-                    if (entry.pad & 0xF) > 0xB or (entry.pad & 0xF0) == 0x10:
+                    # which draws nothing when the page nibble > 0xB.
+                    #   pad=0xFF (page nibble 15): crystal sky-fill placeholder ("no TEX data")
+                    # NOTE: pad=0x10 is NOT skipped — its page nibble is 0 and bit 0x10
+                    # selects page band 2 (see _resolve_tile); those are the rose / st000
+                    # background tiles, which used to be wrongly dropped here.
+                    if (entry.pad & 0xF) > 0xB:
                         continue
 
                     raw_tile = _resolve_tile(entry, ocl_idx)
