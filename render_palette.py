@@ -17,8 +17,8 @@ def main() -> None:
     if not col_file.exists():
         raise FileNotFoundError(f"ERROR: COL file not found: {col_file}")
 
-    palette = load_col_palettes(Path(r"PC\X6\col\stage\st02\st02.col"))
-    out_file = col_file.with_suffix(".png")
+    palette = load_col_palettes(col_file)
+    out_file = Path('./out.png').with_stem(col_file.stem)
     debug_palette_png(palette, out_file)
 
     print(f"Saved {col_file.stem} to {out_file}")

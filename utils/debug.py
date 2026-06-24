@@ -22,13 +22,16 @@ def debug_clut_txt(palette: Palette, output_path: Path):
                 clut_txt.write(f"{index}: {swatch[0], swatch[1], swatch[2]}\n")
 
 
-def debug_palette_png(original_palette: Palette, output_path: Path) -> None:
+def debug_palette_png(original_palette: Palette, output_path: Path, skip_trailing_blacks=True) -> None:
     # Since this is mainly used for debugging, we don't need a big black patch at the end
     # Determine end of meaningful data and trim palette if necessary
-    last_nonzero_index = max(
-        i for i, (r, g, b, a) in enumerate(original_palette) if (r, g, b) != (0, 0, 0)
-    )
-    palette = original_palette[: last_nonzero_index + 1]
+    if skip_trailing_blacks:
+        last_nonzero_index = max(
+            i for i, (r, g, b, a) in enumerate(original_palette) if (r, g, b) != (0, 0, 0)
+        )
+        palette = original_palette[: last_nonzero_index + 1]
+    else:
+        palette = original_palette
 
     cols = 16
     cell_size = 16
