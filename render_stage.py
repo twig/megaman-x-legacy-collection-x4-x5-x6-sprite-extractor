@@ -756,6 +756,64 @@ def build_x5_sheet_override(
     return frozenset(out)
 
 
+def build_x5_pg8_empty_bg_override(
+    ocl: list[OclEntry],
+    tex: "TexData",
+    tex_bg: "TexData",
+    chr256_set: "frozenset[int]",
+) -> "tuple[frozenset[int], int]":
+    """Recover page>=8 tiles the base router leaves on tex where tex holds NOTHING.
+
+    Return (chr256_indices, n_moved).  The X5 analogue of the X6 ``pg8_empty_bg`` pass
+    and the unambiguous half of the X4/X5/X6 page-based routing rule.
+
+    Pages 0-7 are split between tex / tex_bg by build_x5_chr256_bg_override; pages 8-0xB
+    are 8bpp art that ``_resolve_tile`` routes to tex_bg ONLY when col is 0/112 (the chr256
+    indicators) or the tile is in chr256_set.  Every other page>=8 tile defaults to tex.
+    On the PC HD port some stages re-packed that art onto tex_bg under a non-indicator col
+    (e.g. st120's machine-room tileset, cols 32/48/64/80 pages 10/11), so those tiles read
+    an ALL-ZERO tex block and draw nothing — undrawn-audit category G.
+
+    The recovery here is the unambiguous case only: a page 8-0xB tile whose tex block is
+    EMPTY while tex_bg holds real pixels.  Rerouting it to tex_bg can never regress a tile
+    that was already drawing (tex was blank), and it never touches a stage where tex holds
+    the real art — so no per-stage table is needed.  (The hard case, where BOTH sheets hold
+    coherent-but-different art, stays in X5_SHEET_OVERRIDE_INDICES; cf. st040's dragon heads.)
+    The default ``col + 64`` CLUT row already renders these correctly, so no palette fix is
+    paired with it.  Pure function of the OCL table and the two TEX sheets.
+
+    Verified by experiment_x5_pg8_bg.py: across every level-mapped X5 stage this moves tiles
+    ONLY in st120 (464 tiles, matching the audit's six G groups exactly); every other stage
+    is a no-op, so the settled byte-identical baselines are unaffected."""
+    TILE = TILE_SIZE
+    tex_raw = tex["raw_image"]; tex_w = tex["width"]
+    tex_h = len(tex_raw) // tex_w if tex_w else 0
+    bg_raw = tex_bg["raw_image"]; bg_w = tex_bg["width"]
+    bg_h = len(bg_raw) // bg_w if bg_w else 0
+
+    def _block_has_data(raw: bytes, w: int, h: int, gx: int, gy: int) -> "bool | None":
+        """True/False if the 16x16 block holds any non-zero pixel, or None if off-sheet."""
+        if gx < 0 or gy < 0 or gx + TILE > w or gy + TILE > h:
+            return None
+        return any(raw[(gy + r) * w + gx + c] for r in range(TILE) for c in range(TILE))
+
+    out = set(chr256_set)
+    n_moved = 0
+    for idx, e in enumerate(ocl):
+        page = e.pad & 0xF
+        if not (8 <= page <= 0xB) or idx in out:
+            continue
+        cordX = e.clut_base & 0xF
+        cordY = (e.clut_base >> 4) & 0xF
+        gx = (page % 8) * 256 + cordX * TILE
+        gy = (page // 8) * 256 + cordY * TILE
+        if _block_has_data(tex_raw, tex_w, tex_h, gx, gy) is False \
+                and _block_has_data(bg_raw, bg_w, bg_h, gx, gy):
+            out.add(idx)
+            n_moved += 1
+    return frozenset(out), n_moved
+
+
 # ── X5 per-stage CLUT-row fixes ──────────────────────────────────────────────────
 #
 # A few X5 background-tileset (tex_bg) batches reference a CLUT row whose static colours
@@ -2027,6 +2085,12 @@ def main() -> None:
             level_chr256 = build_x5_sheet_override(omp_stem, ocl, level_chr256)
             if len(level_chr256) != n_before:
                 print(f"  X5 sheet override: {len(level_chr256) - n_before:+d} tiles re-routed")
+            # Generic recovery of page>=8 art the PC port re-packed onto tex_bg under a
+            # non-indicator col, where tex is blank (undrawn-audit category G; e.g. st120
+            # machine-room tileset).  Unambiguous tex-empty case only — no per-stage table.
+            level_chr256, n_pg8 = build_x5_pg8_empty_bg_override(ocl, tex, tex_background, level_chr256)
+            if n_pg8:
+                print(f"  X5 page>=8 tex-empty recovery: +{n_pg8} tiles routed to tex_bg")
             # Per-stage CLUT-row corrections for background batches on the wrong palette
             # phase (e.g. st061's aqua-column water; see X5_CLUT_ROW_FIXES).
             clut_row_fix = build_x5_clut_row_override(omp_stem, ocl, level_chr256)
