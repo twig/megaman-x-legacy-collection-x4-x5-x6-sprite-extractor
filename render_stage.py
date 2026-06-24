@@ -717,8 +717,16 @@ def build_x5_chr256_bg_override(
 #     explicitly (the 25 placed col=16 page-10/11 tiles in that range) and routed to tex_bg;
 #     everything else in the class is left on its default tex.  Validated vs the in-game
 #     sprite (metal head, yellow eye, gear/flame mouth) for both batches.
+#   staff_eng (end credits / staff roll): the scrolling background band repeats every two
+#     screens (level x 0-319, 512-831, 1024-1343 at y 1312-1439).  Its page-10/11 art was
+#     re-packed onto tex_bg for cols 64/80/96 while cols 16/32/48 keep their art on tex —
+#     both sheets hold DIFFERENT coherent data at these coords (so the generic tex-empty
+#     recovery correctly skips them; only col separates the two halves).  Every placed
+#     col-64/80/96 page-10/11 tile lives in those bands, so the (col, page) group key moves
+#     exactly them and nothing else.
 X5_SHEET_OVERRIDE_BY_STAGE: dict[str, "dict[tuple[int, int], str]"] = {
-    # stem -> {(col, page): "bg" | "tex"}  (none needed yet; index table below covers st040)
+    # stem -> {(col, page): "bg" | "tex"}
+    "staff_eng": {(64, 11): "bg", (80, 10): "bg", (80, 11): "bg", (96, 10): "bg"},
 }
 X5_SHEET_OVERRIDE_INDICES: dict[str, "dict[int, str]"] = {
     # stem -> {ocl_idx: "bg" | "tex"}
@@ -727,6 +735,12 @@ X5_SHEET_OVERRIDE_INDICES: dict[str, "dict[int, str]"] = {
     "st040": {i: "bg" for i in (1585, 1586, 1587, 1588, 1589, 1590, 1591, 1592, 1593,
                                 1596, 1597, 1598, 1599, 1600, 1601, 1603, 1604, 1605,
                                 1666, 1667, 2157, 2158, 2159, 2160, 2161)},
+    # st030 (Tidal Whale / Duff McWhalen): a col=32 page-11 background batch (OCL 3385-3509,
+    # the region at level x880-1231 y3072-3215) whose art the PC port re-packed onto tex_bg,
+    # rendering as comb-garble on tex.  A DIFFERENT col=32 page-11 batch (OCL 1085-1339) is
+    # correct on tex, so a (col, page) group key can't separate them — but the two batches are
+    # disjoint contiguous index ranges, so the recovered batch is listed explicitly (cf. st040).
+    "st030": {i: "bg" for i in range(3385, 3510)},
 }
 
 
