@@ -1138,18 +1138,28 @@ def render_omp(
             if palette is None:
                 continue  # no palette registered at all — skip
 
-            # Skip non-drawable slots, matching TeheManX4_Editor's Draw16xTile,
-            # which draws nothing when the page nibble > 0xB.
-            #   pad=0xFF (page nibble 15): crystal sky-fill placeholder ("no TEX data")
-            # NOTE: pad=0x10 is NOT skipped — its page nibble is 0 and bit 0x10 selects
-            # page band 2 (see _resolve_tile); those are the rose / st000 background
-            # tiles, which used to be wrongly dropped here.
-            if (entry.pad & 0xF) > 0xB:
+            # Skip the crystal sky-fill sentinel (pad=0xFF — "no TEX data").
+            # TeheManX4_Editor's Draw16xTile bails for ANY page nibble > 0xB, but that
+            # is an editor-preview limit (it only loads 8bpp bitmap pages 8–11), not a
+            # game-draw rule.  pad=0x0F (page nibble 15, pad_hi 0) addresses real art in
+            # TEX page band 1 (page & 0x3F == 15): the X5 st070 boss-room background
+            # machinery.  These are the ONLY two pad bytes with a page nibble > 0xB, so
+            # the slots split cleanly: pad=0xFF sky-fill (always skipped) vs pad=0x0F art
+            # (drawn ONLY when its resolved block holds pixels — guard below).
+            # NOTE: pad=0x10 is also drawn — page nibble 0, bit 0x10 selects page band 2
+            # (the rose / st000 background tiles).
+            pad_lo = entry.pad & 0xF
+            if entry.pad == 0xFF:
                 continue
 
             raw_tile = _resolve_tile(entry, tile_id)
             if raw_tile is None:
                 continue  # tile not found in TEX
+            if pad_lo > 0xB and not any(raw_tile):
+                # page-nibble>0xB slot resolving to an all-zero block = sky-fill sentinel
+                # (st000/st170 sky), not dropped art.  Skip so it stays transparent rather
+                # than painting CLUT index 0 (dark-but-non-black on some stage rows).
+                continue
             active_palette = palette
             clut_row = entry.abs_clut_stage()
             if clut_row_override is not None and tile_id in clut_row_override:
@@ -1271,17 +1281,27 @@ def render_level(
                     if palette is None:
                         continue  # no palette registered at all — skip
 
-                    # Skip non-drawable slots, matching TeheManX4_Editor's Draw16xTile,
-                    # which draws nothing when the page nibble > 0xB.
-                    #   pad=0xFF (page nibble 15): crystal sky-fill placeholder ("no TEX data")
-                    # NOTE: pad=0x10 is NOT skipped — its page nibble is 0 and bit 0x10
-                    # selects page band 2 (see _resolve_tile); those are the rose / st000
-                    # background tiles, which used to be wrongly dropped here.
-                    if (entry.pad & 0xF) > 0xB:
+                    # Skip the crystal sky-fill sentinel (pad=0xFF — "no TEX data").
+                    # The editor's Draw16xTile bails for ANY page nibble > 0xB, but that
+                    # is an editor-preview limit (it only loads 8bpp bitmap pages 8–11),
+                    # not a game-draw rule.  pad=0x0F (page nibble 15, pad_hi 0) addresses
+                    # real art in TEX page band 1 (page & 0x3F == 15): the X5 st070
+                    # boss-room background machinery.  pad=0xFF and pad=0x0F are the ONLY
+                    # two pad bytes with a page nibble > 0xB, so the slots split cleanly:
+                    # pad=0xFF sky-fill (always skipped) vs pad=0x0F art (drawn ONLY when
+                    # its resolved block holds pixels — guard below).  pad=0x10 is also
+                    # drawn (page nibble 0, bit 0x10 selects page band 2).
+                    pad_lo = entry.pad & 0xF
+                    if entry.pad == 0xFF:
                         continue
 
                     raw_tile = _resolve_tile(entry, ocl_idx)
                     if raw_tile is None:
+                        continue
+                    if pad_lo > 0xB and not any(raw_tile):
+                        # page-nibble>0xB slot with an all-zero block = sky-fill sentinel
+                        # (st000/st170 sky), not dropped art.  Skip so it stays transparent
+                        # rather than painting CLUT index 0 (dark-but-non-black on some rows).
                         continue
 
                     active_palette = palette
