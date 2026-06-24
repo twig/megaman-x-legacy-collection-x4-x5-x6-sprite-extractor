@@ -25,8 +25,16 @@ OMP_DIR   = Path("PC/X4/stage/map")
 META_PATH = BIN_DIR / "index.json"
 OUT_PY    = Path("x4_pc_mmxlc1_layout_offsets.py")
 
-# Minimum layer-0 bytes to attempt a search (small needles get too many false positives)
+# Minimum layer-0 bytes to attempt a layer-0-only search (small needles get too many
+# false positives).  When layer 0 is smaller than this, we fall back to searching the
+# FULL w*h*3 block (all three layers) — that needle is unique enough to disambiguate the
+# tiny special-screen layouts (boss-intro/weapon-get/stage-select), and the block starts
+# at layer 0 so the match offset is still the layer-0 offset.
 MIN_SEARCH_BYTES = 50
+
+# Floor on the full-block fallback needle: blocks below this are too short to trust even
+# as a whole.  All real X4 layouts (smallest = ST0D_00 stage-select, 2*2*3 = 12 B) clear it.
+MIN_FULL_BLOCK_BYTES = 12
 
 # Main layout block start in RXC1.exe — hits below this are in a duplicate data region.
 # Determined by the confirmed hit for ST00_00 (index 0 = block start).
@@ -52,6 +60,7 @@ STEM_TO_OMP: dict[str, str] = {
     "STD_1U":  "SCR0D_01_eng",
     "ST0E_U0": "SCR0E_00",   "ST0E_U1": "SCR0E_01_eng",
     "ST0F_UX": "SCR0F_00_eng",
+    "ST0F_U1": "ENDING_eng",
 }
 
 
@@ -122,17 +131,23 @@ def main() -> None:
         layer0 = data[: w * h]
         l0_max = max(layer0)
 
-        if len(layer0) < MIN_SEARCH_BYTES:
-            omp_stem  = STEM_TO_OMP.get(stem)
-            n_screens = omp_n.get(omp_stem) if omp_stem else None
+        omp_stem  = STEM_TO_OMP.get(stem)
+        n_screens = omp_n.get(omp_stem) if omp_stem else None
+
+        # Pick the needle: layer-0 when it is long enough to be unique, otherwise fall
+        # back to the full w*h*3 block (which begins at layer 0, so the hit offset is
+        # unchanged).  This is what lets the tiny special-screen layouts resolve.
+        if len(layer0) >= MIN_SEARCH_BYTES:
+            needle = bytes(layer0)
+        elif len(data) >= MIN_FULL_BLOCK_BYTES:
+            needle = bytes(data)
+        else:
             n_str = str(n_screens) if n_screens is not None else "  ?"
             print(f"{stem:<14}  {w:>3}×{h:<3}  {w*h:>8}  {'---':>5}  "
                   f"{'(too small)':>12}  {n_str:>6}  {l0_max:>6}  ---")
             continue
 
-        omp_stem  = STEM_TO_OMP.get(stem)
-        n_screens = omp_n.get(omp_stem) if omp_stem else None
-        hits      = find_all(exe, bytes(layer0))
+        hits      = find_all(exe, needle)
 
         # Prefer the hit in the main block (>= MAIN_BLOCK_START) when multiple hits exist.
         # Hits below MAIN_BLOCK_START are in a duplicate data region.
@@ -150,7 +165,7 @@ def main() -> None:
                 hit_off  = h_off
                 verified_offsets[stem] = {
                     "pc_offset": h_off, "w": w, "h": h,
-                    "n_screens": n_screens, "verified": True,
+                    "n_screens": n_screens, "verified": True, "omp_stem": omp_stem,
                 }
                 break
             elif n_screens is not None and pc_max < n_screens - 1 and hit_off is None:
@@ -158,7 +173,7 @@ def main() -> None:
                 hit_off    = h_off
                 verified_offsets[stem] = {
                     "pc_offset": h_off, "w": w, "h": h,
-                    "n_screens": n_screens, "verified": False,
+                    "n_screens": n_screens, "verified": False, "omp_stem": omp_stem,
                 }
         if hit_off is None and chosen_hits:
             hit_off = chosen_hits[0]
@@ -208,17 +223,22 @@ def _write_output_py(strict: dict[str, dict], compat: dict[str, dict]) -> None:
         "# fmt: off",
         "X4_LAYOUT_OFFSETS: dict[str, dict] = {",
     ]
-    for stem in sorted(strict):
+    # Key by the OMP stem (what render_stage looks up); the special screens
+    # (STD_1U → SCR0D_01_eng, ST0E_U0 → SCR0E_00, …) don't follow ST→SCR.
+    def out_key(stem: str, info: dict) -> str:
+        return info.get("omp_stem") or stem.replace("ST", "SCR")
+
+    for stem in sorted(strict, key=lambda s: out_key(s, strict[s])):
         info = strict[stem]
         lines.append(
-            f'    "{stem.replace("ST", "SCR")}": {{"pc_offset": 0x{info["pc_offset"]:08X}, '
+            f'    "{out_key(stem, info)}": {{"pc_offset": 0x{info["pc_offset"]:08X}, '
             f'"w": {info["w"]}, "h": {info["h"]}, '
             f'"n_screens": {info["n_screens"]}}},  # verified'
         )
-    for stem in sorted(compat):
+    for stem in sorted(compat, key=lambda s: out_key(s, compat[s])):
         info = compat[stem]
         lines.append(
-            f'    "{stem.replace("ST", "SCR")}": {{"pc_offset": 0x{info["pc_offset"]:08X}, '
+            f'    "{out_key(stem, info)}": {{"pc_offset": 0x{info["pc_offset"]:08X}, '
             f'"w": {info["w"]}, "h": {info["h"]}, '
             f'"n_screens": {info["n_screens"]}}},  # compat (PC OMP expanded)'
         )

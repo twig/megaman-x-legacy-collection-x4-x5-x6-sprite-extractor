@@ -30,7 +30,7 @@ python .\render_stage.py PC\X4\stage\map\SCR0B_00.omp --output-dir progress-base
 python .\render_stage.py PC\X4\stage\map\SCR0C_00.omp --output-dir progress-baseline\X4
 python .\render_stage.py PC\X4\stage\map\SCR0C_01.omp --output-dir progress-baseline\X4
 python .\render_stage.py PC\X4\stage\map\SCR0D_00.omp --output-dir progress-baseline\X4
-python .\render_stage.py PC\X4\stage\map\SCR0D_01_eng.omp --output-dir progress-baseline\X4
+@REM python .\render_stage.py PC\X4\stage\map\SCR0D_01_eng.omp --output-dir progress-baseline\X4
 python .\render_stage.py PC\X4\stage\map\SCR0E_00.omp --output-dir progress-baseline\X4
 python .\render_stage.py PC\X4\stage\map\SCR0E_01_eng.omp --output-dir progress-baseline\X4
 python .\render_stage.py PC\X4\stage\map\SCR0F_00_eng.omp --output-dir progress-baseline\X4

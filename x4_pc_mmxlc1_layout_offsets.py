@@ -21,6 +21,10 @@ X4_LAYOUT_OFFSETS: dict[str, dict] = {
     "SCR08_00": {"pc_offset": 0x00B63C10, "w": 30, "h": 8, "n_screens": 48},  # verified
     "SCR08_01": {"pc_offset": 0x00B63EE0, "w": 40, "h": 6, "n_screens": 81},  # verified
     "SCR0A_00": {"pc_offset": 0x00B641B0, "w": 25, "h": 10, "n_screens": 64},  # verified
+    "SCR0D_00": {"pc_offset": 0x00B618FC, "w": 2, "h": 2, "n_screens": 5},  # verified
+    "SCR0E_00": {"pc_offset": 0x00B64968, "w": 6, "h": 1, "n_screens": 7},  # verified
+    "SCR0F_00_eng": {"pc_offset": 0x00B6498C, "w": 5, "h": 1, "n_screens": 6},  # verified
+    "ENDING_eng": {"pc_offset": 0x00B64A18, "w": 2, "h": 19, "n_screens": 48},  # compat (PC OMP expanded)
     "SCR00_00": {"pc_offset": 0x00B60D08, "w": 32, "h": 8, "n_screens": 86},  # compat (PC OMP expanded)
     "SCR00_01": {"pc_offset": 0x00B61008, "w": 32, "h": 8, "n_screens": 74},  # compat (PC OMP expanded)
     "SCR01_01": {"pc_offset": 0x00B61608, "w": 28, "h": 9, "n_screens": 115},  # compat (PC OMP expanded)
@@ -34,8 +38,11 @@ X4_LAYOUT_OFFSETS: dict[str, dict] = {
     "SCR06_01": {"pc_offset": 0x00B63380, "w": 25, "h": 10, "n_screens": 160},  # compat (PC OMP expanded)
     "SCR07_00": {"pc_offset": 0x00B63670, "w": 30, "h": 8, "n_screens": 81},  # compat (PC OMP expanded)
     "SCR07_01": {"pc_offset": 0x00B63940, "w": 30, "h": 8, "n_screens": 64},  # compat (PC OMP expanded)
+    "SCR09_00": {"pc_offset": 0x00B615FC, "w": 4, "h": 1, "n_screens": 10},  # compat (PC OMP expanded)
+    "SCR0B_00": {"pc_offset": 0x00B644A0, "w": 11, "h": 4, "n_screens": 16},  # compat (PC OMP expanded)
     "SCR0C_00": {"pc_offset": 0x00B64618, "w": 20, "h": 10, "n_screens": 81},  # compat (PC OMP expanded)
     "SCR0C_01": {"pc_offset": 0x00B64870, "w": 10, "h": 5, "n_screens": 21},  # compat (PC OMP expanded)
+    "SCR0D_01_eng": {"pc_offset": 0x00B64908, "w": 16, "h": 2, "n_screens": 48},  # compat (PC OMP expanded)
 }
 # fmt: on
 
