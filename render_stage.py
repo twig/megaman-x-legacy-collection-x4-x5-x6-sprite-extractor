@@ -114,8 +114,7 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st050":     (0x02D98890, 36, 21), # LAYOUT DONE, TILES DONE (Volt Kraken)
         "st060":     (0x02EC3C70, 34, 9),  # LAYOUT DONE, TILES DONE (Shining Firefly: Area 1)
         "st061":     (0x02D99058, 21, 33), # LAYOUT DONE, TILES DONE (Shining Firefly: Area 2)
-        # water tiles too dark, rope near vines partially missing?, mystery block near capsule
-        # incorrect palette in vine climb bg
+        # water tiles too dark, rope near vines partially missing?
         "st070":     (0x02D98B88, 34, 15), # LAYOUT DONE, TILES MOST (Spike Rosered)
         # missing bg tiles?
         "st080":     (0x02D98688, 19, 27), # LAYOUT DONE, TILES DONE (Spiral Pegasus)
@@ -741,6 +740,27 @@ X5_SHEET_OVERRIDE_INDICES: dict[str, "dict[int, str]"] = {
     # correct on tex, so a (col, page) group key can't separate them — but the two batches are
     # disjoint contiguous index ranges, so the recovered batch is listed explicitly (cf. st040).
     "st030": {i: "bg" for i in range(3385, 3510)},
+    # st070 (Spike Rosered): two unrelated sheet fixes in this stage.
+    #
+    #  (a) OCL 2879 → tex_bg.  col=0 page-1 (coord 8,10) draws a spurious solid rock block in the
+    #      open passage left of the floating outcrop (level x5568-5583 y832-847); in-game there is
+    #      no block there.  The slot holds a fully-opaque rock on tex (256/256 px) but a near-empty
+    #      right-edge sliver on tex_bg (42/256) — a page<8 "both sheets differ" case the generic
+    #      chr256 bg-recovery can't separate.  col=0/page=1 is far too common for a group key, so the
+    #      single index is listed explicitly; tex_bg removes the block.
+    #
+    #  (b) OCL 1713-1820 (col=9, pages 1/3) → tex.  A batch of foreground jungle-rock tiles the
+    #      generic build_x5_chr256_bg_override OVER-routes onto tex_bg, where the same coords hold an
+    #      unrelated sparse fragment that renders as a garish black-and-red block (level x1664-1711
+    #      y1984-2047 and y2240-2287).  Their dominant col=0 siblings (e.g. 601, 1067) correctly read
+    #      tex.  The defect signature is exact — col=9, in the bg-recovery set, tex fully opaque
+    #      (256/256) yet tex_bg sparse (<256) — which isolates precisely these 15 indices (every other
+    #      col=9 tex_bg tile is bg_nz=256, identical on both sheets, or tex_nz<256, a genuine
+    #      background).  They are placed ONLY in the two flagged regions, so forcing them to tex is
+    #      safe; palette is left at col+64 (col=9 and col=0 are near-identical on the tex rock tiles).
+    "st070": {2879: "bg",
+              **{i: "tex" for i in (1713, 1714, 1715, 1723, 1724, 1725, 1734, 1735, 1736,
+                                    1745, 1746, 1747, 1818, 1819, 1820)}},
 }
 
 
