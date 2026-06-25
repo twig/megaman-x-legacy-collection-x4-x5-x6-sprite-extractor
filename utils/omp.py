@@ -1316,6 +1316,18 @@ def render_level(
                         clut_row = entry.col + _X6_PAGE8_CLUT_OFFSET
                     rgba_pixels = _apply_palette_to_tile(raw_tile, clut_row, active_palette)
 
+                    # Bit 0x4000 of the raw OMP cell marks a PSX semi-transparency tile
+                    # (e.g. X5 st070's layer-0 "water wall" tiles).  Honour it by halving
+                    # each opaque pixel's alpha so the tile renders as translucent water
+                    # rather than the opaque block produced when the flag is ignored.
+                    # Fully-transparent pixels stay transparent; non-flagged tiles are
+                    # untouched (output byte-identical), so settled baselines don't move.
+                    if raw_id & 0x4000:
+                        rgba_pixels = [
+                            (r, g, b, a >> 1) if a else (r, g, b, a)
+                            for (r, g, b, a) in rgba_pixels
+                        ]
+
                     tile_img = Image.new("RGBA", (tile_size, tile_size))
                     tile_img.putdata(rgba_pixels)
 
