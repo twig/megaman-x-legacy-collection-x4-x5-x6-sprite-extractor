@@ -227,14 +227,21 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    input_path: Path = args.input
+    if not input_path.exists():
+        parser.error("input file doesn't exist")
+
     if args.list:
-        listing = list_arc(args.input, ignore=args.ignore)
+        listing = list_arc(input_path, ignore=args.ignore)
         for rel, ignored in listing:
             print(f"[{'x' if ignored else ' '}] {rel.as_posix()}")
         kept = sum(not ignored for _, ignored in listing)
         print(f"\n{len(listing)} files ({kept} kept, {len(listing) - kept} ignored)")
     else:
-        if args.dest is None:
-            parser.error("dest is required unless --list is given")
-        files = extract_all_from_arc(args.input, args.dest, ignore=args.ignore)
-        print(f"Extracted {len(files)} files to {args.dest}")
+        destination: Path = args.dest or Path(input_path.parent / input_path.stem)
+        destination.mkdir(parents=True, exist_ok=True)
+        # if args.dest is None:
+        #     parser.error("dest is required unless --list is given")
+
+        files = extract_all_from_arc(input_path, destination, ignore=args.ignore)
+        print(f"Extracted {len(files)} files to {destination}")
