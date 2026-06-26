@@ -102,12 +102,12 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # the others were within range, good enough to start debugging tile rendering.
     "X5": {
         "st000":     (0x02EC2B18, 24, 21), # LAYOUT DONE, TILES DONE (Intro stage)
-        "st010":     (0x02D98528, 39, 8),  # LAYOUT DONE, TILES DONE (Crescent Grizzly)
+        "st010":     (0x02D98528, 39, 9),  # LAYOUT DONE, TILES DONE (Crescent Grizzly)
         # missing tiles in bg?
         "st020":     (0x02EC2EB8, 22, 12), # LAYOUT DONE, TILES ALMOST (Dark Necrobat: Area 1)
         "st021":     (0x02EC2FC0, 22, 12), # LAYOUT DONE, TILES DONE (Dark Necrobat: Area 2)
         # garbled mini boss
-        "st030":     (0x02D98D88, 24, 23), # LAYOUT DONE, TILES ALMOST (Tidal Whale)
+        "st030":     (0x02D98D88, 24, 24), # LAYOUT DONE, TILES ALMOST (Tidal Whale)
         "st040":     (0x02EC3398, 18, 36), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 1)
         # missing tiles?
         "st041":     (0x02EC36A0, 20, 18), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 2)
@@ -118,10 +118,10 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st070":     (0x02D98B88, 34, 15), # LAYOUT DONE, TILES MOST (Spike Rosered)
         # missing bg tiles?
         "st080":     (0x02D98688, 19, 27), # LAYOUT DONE, TILES DONE (Spiral Pegasus)
-        "st090_00":  (0x02D98697, 2, 3),   # LAYOUT DONE, TILES DONE (Dynamo: Enigma Cannon)
-        "st090_01":  (0x02D98697, 2, 3),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 1)
+        "st090_00":  (0x02D98695, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Enigma Cannon)
+        "st090_01":  (0x02D98695, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 1)
         "st100_00":  (0x02D9852F, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Space Shuttle)
-        "st100_01":  (0x02D98697, 2, 3),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 2)
+        "st100_01":  (0x02D98695, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 2)
         "st160":     (0x02EC5390, 12, 57), # LAYOUT DONE, TILES DONE (Zero Space 1: Origin)
         # missing tiles near black boxes?
         "st170":     (0x02EC5660, 21, 30), # LAYOUT DONE, TILES DONE (Zero Space 2: Grief)
@@ -129,7 +129,7 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st120":     (0x02D99508, 21, 33), # LAYOUT DONE, TILES DONE (Zero Space 4: Birth)
         "st130":     (0x02D9869C, 6, 3),   # LAYOUT DONE, TILES DONE (Stage Select)
         # missing tiles (lots), colour issues, non-standard layers
-        "st220":     (0x02D97FDA, 25, 11), # LAYOUT LIKELY, TILES SOME (Training Area)
+        "st220":     (0x02D97FDA, 25, 12), # LAYOUT LIKELY, TILES SOME (Training Area)
         "staff_eng": (0x02D9852F, 9, 6),   # LAYOUT DONE, TILES DONE (End Credits)
         "st140_eng": (0x02D98695, 2, 1),   # LAYOUT DONE, TILES DONE (Title screen)
         "st141_eng": (0x02D98695, 2, 1),   # LAYOUT DONE, TILES DONE (Player Select screen)
@@ -143,29 +143,29 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # width/height guesses using explore_layout.py
     "X6": {
         "st00":      (0x02DD3FF0, 26, 17),  # LAYOUT DONE, TILES DONE (Intro - Eurasia Ruins)
-        "st01":      (0x02DD41E0, 26, 23),  # LAYOUT DONE, TILES DONE (Commander Yammark; Amazon Area)
-        "st01x":     (0x02DD6A18, 26, 20),  # LAYOUT DONE, TILES DONE (Commander Yammark; sub stage)
+        "st01":      (0x02DD41E0, 26, 24),  # LAYOUT DONE, TILES DONE (Commander Yammark; Amazon Area)
+        "st01x":     (0x02DD6A18, 26, 21),  # LAYOUT DONE, TILES DONE (Commander Yammark; sub stage)
         "st02":      (0x02DD44A0, 27, 15),  # LAYOUT DONE, TILES DONE (Blizzard Wolfang; North Pole Area)
         "st02x":     (0x02DD6CD8, 15, 33),  # LAYOUT DONE, TILES DONE sub stage
         "st03":      (0x02DD46D8, 18, 39),  # LAYOUT DONE, TILES DONE (Blaze Heatnix; Magma Area)
-        "st03x":     (0x02DD6F80, 15, 20),  # LAYOUT DONE, TILES DONE sub stage
-        "st04a":     (0x02DD4998, 22, 23),  # LAYOUT DONE, TILES DONE (Recycle Lab: Area 1)
+        "st03x":     (0x02DD6F80, 15, 21),  # LAYOUT DONE, TILES DONE sub stage
+        "st04a":     (0x02DD4998, 22, 24),  # LAYOUT DONE, TILES DONE (Recycle Lab: Area 1)
         "st04b":     (0x02DD4BA8, 26, 15),  # LAYOUT DONE, TILES DONE (Recycle Lab: Area 2)
-        "st04x":     (0x02DD7118, 15, 14),  # LAYOUT DONE, TILES DONE sub-stage
+        "st04x":     (0x02DD7118, 15, 15),  # LAYOUT DONE, TILES DONE sub-stage
         "st05":      (0x02DD4D30, 16, 36),  # LAYOUT DONE, TILES DONE (Ground Scaravich; Central Museum)
-        "st05x":     (0x02DD7228,  6, 16),  # LAYOUT DONE, TILES DONE sub stage
-        "st06a":     (0x02DD5030, 37, 16),  # LAYOUT DONE, TILES DONE (Rainy Turtloid; Inami Temple)
-        "st06x":     (0x02DD7300,  8, 14),  # LAYOUT DONE, TILES DONE sub stage
-        "st07":      (0x02DD52E7, 24, 19),  # LAYOUT DONE, TILES DONE (Shield Sheldon; Laser Institute)
-        "st07x":     (0x02DD7378, 26,  8),  # LAYOUT DONE, TILES DONE sub stage
-        "st08":      (0x02DD5540, 24, 19),  # LAYOUT DONE, TILES DONE (Infinity Mijinion; Weapons Facility)
-        "st08x":     (0x02DD7468, 10, 11),  # LAYOUT DONE, TILES DONE sub stage
-        "st0ca":     (0x02DD5750, 12, 34),  # LAYOUT DONE, TILES DONE (Secret Lab 3: Area 1)
-        "st0cb":     (0x02DD5948, 16, 10),  # LAYOUT DONE, TILES DONE (Secret Lab 3: Area 2)
-        "st0g":      (0x02DD61D0, 40, 14),  # LAYOUT DONE, TILES DONE (Secret Lab 1)
+        "st05x":     (0x02DD7228,  6, 18),  # LAYOUT DONE, TILES DONE sub stage
+        "st06a":     (0x02DD5030, 37, 18),  # LAYOUT DONE, TILES DONE (Rainy Turtloid; Inami Temple)
+        "st06x":     (0x02DD7300,  8, 15),  # LAYOUT DONE, TILES DONE sub stage
+        "st07":      (0x02DD52E7, 24, 21),  # LAYOUT DONE, TILES DONE (Shield Sheldon; Laser Institute)
+        "st07x":     (0x02DD7378, 26,  9),  # LAYOUT DONE, TILES DONE sub stage
+        "st08":      (0x02DD5540, 24, 21),  # LAYOUT DONE, TILES DONE (Infinity Mijinion; Weapons Facility)
+        "st08x":     (0x02DD7468, 10, 12),  # LAYOUT DONE, TILES DONE sub stage
+        "st0ca":     (0x02DD5750, 12, 36),  # LAYOUT DONE, TILES DONE (Secret Lab 3: Area 1)
+        "st0cb":     (0x02DD5948, 16, 12),  # LAYOUT DONE, TILES DONE (Secret Lab 3: Area 2)
+        "st0g":      (0x02DD61D0, 40, 15),  # LAYOUT DONE, TILES DONE (Secret Lab 1)
         "st0h":      (0x02DD64A0, 24, 21),  # LAYOUT DONE, TILES DONE (Secret Lab 2)
-        "st0i":      (0x02DD6728, 25, 23),  # LAYOUT DONE, TILES DONE sub-stage
-        "stsel_eng": (0x02DD6110,  7,  4),  # LAYOUT DONE, TILES DONE (Stage Select screen)
+        "st0i":      (0x02DD6728, 25, 24),  # LAYOUT DONE, TILES DONE sub-stage
+        "stsel_eng": (0x02DD6110,  7,  6),  # LAYOUT DONE, TILES DONE (Stage Select screen)
     }
 }
 
