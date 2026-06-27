@@ -50,7 +50,7 @@ game,stage,col,col_animate,ocl,tex,tex256,texch3
 6,stage/map/st0i.omp,stage/col/eng/col0i_0x.col,col/stage/st0i/st0i.col,stage/cel/st0i.ocl,stage/dds/st0i.tex,stage/dds/st0i_chr256.tex,
 6,stage/map/stsel_eng.omp,stage/col/eng/col0d_00.col,,stage/cel/stsel_eng.ocl,stage/dds/stsel_eng.tex,stage/dds/stsel_eng_chr256.tex,
 4,stage/map/SCR00_00.omp,stage/col/col00_0X_eng.col,col/stage/st0_0.col,stage/cel/SCR00_00.ocl,stage/dds/ST00_00.tex,,
-4,stage/map/SCR00_01.omp,stage/col/col00_1X_eng.col,,stage/cel/SCR00_01.ocl,stage/dds/ST00_01.tex,,
+4,stage/map/SCR00_01.omp,stage/col/col00_1X_eng.col,col/stage/st0_1.col,stage/cel/SCR00_01.ocl,stage/dds/ST00_01.tex,,
 4,stage/map/SCR01_00.omp,stage/col/col01_0X_eng.col,col/stage/st1_0.col,stage/cel/SCR01_00.ocl,stage/dds/ST01_00.tex,,
 4,stage/map/SCR01_01.omp,stage/col/col01_1X_eng.col,col/stage/st1_1.col,stage/cel/SCR01_01.ocl,stage/dds/ST01_01.tex,,
 4,stage/map/SCR02_00.omp,stage/col/col02_0X_eng.col,col/stage/st2_0.col,stage/cel/SCR02_00.ocl,stage/dds/ST02_00.tex,,

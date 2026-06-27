@@ -6,7 +6,7 @@ from extract_arc import extract_all_from_arc
 
 # Need
 # - project path
-EXTRACT_DIR = Path(r"./test-dump")
+EXTRACT_DIR = Path(r"./PC")
 # - RMXLC1 exe for X4
 LC1_EXE = Path(r"D:\Games\Steam\steamapps\common\Mega Man X Legacy Collection\RXC1.exe")
 # - RMXLC2 exe for X5 and X6
@@ -14,6 +14,7 @@ LC2_EXE = Path(r"D:\Games\Steam\steamapps\common\Mega Man X Legacy Collection 2\
 
 # options
 PREFER_ENGLISH = True
+PREFER_X = True
 
 # helpers
 def is_english_file(file: Path) -> bool:
@@ -31,6 +32,9 @@ def should_extract(prefer_english: bool, file: Path) -> bool:
 
     if prefer_english and has_english_alternative(file):
         # print(f"should_extract: skip {file.name}, has English alternative")
+        return False
+
+    if PREFER_X and 'z' in file.stem.lower():
         return False
 
     return True
@@ -96,7 +100,11 @@ print("\nX4 done")
 print("Starting X5...")
 for arc_file in X5_DATA_FILES:
     print(f"\rX5: extract {arc_file.name}", end="\r", flush=True)
-    extract_all_from_arc(arc_file, EXTRACT_DIR, ignore=["**/kaiwaData/**", "**/sound/**"])
+    extract_all_from_arc(arc_file, EXTRACT_DIR, ignore=[
+        "**/kaiwaData/**",
+        "**/sound/**",
+        "**/stage/*demo*/**",
+    ])
 print("\nrX5 done")
 
 ## X6

@@ -85,6 +85,16 @@ X6_CHR256_COL_MIN = 112           # within such a fan, col >= this is the chr256
 # Block 2 size table: SIZE_TABLE_2   = 0x02E8DF71  (4-byte entries: w, h, f1, f2)
 
 STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
+    # Unmapped, missing or potentially incorrect;
+    # - ENDING_REGWOR.omp
+    # - SCR0B_01.omp
+    # - SCR0D_01_eng_8.omp
+    # - ST0F_01.tex
+    # - STD_1_1_eng_7.tex
+    # - ENDING.ocl
+    # - SCR0D_01_eng_9.ocl
+    # - st0_1.col
+    # - stB_1.col
     "X4": dict([
         (key, (
         data["pc_offset"], data["w"], data["h"] * 3))
