@@ -16,7 +16,7 @@ Screen IDs in layer-0 are 0-indexed (0 … n_screens-1).
 import struct
 from pathlib import Path
 
-EXE_PATH       = Path("debug/RXC2.exe")
+EXE_PATH       = Path("PC/RXC2.exe")
 OMP_DIR        = Path("PC/X5/stage")
 COPY1_OFFSET   = 0x02D98548
 SIZE_TABLE_OFF = 0x02F0B7BD

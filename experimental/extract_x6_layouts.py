@@ -32,7 +32,7 @@ TODO: 11 stages not in block 1 (block 2 not yet found in RXC2.exe):
 import struct
 from pathlib import Path
 
-EXE_PATH = Path("debug/RXC2.exe")
+EXE_PATH = Path("PC/RXC2.exe")
 OUT_DIR  = Path("layouts_x6")
 
 # ── X6-specific constants ─────────────────────────────────────────────────────

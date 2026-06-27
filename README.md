@@ -71,17 +71,10 @@ pip install -r requirements.txt
 ## Game files
 
 - Buy and download Megaman X Legacy Collection 1 and 2 from Steam
-- Go to the game files from the MMXLC or MMXLC2 library
+- Find your game files from the MMXLC or MMXLC2 library
   - Library > MMXLC Game > Cog > Manage > Browse local files
-- Navigate to game of choice (X4/X5/X6) and get the ARC files to extract from
-  - Mega Man X Legacy Collection\nativeDX10\X4\romPC
-  - Mega Man X Legacy Collection 2\nativeDX10\X5\romPC
-  - Mega Man X Legacy Collection 2\nativeDX10\X6\romPC
-- Use Game Extrator to extract game assets from each of the ARC files
-
-TODO: more information/details on filenames and folders later
-
-- Copy RXC1.exe and RXC2.exe to this folder. We need it to grab stage layout data from the game.
+- Use `python extract_from_game.py` to extract assets from the games
+- All the required files should now be in `.\PC` folder
 
 ### File types
 

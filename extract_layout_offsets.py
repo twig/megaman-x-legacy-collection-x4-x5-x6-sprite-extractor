@@ -27,7 +27,7 @@ from __future__ import annotations
 import argparse, struct, sys
 from pathlib import Path
 
-EXE = Path("RXC2.exe")
+EXE = Path("PC/RXC2.exe")
 RDATA_FILE_TO_VA = 0x400e00            # .rdata: VA = file + this
 
 GAMES = {

@@ -28,7 +28,7 @@ standard b"COL\\0" + reserved + colour count, so they load with load_col_palette
 
 Usage:
     python extract_warning_palette.py                       # -> scrapbook/warning/exe_palettes/
-    python extract_warning_palette.py --exe RXC2.exe --out-dir out/
+    python extract_warning_palette.py --exe PC/RXC2.exe --out-dir out/
 """
 from __future__ import annotations
 
@@ -125,7 +125,7 @@ def write_col(path: Path, clut_bytes: bytes) -> int:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--exe", type=Path, default=Path("RXC2.exe"))
+    ap.add_argument("--exe", type=Path, default=Path("PC/RXC2.exe"))
     ap.add_argument("--out-dir", type=Path, default=Path("scrapbook/warning/exe_palettes"))
     args = ap.parse_args()
 

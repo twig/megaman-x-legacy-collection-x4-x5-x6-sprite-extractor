@@ -58,8 +58,8 @@ from utils.types import GameVersion, TexData
 from x4_pc_mmxlc1_layout_offsets import X4_LAYOUT_OFFSETS
 
 # Paths
-EXE_PATH_X4 = Path("RXC1.exe")
-EXE_PATH = Path("RXC2.exe")
+EXE_PATH_X4 = Path("PC/RXC1.exe")
+EXE_PATH = Path("PC/RXC2.exe")
 
 # Tile geometry / palette constants
 TILE_SIZE = 16                    # pixels per tile edge

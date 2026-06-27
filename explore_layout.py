@@ -3,7 +3,7 @@ Interactive stage layout binary explorer GUI.
 
 Usage:
     python explore_layout.py <omp_file> [--layouts layouts_rxc2.bin]
-    python explore_layout.py <omp_file> --exe RXC2.exe --base-offset 0x02D98548
+    python explore_layout.py <omp_file> --exe PC/RXC2.exe --base-offset 0x02D98548
 
 Left slider   — byte offset into the binary layout file (0 … file size)
 Top slider    — level_width_screens (1 … 300)
@@ -552,7 +552,7 @@ def main() -> None:
             sys.exit(1)
 
         print('Detected GameVersion:', game)
-        bin_path = args.exe if args.exe is not None else Path(_EXE_NAMES[game])
+        bin_path = args.exe if args.exe is not None else Path(f"PC/{_EXE_NAMES[game]}")
         base_offset = _EXE_BASE_OFFSETS[game]
 
         layout_entry = STAGE_LAYOUT.get(f"X{game}", {}).get(omp_file.stem)

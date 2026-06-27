@@ -29,7 +29,7 @@ Output:
 import struct
 from pathlib import Path
 
-EXE_PATH = Path("RXC2.exe")
+EXE_PATH = Path("PC/RXC2.exe")
 OUT_DIR  = Path("layouts")
 
 # ── X5-specific constants ─────────────────────────────────────────────────────

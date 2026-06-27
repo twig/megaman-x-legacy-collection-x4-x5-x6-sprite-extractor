@@ -100,7 +100,7 @@ import struct
 from pathlib import Path
 
 OMP_PATH = Path('PC/X5/stage/st021/st021.omp')   # <- change this
-EXE_PATH = Path('debug/RXC2.exe')
+EXE_PATH = Path('PC/RXC2.exe')
 
 d = OMP_PATH.read_bytes()
 n_screens = struct.unpack_from('<I', d, 8)[0] // 256
@@ -149,7 +149,7 @@ For a 5-screens-wide vertical stage 25 rows tall you expect to see `(5, 25)` in 
 ### Opening the file
 
 1. Open HxD.
-2. Go **File → Open** and navigate to `debug\RXC2.exe`.
+2. Go **File → Open** and navigate to `PC\RXC2.exe`.
 3. Click **OK** when it warns about the large file size.
 
 ### Navigating to an offset
@@ -194,7 +194,7 @@ import struct
 from pathlib import Path
 
 OMP_PATH         = Path('PC/X5/stage/st021/st021.omp')  # <- your stage
-EXE_PATH         = Path('debug/RXC2.exe')
+EXE_PATH         = Path('PC/RXC2.exe')
 CANDIDATE_OFFSET = 0x02D9A10E   # <- from your scan
 W = 10   # width (screens per row)
 H = 24   # height (screen rows)
@@ -267,7 +267,7 @@ from pathlib import Path
 from utils.omp import load_omp, load_layout_from_exe
 
 OMP_PATH = Path('PC/X5/stage/st021/st021.omp')   # <- your stage
-EXE_PATH = Path('debug/RXC2.exe')
+EXE_PATH = Path('PC/RXC2.exe')
 OFFSET   = 0x02D9A10E   # <- your candidate
 W        = 10
 H        = 24

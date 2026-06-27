@@ -41,7 +41,7 @@ from __future__ import annotations
 import argparse, json, struct
 from pathlib import Path
 
-EXE = Path("RXC2.exe")
+EXE = Path("PC/RXC2.exe")
 
 # --- PE / section mapping (PE32, ImageBase 0x400000) ----------------------------
 IMAGE_BASE = 0x400000

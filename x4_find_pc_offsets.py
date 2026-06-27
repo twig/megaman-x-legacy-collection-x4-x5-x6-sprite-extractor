@@ -19,7 +19,7 @@ import json
 import struct
 from pathlib import Path
 
-PC_EXE    = Path("RXC1.exe")
+PC_EXE    = Path("PC/RXC1.exe")
 BIN_DIR   = Path("PSX/X4/layouts")
 OMP_DIR   = Path("PC/X4/stage/map")
 META_PATH = BIN_DIR / "index.json"
