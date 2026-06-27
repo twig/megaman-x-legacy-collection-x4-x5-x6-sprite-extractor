@@ -52,7 +52,7 @@ X5
 
 # Requirements
 
-- Python 3.12+
+- Python 3.13+
 - Megaman X Legacy Collection [1](https://store.steampowered.com/app/743890/Mega_Man_X_Legacy_Collection/) and [2](https://store.steampowered.com/app/743900/Mega_Man_X_Legacy_Collection_2/) on PC/Steam (for ARC files)
 - [Watto Game Extractor](https://www.watto.org/game_extractor.html) (to extract ARC files)
 
