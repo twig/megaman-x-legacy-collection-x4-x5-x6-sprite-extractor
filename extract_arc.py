@@ -238,7 +238,7 @@ if __name__ == "__main__":
         kept = sum(not ignored for _, ignored in listing)
         print(f"\n{len(listing)} files ({kept} kept, {len(listing) - kept} ignored)")
     else:
-        destination: Path = args.dest or Path(input_path.parent / input_path.stem)
+        destination: Path = args.dest or Path(Path("./") / input_path.stem)
         destination.mkdir(parents=True, exist_ok=True)
         # if args.dest is None:
         #     parser.error("dest is required unless --list is given")

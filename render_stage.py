@@ -1983,11 +1983,11 @@ def main() -> None:
         help="Layout layer to render (0=foreground, 1=BG1, 2=BG2; default: 0)",
     )
     parser.add_argument(
-        "--skip-stage", action="store_true",
+        "--skip-stage", action=argparse.BooleanOptionalAction,
         help="Only produce the catalog PNG, skip level render",
     )
     parser.add_argument(
-        "--skip-catalog", action="store_true", default=True,
+        "--skip-catalog", action=argparse.BooleanOptionalAction, default=True,
         help="Skip catalog PNG generation",
     )
     parser.add_argument(
