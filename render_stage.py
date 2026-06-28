@@ -280,7 +280,7 @@ def get_game_files(game_version: GameVersion, omp_path: Path):
 #     (The stage has two waterfall sections with slightly different tones — this is the
 #     st1_0 blue one matching x4-spider-water-foreground*.png; a per-entry source COL is
 #     supported for the other if it turns out to use a different bank.)
-CLUT_ANIM_STILL_FRAMES: "dict[str, tuple[str | None, list[tuple[int, int, int]]]]" = {
+CLUT_ANIM_STILL_FRAMES: "dict[str, tuple]" = {
     "SCR01_00": (None, [(77, 0, 2)]),
     # SCR01_01 (Web Spider Area 2): the OTHER section — col_animate is the teal st1_1.col.
     # Only col=13 -> row 77 is waterfall (col 14/15 unused); static col01_1X_eng.col row 77 is
@@ -293,7 +293,9 @@ CLUT_ANIM_STILL_FRAMES: "dict[str, tuple[str | None, list[tuple[int, int, int]]]
     # -> row 107 so the fill's colour comes from the game's own animation data instead of a
     # hard-coded CLUT row.  Sources from the default col_animate (st00.col); equals the old
     # row-129 override at the used index (index 3 = (8,0,0)).  See docs/x6-clut-anime-format.md.
-    "st00": (None, [(107, 12, 1)]),
+    # opaque=True: force alpha 255 on the copied rows (unlike the X4 waterfalls, this backdrop
+    # is opaque in-game; set 12 carries the STP bit, which stp_as_alpha would make translucent).
+    "st00": (None, [(107, 12, 1)], True),
 }
 
 
@@ -400,7 +402,8 @@ def preload_related_files(omp_path: Path):
     # game-files col_animate path, else the default col_animate is used.
     still_entry = CLUT_ANIM_STILL_FRAMES.get(omp_stem)
     if still_entry is not None:
-        src_name, frames = still_entry
+        src_name, frames = still_entry[0], still_entry[1]
+        opaque = len(still_entry) > 2 and still_entry[2]
         src_col = anim_col
         if src_name and col_path_animated is not None:
             src_path = col_path_animated.with_name(src_name)
@@ -413,8 +416,12 @@ def preload_related_files(omp_path: Path):
                 for k in range(length):
                     if src + k >= n_anim or dest + k < 0:
                         continue
-                    stage_palette[(dest + k) * 16:(dest + k + 1) * 16] = \
-                        src_col[(src + k) * 16:(src + k + 1) * 16]
+                    row = src_col[(src + k) * 16:(src + k + 1) * 16]
+                    if opaque:
+                        # this slot is opaque in-game (unlike the translucent X4 waterfalls);
+                        # drop the STP-derived alpha so the fill matches the static baseline.
+                        row = [(r, g, b, 255) for (r, g, b, _a) in row]
+                    stage_palette[(dest + k) * 16:(dest + k + 1) * 16] = row
                     applied += 1
             print(f"  CLUT-anime still-frame: {applied} row(s) from {src_name or col_path_animated.name}")
 
