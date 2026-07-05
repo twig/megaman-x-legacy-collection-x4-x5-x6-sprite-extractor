@@ -1195,6 +1195,7 @@ def render_level(
     chr256_override: "frozenset[int] | None" = None,
     clut_row_override: "dict[int, int] | None" = None,
     x6_page8_palette: "Palette | None" = None,
+    bg_is_texch3: bool = False,
 ) -> PILImage:
     """
     Render the level using the correct screen-based addressing.
@@ -1322,7 +1323,15 @@ def render_level(
                     # rather than the opaque block produced when the flag is ignored.
                     # Fully-transparent pixels stay transparent; non-flagged tiles are
                     # untouched (output byte-identical), so settled baselines don't move.
-                    if raw_id & 0x4000:
+                    #
+                    # Per-tile exemption: the 0x4000 bit is set on ~30% of placements in most
+                    # stages (it doubles as an engine flag), so a stage cannot be judged
+                    # opaque wholesale.  A tile resolved from a texch3 background sheet
+                    # (bg_is_texch3 + routed to tex_bg) is opaque boss art (st170's Rangda
+                    # Bangda W), NOT a translucent effect, so it opts out — while same-stage
+                    # tiles on the main sheet (e.g. st170's honeycomb, col=5 page=1) keep STP.
+                    on_texch3 = bg_is_texch3 and ocl_idx in chr256_indices
+                    if raw_id & 0x4000 and not on_texch3:
                         rgba_pixels = [
                             (r, g, b, a >> 1) if a else (r, g, b, a)
                             for (r, g, b, a) in rgba_pixels

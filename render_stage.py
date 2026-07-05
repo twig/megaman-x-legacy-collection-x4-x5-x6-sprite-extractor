@@ -260,6 +260,10 @@ def get_game_files(game_version: GameVersion, omp_path: Path):
     # resolve against the empty main sheet, rendering as near-black boxes.  st000
     # has both columns and keeps tex256 (the renderer takes a single bg sheet).
     tex_bg = tex256 or texch3
+    # Whether the bg sheet came from the texch3 column.  A texch3-sourced background
+    # is opaque art (Rangda Bangda W), not a PSX semi-transparent effect, so the caller
+    # renders it with stp_alpha=False — data-driven, no per-stage hardcoding.
+    bg_from_texch3 = not tex256 and bool(texch3)
 
     return [
         Path(f".\\PC\\X{game_version}\\{ocl}"),
@@ -267,6 +271,7 @@ def get_game_files(game_version: GameVersion, omp_path: Path):
         Path(f".\\PC\\X{game_version}\\{tex_bg}") if tex_bg else None,
         Path(f".\\PC\\X{game_version}\\{col}"),
         Path(f".\\PC\\X{game_version}\\{col_animate}") if col_animate else None,
+        bg_from_texch3,
     ]
 
 
@@ -339,7 +344,7 @@ def preload_related_files(omp_path: Path):
     if game_files is None:
         raise ValueError(f"ERROR: No file mapping for {omp_stem} in game-files.csv")
 
-    ocl_path, tex_path, tex_bg_path, col_path, col_path_animated = game_files
+    ocl_path, tex_path, tex_bg_path, col_path, col_path_animated, bg_from_texch3 = game_files
 
     for p in (ocl_path, tex_path):
         if not p.exists():
@@ -448,7 +453,7 @@ def preload_related_files(omp_path: Path):
     # st04a/st06a/st07 wrong colours).  The correct animated-palette mapping needs the
     # COL format reverse-engineered; until then the static palette is the safe default.
 
-    return [omp, ocl, tex, tex_background, flags_to_palette, game_version]
+    return [omp, ocl, tex, tex_background, flags_to_palette, game_version, bg_from_texch3]
 
 
 # ── X6 per-stage chr256 routing overrides, by explicit OCL INDEX ─────────────────
@@ -1966,7 +1971,7 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     omp_stem = omp_path.stem
-    [omp, ocl, tex, tex_background, flags_to_palette, game_version] = preload_related_files(omp_path)
+    [omp, ocl, tex, tex_background, flags_to_palette, game_version, bg_from_texch3] = preload_related_files(omp_path)
 
     chr256_extra: "frozenset[int] | None" = None
     clut_row_fix: "dict[int, int] | None" = None
@@ -2107,6 +2112,10 @@ def main() -> None:
             chr256_override=level_chr256,
             clut_row_override=clut_row_fix,
             x6_page8_palette=x6_page8_palette,
+            # texch3-sourced background tiles are opaque boss art, not PSX STP effects;
+            # render_level exempts only those tiles (per-tile), leaving same-stage
+            # main-sheet tiles (e.g. st170's honeycomb) translucent.
+            bg_is_texch3=bg_from_texch3,
         )
         if args.debug:
             _debug_overlay_level(level_img, layout, n_sx, n_sy)
