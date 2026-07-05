@@ -1,27 +1,3 @@
-python .\render_stage.py PC\X5\stage\st000\st000.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st010\st010.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st020\st020.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st030\st030.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st021\st021.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st040\st040.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st041\st041.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st050\st050.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st060\st060.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st061\st061.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st070\st070.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st080\st080.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st090_00\st090_00.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st090_01\st090_01.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st100_00\st100_00.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st100_01\st100_01.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st120\st120.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st160\st160.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st170\st170.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st180\st180.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st130\st130.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\st220\st220.omp --output-dir progress-baseline\X5
-python .\render_stage.py PC\X5\stage\staff_eng\staff_eng.omp --output-dir progress-baseline\X5
-
 @REM python .\render_stage.py PC\X4\stage\map\ENDING_eng.omp --output-dir progress-baseline\X4
 python .\render_stage.py PC\X4\stage\map\SCR00_00.omp --output-dir progress-baseline\X4
 python .\render_stage.py PC\X4\stage\map\SCR00_01.omp --output-dir progress-baseline\X4
@@ -51,6 +27,30 @@ python .\render_stage.py PC\X4\stage\map\SCR07_01.omp --output-dir progress-base
 python .\render_stage.py PC\X4\stage\map\SCR08_00.omp --output-dir progress-baseline\X4
 python .\render_stage.py PC\X4\stage\map\SCR08_01.omp --output-dir progress-baseline\X4
 python .\render_stage.py PC\X4\stage\map\SCR09_00.omp --output-dir progress-baseline\X4
+
+python .\render_stage.py PC\X5\stage\st000\st000.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st010\st010.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st020\st020.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st030\st030.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st021\st021.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st040\st040.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st041\st041.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st050\st050.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st060\st060.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st061\st061.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st070\st070.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st080\st080.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st090_00\st090_00.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st090_01\st090_01.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st100_00\st100_00.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st100_01\st100_01.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st120\st120.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st160\st160.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st170\st170.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st180\st180.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st130\st130.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\st220\st220.omp --output-dir progress-baseline\X5
+python .\render_stage.py PC\X5\stage\staff_eng\staff_eng.omp --output-dir progress-baseline\X5
 
 python .\render_stage.py PC\X6\stage\map\st00.omp --output-dir progress-baseline\X6
 python .\render_stage.py PC/X6/stage/map/st01.omp --output-dir progress-baseline\X6
