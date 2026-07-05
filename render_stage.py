@@ -764,12 +764,26 @@ X5_SHEET_OVERRIDE_INDICES: dict[str, "dict[int, str]"] = {
     "st040": {i: "bg" for i in (1585, 1586, 1587, 1588, 1589, 1590, 1591, 1592, 1593,
                                 1596, 1597, 1598, 1599, 1600, 1601, 1603, 1604, 1605,
                                 1666, 1667, 2157, 2158, 2159, 2160, 2161)},
-    # st030 (Tidal Whale / Duff McWhalen): a col=32 page-11 background batch (OCL 3385-3509,
-    # the region at level x880-1231 y3072-3215) whose art the PC port re-packed onto tex_bg,
-    # rendering as comb-garble on tex.  A DIFFERENT col=32 page-11 batch (OCL 1085-1339) is
-    # correct on tex, so a (col, page) group key can't separate them — but the two batches are
-    # disjoint contiguous index ranges, so the recovered batch is listed explicitly (cf. st040).
-    "st030": {i: "bg" for i in range(3385, 3510)},
+    # st030 (Tidal Whale / Duff McWhalen): two disjoint mis-routed batches.
+    #  (a) OCL 3385-3509 (col=32 page-11 background, level x880-1231 y3072-3215) whose art the PC
+    #      port re-packed onto tex_bg, rendering as comb-garble on tex.  A DIFFERENT col=32 page-11
+    #      batch (OCL 1085-1339) is correct on tex, so a (col, page) group key can't separate them.
+    #  (b) The col=7 page-1/2/3 rock-wall batch around the console room (level x4896-5856, the
+    #      foreground layer).  The PC port packed a DIFFERENT-but-coherent rock variant onto tex at
+    #      these coords, so the base router (page<8 -> tex) leaves them there: they render as lighter
+    #      rectangular patches that don't blend, and OCL 2644 draws a spurious opaque block where its
+    #      tex_bg slot is (correctly) near-empty.  This CANNOT be a content rule — e.g. OCL 2139 is
+    #      byte-identical on tex to OCL 484, which must STAY on tex; only the OCL index (placement
+    #      batch) distinguishes them (cf. st040).  Palette is already correct (col+64); this is purely
+    #      a sheet selection.  Indices are the GT-verified set (vs X5_ST03_00 screenshot): routing
+    #      them tex_bg improves 18309 px with zero regressions.  The generic bg-recovery skips them
+    #      because it is gated to background-layer-EXCLUSIVE runs and these are foreground-placed.
+    "st030": {
+        **{i: "bg" for i in range(3385, 3510)},
+        **{i: "bg" for i in (2139, 2140, 2141, 2142, 2143, 2146, 2147, 2179, 2195, 2196, 2197,
+                             2435, 2641, 2642, 2643, 2644, 2645, 2646, 2647, 2648, 2649, 2650,
+                             3369)},
+    },
     # st070 (Spike Rosered): two unrelated sheet fixes in this stage.
     #
     #  (a) OCL 2879 → tex_bg.  col=0 page-1 (coord 8,10) draws a spurious solid rock block in the
