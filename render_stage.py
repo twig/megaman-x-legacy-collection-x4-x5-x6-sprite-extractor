@@ -280,12 +280,22 @@ def get_game_files(game_version: GameVersion, omp_path: Path):
 #     (The stage has two waterfall sections with slightly different tones — this is the
 #     st1_0 blue one matching x4-spider-water-foreground*.png; a per-entry source COL is
 #     supported for the other if it turns out to use a different bank.)
-CLUT_ANIM_STILL_FRAMES: "dict[str, tuple[str | None, list[tuple[int, int, int]]]]" = {
+CLUT_ANIM_STILL_FRAMES: "dict[str, tuple]" = {
     "SCR01_00": (None, [(77, 0, 2)]),
     # SCR01_01 (Web Spider Area 2): the OTHER section — col_animate is the teal st1_1.col.
     # Only col=13 -> row 77 is waterfall (col 14/15 unused); static col01_1X_eng.col row 77 is
     # a blue ramp with pink high-indices.  Copy st1_1 row 0 -> CLUT row 77 (length 1).
     "SCR01_01": (None, [(77, 0, 1)]),
+    # st00 (X6 Intro Stage): the flat dark backdrop behind the machinery (OCL 2446/3038,
+    # col=43 -> row 107, the ONLY col=43 tiles in the stage, a solid palette-index-3 fill)
+    # is a static stand-in for a CLUT-animated slot.  In-game its colour is driven from
+    # st00.col (the stage animated COL); set 12 is the dark-red phase.  Copy st00.col set 12
+    # -> row 107 so the fill's colour comes from the game's own animation data instead of a
+    # hard-coded CLUT row.  Sources from the default col_animate (st00.col); equals the old
+    # row-129 override at the used index (index 3 = (8,0,0)).  See docs/x6-clut-anime-format.md.
+    # opaque=True: force alpha 255 on the copied rows (unlike the X4 waterfalls, this backdrop
+    # is opaque in-game; set 12 carries the STP bit, which stp_as_alpha would make translucent).
+    "st00": (None, [(107, 12, 1)], True),
 }
 
 
@@ -392,7 +402,8 @@ def preload_related_files(omp_path: Path):
     # game-files col_animate path, else the default col_animate is used.
     still_entry = CLUT_ANIM_STILL_FRAMES.get(omp_stem)
     if still_entry is not None:
-        src_name, frames = still_entry
+        src_name, frames = still_entry[0], still_entry[1]
+        opaque = len(still_entry) > 2 and still_entry[2]
         src_col = anim_col
         if src_name and col_path_animated is not None:
             src_path = col_path_animated.with_name(src_name)
@@ -405,8 +416,12 @@ def preload_related_files(omp_path: Path):
                 for k in range(length):
                     if src + k >= n_anim or dest + k < 0:
                         continue
-                    stage_palette[(dest + k) * 16:(dest + k + 1) * 16] = \
-                        src_col[(src + k) * 16:(src + k + 1) * 16]
+                    row = src_col[(src + k) * 16:(src + k + 1) * 16]
+                    if opaque:
+                        # this slot is opaque in-game (unlike the translucent X4 waterfalls);
+                        # drop the STP-derived alpha so the fill matches the static baseline.
+                        row = [(r, g, b, 255) for (r, g, b, _a) in row]
+                    stage_palette[(dest + k) * 16:(dest + k + 1) * 16] = row
                     applied += 1
             print(f"  CLUT-anime still-frame: {applied} row(s) from {src_name or col_path_animated.name}")
 
@@ -1798,110 +1813,13 @@ def build_x6_chr256_override(
 
 # ── X6 per-stage CLUT-row fixes ─────────────────────────────────────────────────
 #
-# Some X6 page>=8 (second-VRAM-half) tiles render with the wrong colours because
-# their true static palette is NOT at the universal ``col + 64`` CLUT row.  The
-# shared colXX.col VRAM dump does hold the correct colours, but at a different row.
-#
-# The correction is genuinely PER-TILE, NOT per-col: tiles that share the same ``col``
-# can need different CLUT rows.  In st04a the hydraulic-press tiles (OCL 923-952, col=16)
-# need row 192, yet HUNDREDS of OTHER col=16 page>=8 tiles (OCL 436-652, 968+) are
-# already correct at row 80 — keying a fix by abs_clut/col remaps all of them and
-# regresses those regions.  Fixes are therefore keyed by explicit OCL INDEX, each
-# range validated against an in-game screenshot (experimental/diag_groundtruth_match.py
-# + diag_align_recover.py).  page<8 tiles are unaffected — their ``col + 64`` is correct.
-#
-# Keyed by OMP stem -> {ocl_idx : corrected CLUT row}.
-def _rows(*ranges_or_idx):
-    out: dict[int, int] = {}
-    for r in ranges_or_idx:
-        idxs, row = r
-        for i in (idxs if isinstance(idxs, range) else idxs):
-            out[i] = row
-    return out
-
-
+# This table is now EMPTY — every X6 per-index CLUT-row fix has been eliminated:
+#   • st04a (138) / st04b (16): proven redundant with the pad_hi=4 bank rule and removed
+#     (the only real correction was st04a's (0,10) row in X6_PADHI_ROW_BY_STAGE).
+#   • st00 (2): the flat backdrop is now sourced from st00.col via CLUT_ANIM_STILL_FRAMES.
+# Kept as an (empty) table + build_x6_clut_row_override hook so a future genuinely
+# per-index fix has a home.  Keyed by OMP stem -> {ocl_idx : corrected CLUT row}.
 X6_CLUT_ROW_FIXES: dict[str, dict[int, int]] = {
-    # st00 (Intro Stage): the large flat background-fill tile at OCL 2446 (col=43, page=2,
-    # cb=77) is a single-value v=3 fill routed to chr256 that blankets x~1584-2864, y~2368-2784.
-    # At its col+64 row 107 — a tan/brown rock ramp — v=3 renders RGB(66,41,41), a brown block
-    # that stands out against the dark scene.  Its true palette is the dark-red ramp at row 129
-    # (v=3 -> the CLUT's RGB(8,0,0)), the dominant dark-red flat-fill row in st00 (24 other
-    # tiles already use it).  OCL 3038 is the same (col=43,cb=77) flat tile — a 3-tile strip at
-    # x=2304 embedded in the same block — so it is pinned to 129 too.
-    "st00": _rows(([2446, 3038], 129)),
-    # st04a (Recycle Lab Area 1): the hydraulic-press / scrap-machinery tiles at OCL
-    # 923-952 (col=16) render muddy red-brown at row 80; their real grey-steel palette
-    # is at row 192 (raw shared row 224).  Validated vs screenshots/x6-metal-shark.png
-    # (err 1.8) and the in-game ST04A-B capture (grey steel + orange rust).  Other col=16
-    # page>=8 tiles (e.g. OCL 436-652, 968+) are correct as-is and must NOT be remapped.
-    #
-    # OCL 152 + 179-201 (page 11, col=0) are the grey-steel scrap-machinery tileset; at
-    # their col+64 row 64 they render orange-rust, but their true palette is row 288 — the
-    # same grey-steel CLUT the col=224 machinery tiles already use.  Confirmed tiles
-    # (152, 179-191, 195-201) validated by matching the four x6-st04a-patch-*.png ground-
-    # truth captures (per-tile RMS over opaque pixels, layer-1/2 red background excluded):
-    # error drops from ~80-190 at row 64 to ~3-10 at row 288.  193-194 are inferred — they
-    # sit inside the same clut_base-contiguous col=0 strip between confirmed members; no
-    # capture covers them.  Scoped to these indices only: col=0 -> row 64 is CORRECT for
-    # the hundreds of page 9-10 background tiles, so this is NOT generalised.
-    #
-    # Deliberately EXCLUDED (no confident fix yet):
-    #   - page-11 col=0 tiles 523-530 (placed up to 768x): tex and chr256 hold IDENTICAL
-    #     coherent index data here (not a routing bug, not corrupt; 527 is a flat fill),
-    #     but no CLUT row tested — incl. 64 and 288 — gives clearly-correct colours, so
-    #     their true palette is unknown without a ground-truth capture.  Left at col+64.
-    #   - patch-4 top tiles 869-882 / 920-922 are sprite-occluded in the capture.
-    #
-    # A SECOND col=16 machinery batch (OCL 202 + a 1516-1615 subset, page 10/11) was
-    # flagged "too orange": identical class to 923-952 (col=16 renders orange-rust at row
-    # 80, grey-steel at row 192).  Discriminator confirmed by adjacent tiles that render
-    # fine (col=128 -> 192, col=208 -> 272 via col+64) and a row-80-vs-192 contact sheet
-    # (every flagged index turns clean grey-steel at 192).  Inference from the validated
-    # col=16->192 precedent, not a per-pixel capture — none covers these.  Kept as an
-    # explicit index list because OTHER col=16 page>=8 tiles (436-652, 968+) ARE correct
-    # at row 80, so col=16 must never be blanket-remapped.
-    "st04a": _rows(
-        (range(923, 953), 192),
-        ([152], 288),
-        (range(179, 192), 288),   # 179-191 (confirmed)
-        (range(193, 202), 288),   # 193-201 (195-201 confirmed; 193-194 inferred)
-        # Machinery-TOP band (col=0, page=10, pad_hi=4): the grey-steel armor plating
-        # above the col=16 body (923-952 -> 192).  Routed back to tex by
-        # X6_SHEET_OVERRIDE_INDICES; at the pad_hi (0,10)->192 default it renders rusty-brown,
-        # so pin it to row 288 — the same col=0 grey-steel CLUT as the page-11 scrap tiles
-        # (152/179-201).  RMS-validated vs x6-st04a-patch-x3136_y304-x3199_y431.png:
-        # mean 7.1 @288 vs 81.2 @192 (experimental/diag_top_palette_st04a.py).  Skips
-        # 874/879 (col=64 pad_hi=0 left-edge tiles).  NOT applied to the col=0/page-10
-        # batch 1505-1612 (separate structure, no capture) — hence per-index, not (0,10).
-        (sorted((set(range(868, 884)) - {874, 879}) | {920, 921, 922}), 288),
-        ([202, 1516, 1517, 1520, 1521, 1522, 1525, 1526, 1527, 1536, 1537, 1538, 1539,
-          1543, 1544, 1545, 1546, 1547, 1548, 1549, 1550, 1551, 1552, 1565, 1566, 1567,
-          1568, 1569, 1570, 1571, 1574, 1575, 1576, 1577, 1578, 1579, 1580, 1581, 1582,
-          1583, 1584, 1587, 1588, 1589, 1611, 1613, 1614, 1615], 192),  # user-flagged "too orange"
-        # Recurring scrap-pile prop (col=0, page=10, pad_hi=4) — the SECOND col=0/pg10/pad_hi=4
-        # batch left at tex_bg@192 in earlier sessions for lack of ground truth.  At the
-        # (0,10)->192 padhi default it renders rusty-brown with a pink/white speckle streak;
-        # the correct grey-steel palette is row 288 (the same col=0 grey-steel CLUT as the top
-        # band 868-922 and the page-11 scrap 152/179-201).  USER-FLAGGED at level (1904-1951,
-        # 816-863) — should match the reference tiles 187/191; confirmed that 288 removes the
-        # speckle and yields clean grey steel.  Stays on tex_bg (its art lives there; tex is
-        # empty at these page-10 coords, so routing to tex would punch a transparent hole).
-        ([1505, 1506, 1507, 1508, 1509, 1511, 1512, 1528, 1532, 1553, 1554, 1555, 1556,
-          1557, 1560, 1561, 1562, 1609, 1610, 1612], 288),
-    ),
-    # st04b col=0 pad_hi=4 tiles split by tile_type into two palettes (whole-tile matched
-    # to the user's reference tiles): type 0x3A → col=6 light-grey ref (row 70); type 0x3F
-    # → col=3 mid-grey ref (row 67).  Per-index because the (col,page) pad_hi table can't
-    # key on tile_type.
-    # st04b col=0 pad_hi=4 tiles → row 320 (same col=0 alt-bank row as st02/st06a/st0g).
-    # These are 8bpp tiles whose pixels are 0xE0-0xFF (high-nibble 14/15), so the 8bpp
-    # decode reads base+14/15.  clut_finder "clut 102" only matches a tile's LOW-nibble
-    # pixels; for these high-nibble tiles clut-102-base reads raw rows 116/117 (dark) — NOT
-    # row 102 — which is why row 70 (=clut102) rendered dark.  Matched to x6-st04b-right.png:
-    # row 320 gives 684 (104,97,89)~(99,92,85), 686 (155,147,138)~(144,136,128).
-    "st04b": _rows(
-        ([684, 686, 967, 968, 969, 970, 971, 972, 973, 974, 975, 976, 977, 978, 979, 980], 320),
-    ),
 }
 
 
@@ -1958,7 +1876,7 @@ X6_PADHI_ROW_BY_STAGE: dict[str, dict[tuple[int, int], int]] = {
     # Everything not listed uses 320 + col.
     # st04a: whole-stage lower bank (col0→288, col16→192).  RMS-validated (err ~3-7);
     # (0,10)→192 is contact-sheet-only.
-    "st04a": {(16, 9): 192, (16, 10): 192, (16, 11): 192, (0, 10): 192, (0, 11): 288},
+    "st04a": {(16, 9): 192, (16, 10): 192, (16, 11): 192, (0, 10): 288, (0, 11): 288},
     # st04b col=16: silver spikes at 368 (default 336 renders garbage — coherence-confirmed).
     "st04b": {(16, 10): 368},
 }
