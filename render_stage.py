@@ -272,16 +272,21 @@ def get_game_files(game_version: GameVersion, omp_path: Path):
 # PNG shows the intended colours instead of the stale placeholder baked into the static COL.
 # The animated COL is loaded with stp_as_alpha, so STP-flagged effect rows render translucent.
 #
-#   SCR01_00 (X4, Web Spider Area 1): the waterfall spans FOUR CLUT rows — body col=13
-#     (row 77), edge col=14 (78), and smaller water features col=15 (79) / col=16 (80).
-#     Static col01_0X_eng.col holds green/pink/orange placeholder frames there.  The
-#     waterfall animation is the default col_animate st1_0.col rows 0-3 (a 4-CLUT downward
-#     scroll, all blue + STP); copy frame-0 rows 0-3 -> CLUT rows 77-80 (length 4).
-#     (The stage has two waterfall sections with slightly different tones — this is the
-#     st1_0 blue one matching x4-spider-water-foreground*.png; a per-entry source COL is
-#     supported for the other if it turns out to use a different bank.)
+#   SCR01_00 (X4, Web Spider Area 1): TWO distinct animated waterfalls, both driven by
+#     st1_0.col.
+#     (a) FOREGROUND (layer 0) deep-blue fall: body col=13 -> CLUT row 77, edge col=14 -> 78.
+#         Static col01_0X_eng.col holds a green/pink placeholder there.  st1_0 rows 0-1 are
+#         the frame-0 deep-blue downward scroll (all STP); copy rows 0-1 -> CLUT rows 77-78.
+#     (b) BACKGROUND (layer 2) light blue-grey fall: col=45 -> CLUT row 109.  Static row 109
+#         holds a gold/orange placeholder at the animated water indices.  st1_0 carries a
+#         SECOND, lighter cycle at rows 13/16/19/22 (a period-3 interleave; rows 14/17/20/23
+#         are the dimmer partner stream).  Frame-0 of the light cycle is row 13 — copy it ->
+#         CLUT row 109.  Verified empirically: applying st1_0 row 13 to the actual col=45 tile
+#         pixel indices matches x4-spider-waterfall-bg.png far better (d~30) than the gold
+#         static (d~54), the dimmer stream (d~39), or the deep-blue fg cycle (d~69).  All 46
+#         col=45/page-7 OCL entries (225 placements) live in the layer-2 band — waterfall-only.
 CLUT_ANIM_STILL_FRAMES: "dict[str, tuple]" = {
-    "SCR01_00": (None, [(77, 0, 2)]),
+    "SCR01_00": (None, [(77, 0, 2), (109, 13, 1)]),
     # SCR01_01 (Web Spider Area 2): the OTHER section — col_animate is the teal st1_1.col.
     # Only col=13 -> row 77 is waterfall (col 14/15 unused); static col01_1X_eng.col row 77 is
     # a blue ramp with pink high-indices.  Copy st1_1 row 0 -> CLUT row 77 (length 1).
