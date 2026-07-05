@@ -253,10 +253,18 @@ def get_game_files(game_version: GameVersion, omp_path: Path):
 
     [game, stage, col, col_animate, ocl, tex, tex256, texch3] = found_row
 
+    # Background (chr256) sheet: prefer the tex256 column, but fall back to the
+    # texch3 column when tex256 is empty.  st170 is the only stage that ships its
+    # background tileset (the Rangda Bangda W boss art) as a *_ch3 sheet with no
+    # *_chr256 — without this fallback its tex_bg is None and the boss-art tiles
+    # resolve against the empty main sheet, rendering as near-black boxes.  st000
+    # has both columns and keeps tex256 (the renderer takes a single bg sheet).
+    tex_bg = tex256 or texch3
+
     return [
         Path(f".\\PC\\X{game_version}\\{ocl}"),
         Path(f".\\PC\\X{game_version}\\{tex}"),
-        Path(f".\\PC\\X{game_version}\\{tex256}") if tex256 else None,
+        Path(f".\\PC\\X{game_version}\\{tex_bg}") if tex_bg else None,
         Path(f".\\PC\\X{game_version}\\{col}"),
         Path(f".\\PC\\X{game_version}\\{col_animate}") if col_animate else None,
     ]
@@ -878,8 +886,14 @@ def build_x5_pg8_empty_bg_override(
     out = set(chr256_set)
     n_moved = 0
     for idx, e in enumerate(ocl):
+        if e.pad == 0xFF:
+            continue  # sky-fill sentinel (page nibble 15 too) — never real art
         page = e.pad & 0xF
-        if not (8 <= page <= 0xB) or idx in out:
+        # 8-0xB are the 8bpp bitmap pages; page 15 (pad=0x0F) is the page-band-1 art
+        # slot (gy=256) that _resolve_tile also draws — the X5 st170 Rangda Bangda W
+        # background whose tex block is blank while tex_bg holds it (same tex-empty
+        # recovery, so still regression-free; sky stays dropped as its tex_bg is empty too).
+        if not (8 <= page <= 0xB or page == 15) or idx in out:
             continue
         cordX = e.clut_base & 0xF
         cordY = (e.clut_base >> 4) & 0xF
