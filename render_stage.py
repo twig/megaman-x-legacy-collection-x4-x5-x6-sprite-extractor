@@ -1006,14 +1006,13 @@ def bake_x5_additive_water(
     water_col = X5_ADDITIVE_WATER_STAGES.get(stage_stem) if stage_stem else None
     if water_col is None or n_sy % 3 != 0:
         return 0
-    import numpy as np
-    from PIL import Image
 
     tiles_per_layer = (n_sy // 3) * 16
     th = tiles_per_layer * 16  # third height in px
 
-    arr = np.array(level_img.convert("RGBA"))
-    src = arr.astype(np.int32)  # pristine snapshot for background reads
+    work = level_img.convert("RGBA")
+    ref = work.copy().load()   # pristine pixel access for background reads
+    dst = work.load()          # written in place
     modified = 0
 
     for sy in range(n_sy):
@@ -1036,27 +1035,39 @@ def bake_x5_additive_water(
                     layer = ly // tiles_per_layer
                     py_local = (ly % tiles_per_layer) * 16
                     px = lx * 16
-                    # local background B = composite the layers strictly behind this one,
-                    # back-to-front (third 2 is backmost, then 1 over it, …).
-                    B_rgb = np.zeros((16, 16, 3), np.float64)
-                    B_a = np.zeros((16, 16), np.float64)
-                    for third in range(2, layer, -1):
-                        blk = src[third * th + py_local: third * th + py_local + 16, px:px + 16]
-                        sa = blk[..., 3] / 255.0
-                        B_rgb = blk[..., :3] * sa[..., None] + B_rgb * (1 - sa[..., None])
-                        B_a = sa + B_a * (1 - sa)
-                    l0 = src[ly * 16: ly * 16 + 16, px:px + 16]
-                    mask = (l0[..., 3] > 0) & (B_a > 0)
-                    if not mask.any():
-                        continue
-                    add = np.clip(B_rgb + l0[..., :3] // coeff, 0, 255).astype(np.uint8)
-                    out = arr[ly * 16: ly * 16 + 16, px:px + 16]
-                    out[..., :3][mask] = add[mask]
-                    out[..., 3][mask] = 255
-                    modified += 1
+                    tile_modified = False
+                    for dy in range(16):
+                        row_y = ly * 16 + dy
+                        for dx in range(16):
+                            col_x = px + dx
+                            lr, lg, lb, la = ref[col_x, row_y]
+                            if la == 0:
+                                continue
+                            # local background B = composite the layers strictly behind
+                            # this one, back-to-front (third 2 backmost, then 1 over it, …).
+                            br = bg = bb = ba = 0.0
+                            for third in range(2, layer, -1):
+                                sr, sg, sb, sal = ref[col_x, third * th + py_local + dy]
+                                sa = sal / 255.0
+                                inv = 1 - sa
+                                br = sr * sa + br * inv
+                                bg = sg * sa + bg * inv
+                                bb = sb * sa + bb * inv
+                                ba = sa + ba * inv
+                            if ba <= 0:
+                                continue
+                            dst[col_x, row_y] = (
+                                min(255, int(br + lr // coeff)),
+                                min(255, int(bg + lg // coeff)),
+                                min(255, int(bb + lb // coeff)),
+                                255,
+                            )
+                            tile_modified = True
+                    if tile_modified:
+                        modified += 1
 
     if modified:
-        level_img.paste(Image.fromarray(arr), (0, 0))
+        level_img.paste(work, (0, 0))
     return modified
 
 
