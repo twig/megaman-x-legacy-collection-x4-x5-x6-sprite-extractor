@@ -117,7 +117,6 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st021":     (0x02EC2FC0, 22, 12), # LAYOUT DONE, TILES DONE (Dark Necrobat: Area 2)
         "st030":     (0x02D98D88, 24, 24), # LAYOUT DONE, TILES DONE (Tidal Whale)
         "st040":     (0x02EC3398, 18, 36), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 1)
-        # missing tiles?
         "st041":     (0x02EC36A0, 20, 18), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 2)
         "st050":     (0x02D98890, 36, 21), # LAYOUT DONE, TILES DONE (Volt Kraken)
         "st060":     (0x02EC3C70, 34, 9),  # LAYOUT DONE, TILES DONE (Shining Firefly: Area 1)
@@ -311,6 +310,21 @@ CLUT_ANIM_STILL_FRAMES: "dict[str, tuple]" = {
     # opaque=True: force alpha 255 on the copied rows (unlike the X4 waterfalls, this backdrop
     # is opaque in-game; set 12 carries the STP bit, which stp_as_alpha would make translucent).
     "st00": (None, [(107, 12, 1)], True),
+    # st070 (Spike Rosered): the reflective-floor "water" tiles are STP (0x4000) and use
+    # col=2 -> CLUT row 66, a row the engine fills at runtime from the stage's animated COL
+    # (st7_0.col).  The static col07_0x_eng.col holds a stale/corrupt frame there — idx0-11
+    # are the correct muted blues but idx12-15 are garbage ((0,0,231) blue, (181,0,0) RED,
+    # two greys), which paints red speckles on the water.  st7_0.col set 195 is the coherent
+    # water frame (VRAM-confirmed; matches idx0-11 exactly and gives idx12-15 proper blues),
+    # so copy set 195 -> row 66.  col=2/row 66 is WATER-EXCLUSIVE in st070 (204 STP placements,
+    # 0 non-STP), so this is collateral-free.  Row 64 (col=0) also carries a few STP floor tiles
+    # but is the stage's shared default col (4330 non-water placements) — NOT globally
+    # substitutable — so it is deliberately left alone.  STP alpha (128, halved to 64 by the
+    # 0x4000 bit) keeps the water translucent as before; only the colour is corrected.
+    # NB the in-game reflective sheen additionally needs additive blending over the composited
+    # background layer, which the current per-layer (non-composited) render cannot supply; see
+    # memory x5-st070-water-is-clut-cycling-stp / x5-layer-compositing-recipe.
+    "st070": (None, [(66, 195, 1)]),
 }
 
 
@@ -950,6 +964,100 @@ def build_x5_clut_row_override(
             if row is not None:
                 out[idx] = row
     return out or None
+
+
+# ── X5 st070 localized additive-water bake ─────────────────────────────────────
+# st070's reflective wet-floor "water" is a PSX semi-transparency (0x4000) effect whose
+# in-game look is ADDITIVE blending over the reflected background, NOT the 50% alpha the STP
+# bit yields (memory: x5-st070-water-is-clut-cycling-stp).  The renderer stacks X5's three
+# parallax layers vertically into one tall image (thirds = front / middle / back; see
+# x5-layer-compositing-recipe), so at render time a front-layer water tile has no background
+# beneath it — additive over nothing goes near-black.  Rather than composite the whole scene,
+# we bake the effect per tile: for each rendering water tile (col=2 -> CLUT row 66) that HAS
+# an opaque background in the layers BEHIND it (per the back-to-front fold), each opaque water
+# pixel F is replaced with clip(B + F // coeff) at full opacity, where B is that tile's local
+# background composited from the layers behind it.  Baked opaque, the tile reads correctly BOTH
+# in the flat per-layer render AND after a future 3-thirds fold (front draws last over the
+# identical B).  st070's 128 middle-layer water tiles have an empty back layer behind them, so
+# they have no B and are left at their STP translucency (additive over nothing is meaningless).
+# Confirmed coeff = 2 (B+F/2 = best RMS; full additive B+F was mean-exact).  st070-scoped —
+# only its water is characterised; the still-frame CLUT_ANIM_STILL_FRAMES fix supplies the F.
+X5_ADDITIVE_WATER_STAGES: dict[str, int] = {
+    # stem -> col value whose STP (0x4000) tiles at CLUT row col+64 are reflective water.
+    "st070": 2,
+}
+
+
+def bake_x5_additive_water(
+    level_img,
+    omp,
+    ocl: list[OclEntry],
+    layout: LayoutTable,
+    n_sx: int,
+    n_sy: int,
+    stage_stem: "str | None",
+    coeff: int = 2,
+) -> int:
+    """Bake the additive reflective sheen onto an X5 stage's STP water tiles, in place.
+
+    Returns the number of tiles composited (0, image untouched, for stages without an entry
+    in X5_ADDITIVE_WATER_STAGES).  Only opaque water pixels that have an opaque background in
+    the layers behind them are modified, so the output is byte-identical everywhere else."""
+    water_col = X5_ADDITIVE_WATER_STAGES.get(stage_stem) if stage_stem else None
+    if water_col is None or n_sy % 3 != 0:
+        return 0
+    import numpy as np
+    from PIL import Image
+
+    tiles_per_layer = (n_sy // 3) * 16
+    th = tiles_per_layer * 16  # third height in px
+
+    arr = np.array(level_img.convert("RGBA"))
+    src = arr.astype(np.int32)  # pristine snapshot for background reads
+    modified = 0
+
+    for sy in range(n_sy):
+        for sx in range(n_sx):
+            sc = layout.get(sx, sy)
+            if sc is None or sc >= omp.n_screens:
+                continue
+            for wy in range(16):
+                for wx in range(16):
+                    t = omp.tiles[sc][wy * 16 + wx]
+                    if t == 0 or not (t & 0x4000):
+                        continue
+                    idx = t & 0x3FFF
+                    if idx >= len(ocl):
+                        continue
+                    e = ocl[idx]
+                    if e.col != water_col or e.pad == 0xFF:
+                        continue
+                    lx, ly = sx * 16 + wx, sy * 16 + wy
+                    layer = ly // tiles_per_layer
+                    py_local = (ly % tiles_per_layer) * 16
+                    px = lx * 16
+                    # local background B = composite the layers strictly behind this one,
+                    # back-to-front (third 2 is backmost, then 1 over it, …).
+                    B_rgb = np.zeros((16, 16, 3), np.float64)
+                    B_a = np.zeros((16, 16), np.float64)
+                    for third in range(2, layer, -1):
+                        blk = src[third * th + py_local: third * th + py_local + 16, px:px + 16]
+                        sa = blk[..., 3] / 255.0
+                        B_rgb = blk[..., :3] * sa[..., None] + B_rgb * (1 - sa[..., None])
+                        B_a = sa + B_a * (1 - sa)
+                    l0 = src[ly * 16: ly * 16 + 16, px:px + 16]
+                    mask = (l0[..., 3] > 0) & (B_a > 0)
+                    if not mask.any():
+                        continue
+                    add = np.clip(B_rgb + l0[..., :3] // coeff, 0, 255).astype(np.uint8)
+                    out = arr[ly * 16: ly * 16 + 16, px:px + 16]
+                    out[..., :3][mask] = add[mask]
+                    out[..., 3][mask] = 255
+                    modified += 1
+
+    if modified:
+        level_img.paste(Image.fromarray(arr), (0, 0))
+    return modified
 
 
 def build_x6_chr256_override(
@@ -2114,6 +2222,13 @@ def main() -> None:
             # main-sheet tiles (e.g. st170's honeycomb) translucent.
             bg_is_texch3=bg_from_texch3,
         )
+        if game_version == GameVersion.X5:
+            # Bake the additive reflective sheen onto st070's STP water tiles (no-op for
+            # other stages).  Post-render so it can use the tall stack's back layers as each
+            # water tile's local background — see bake_x5_additive_water.
+            n_water = bake_x5_additive_water(level_img, omp, ocl, layout, n_sx, n_sy, omp_stem)
+            if n_water:
+                print(f"  X5 additive-water bake: {n_water} tiles composited")
         if args.debug:
             _debug_overlay_level(level_img, layout, n_sx, n_sy)
         level_out = output_dir / Path(f"{omp_stem}_level.png")
