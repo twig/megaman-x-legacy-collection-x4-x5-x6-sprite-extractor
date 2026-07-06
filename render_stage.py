@@ -113,29 +113,26 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     "X5": {
         "st000":     (0x02EC2B18, 24, 21), # LAYOUT DONE, TILES DONE (Intro stage)
         "st010":     (0x02D98528, 39, 9),  # LAYOUT DONE, TILES DONE (Crescent Grizzly)
-        # missing tiles in bg?
-        "st020":     (0x02EC2EB8, 22, 12), # LAYOUT DONE, TILES ALMOST (Dark Necrobat: Area 1)
+        "st020":     (0x02EC2EB8, 22, 12), # LAYOUT DONE, TILES DONE (Dark Necrobat: Area 1)
         "st021":     (0x02EC2FC0, 22, 12), # LAYOUT DONE, TILES DONE (Dark Necrobat: Area 2)
-        # garbled mini boss
-        "st030":     (0x02D98D88, 24, 24), # LAYOUT DONE, TILES ALMOST (Tidal Whale)
+        "st030":     (0x02D98D88, 24, 24), # LAYOUT DONE, TILES DONE (Tidal Whale)
         "st040":     (0x02EC3398, 18, 36), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 1)
         # missing tiles?
         "st041":     (0x02EC36A0, 20, 18), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 2)
         "st050":     (0x02D98890, 36, 21), # LAYOUT DONE, TILES DONE (Volt Kraken)
         "st060":     (0x02EC3C70, 34, 9),  # LAYOUT DONE, TILES DONE (Shining Firefly: Area 1)
         "st061":     (0x02D99058, 21, 33), # LAYOUT DONE, TILES DONE (Shining Firefly: Area 2)
-        # water tiles too dark, rope near vines partially missing?
+        # water renders incorrectly, ropes near vines partially missing (possibly in-game workaround)
         "st070":     (0x02D98B88, 34, 15), # LAYOUT DONE, TILES MOST (Spike Rosered)
-        # missing bg tiles?
         "st080":     (0x02D98688, 19, 27), # LAYOUT DONE, TILES DONE (Spiral Pegasus)
         "st090_00":  (0x02D98695, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Enigma Cannon)
         "st090_01":  (0x02D98695, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 1)
         "st100_00":  (0x02D9852F, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Space Shuttle)
         "st100_01":  (0x02D98695, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 2)
         "st160":     (0x02EC5390, 12, 57), # LAYOUT DONE, TILES DONE (Zero Space 1: Origin)
-        # missing tiles near black boxes?
         "st170":     (0x02EC5660, 21, 30), # LAYOUT DONE, TILES DONE (Zero Space 2: Grief)
-        "st180":     (0x02D99310, 28, 18), # LAYOUT DONE, TILES DONE (Zero Space 3: Awakening)
+        # missing slope tiles at the start
+        "st180":     (0x02D99310, 28, 18), # LAYOUT DONE, TILES ALMOST (Zero Space 3: Awakening)
         "st120":     (0x02D99508, 21, 33), # LAYOUT DONE, TILES DONE (Zero Space 4: Birth)
         "st130":     (0x02D9869C, 6, 3),   # LAYOUT DONE, TILES DONE (Stage Select)
         # missing tiles (lots), colour issues, non-standard layers

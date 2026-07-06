@@ -4,8 +4,8 @@ Trying to find ways to make it easier for sprite rippers to get accurate sprites
 
 # Features
 
-- MegaMan X4: most stages render correctly
-- MegaMan X5: most stages render correctly, except for one issue on Shining Firefly stage Area 2
+- MegaMan X4: all stages render correctly
+- MegaMan X5: most stages render correctly
 - MegaMan X6: all stages render correctly
 
 Maybe
@@ -14,15 +14,10 @@ Maybe
 
 # Remaining issues
 
-X4
-
-- Web Spider (Area 1): wrong colour water
-
 X5
 
-- Burn Dinorex (Area 1): garbled dragon heads
-- Spike Rosered: multiple issues
-- Shining Firefly (Area 2): Aqua tube is rendered as dark blue, some garbled tiles
+- st070: (Spike Rosered) water fails to render correctly, ropes near vines partially missing (possibly in-game workaround)
+- st180: (Zero Stage 3) missing slope tiles at the start
 - Training stage: non-standard format, needs more work
 
 # References for code
