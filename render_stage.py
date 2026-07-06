@@ -117,7 +117,6 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st021":     (0x02EC2FC0, 22, 12), # LAYOUT DONE, TILES DONE (Dark Necrobat: Area 2)
         "st030":     (0x02D98D88, 24, 24), # LAYOUT DONE, TILES DONE (Tidal Whale)
         "st040":     (0x02EC3398, 18, 36), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 1)
-        # missing tiles?
         "st041":     (0x02EC36A0, 20, 18), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 2)
         "st050":     (0x02D98890, 36, 21), # LAYOUT DONE, TILES DONE (Volt Kraken)
         "st060":     (0x02EC3C70, 34, 9),  # LAYOUT DONE, TILES DONE (Shining Firefly: Area 1)
