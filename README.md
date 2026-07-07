@@ -22,7 +22,7 @@ Maybe
 
 X4
 
-- scr00: (Intro) some missing tiles near glass, glass is not bright enough
+- scr00: (Intro) some missing tiles near glass (possibly rendered in-game)
 
 X5
 

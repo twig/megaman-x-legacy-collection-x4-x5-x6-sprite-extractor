@@ -92,7 +92,7 @@
 #   at that coordinate belong to tex regardless of col.
 #   Same-col entries with other tile_types (0x00, 0x39, etc.) do NOT block.
 #
-#   _build_chr256_ocl_indices() computes the frozenset of OCL indices that
+#   build_chr256_ocl_indices() computes the frozenset of OCL indices that
 #   should read from tex_bg.  Pages 8–15 use col==112 to route to tex_bg.
 #
 # ============================================================
@@ -386,7 +386,7 @@ def load_layout_from_exe(
     return LayoutTable.from_bytes(layout_bytes, width, height)
 
 
-def _build_chr256_ocl_indices(
+def build_chr256_ocl_indices(
     ocl_entries: list[OclEntry],
     tex: "TexData",
     tex_bg: "TexData",
@@ -426,7 +426,7 @@ def _build_chr256_ocl_indices(
                                           multi-entry group in the OCL table and
                                           are never part of the chr256 batch.
       - Page ≥ 8, col ≠ 0/112:           reads from tex (handled entirely in
-                                          _resolve_tile; _build_chr256_ocl_indices
+                                          _resolve_tile; build_chr256_ocl_indices
                                           does not process pages ≥ 8).
                                           col=0 and col=112 → tex_bg in _resolve_tile.
 
@@ -1054,7 +1054,7 @@ def render_omp(
     canvas_w = layer.width * tile_size
     canvas_h = n_rows * tile_size
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-    chr256_indices = chr256_override if chr256_override is not None else _build_chr256_ocl_indices(ocl_entries, tex, tex_bg, tile_size)
+    chr256_indices = chr256_override if chr256_override is not None else build_chr256_ocl_indices(ocl_entries, tex, tex_bg, tile_size)
 
     def _resolve_tile(entry: OclEntry, ocl_idx: int) -> list[int] | None:
         # OCL byte2 (stored as field 'clut_base'): encodes TEX tile coordinates
@@ -1075,7 +1075,7 @@ def render_omp(
         page = entry.pad & 0x3F
 
         # Texture routing:
-        #   Pages 0–7: _build_chr256_ocl_indices() decides; chr256 entries use tex_bg.
+        #   Pages 0–7: build_chr256_ocl_indices() decides; chr256 entries use tex_bg.
         #   Pages 8–15, col=112: always tex_bg (standard chr256 palette indicator).
         #   Pages 8–15, col=0: tex_bg (col=0 is the chr256 indicator used in stages
         #     that do not use col=112, e.g. st040).
@@ -1208,7 +1208,7 @@ def render_level(
     canvas_w = level_width_screens * 16 * tile_size
     canvas_h = level_height_screens * 16 * tile_size
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-    chr256_indices = chr256_override if chr256_override is not None else _build_chr256_ocl_indices(ocl_entries, tex, tex_bg, tile_size)
+    chr256_indices = chr256_override if chr256_override is not None else build_chr256_ocl_indices(ocl_entries, tex, tex_bg, tile_size)
 
     def _resolve_tile(entry: OclEntry, ocl_idx: int) -> list[int] | None:
         cordX = entry.clut_base & 0xF
