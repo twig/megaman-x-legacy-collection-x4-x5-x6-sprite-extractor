@@ -8,6 +8,12 @@ Trying to find ways to make it easier for sprite rippers to get accurate sprites
 - MegaMan X5: most stages render correctly
 - MegaMan X6: all stages render correctly
 
+Incomplete
+
+- render_stage in --composite mode (stack layers 0 and 1)
+- figure out what to do with background (layer 3) not aligning because of parallaxing
+- post-render patching to match in-game fixes
+
 Maybe
 
 - Animation sprites
@@ -16,9 +22,9 @@ Maybe
 
 X5
 
-- st070: (Spike Rosered) water fails to render correctly, ropes near vines partially missing (possibly in-game workaround)
-- st180: (Zero Stage 3) missing slope tiles at the start
-- Training stage: non-standard format, needs more work
+- st070: (Spike Rosered) ropes near vines partially missing (possibly rendered in-game)
+- st180: (Zero Stage 3) missing slope tiles at the start (possibly rendered in-game)
+- st220: (Training stage) non-standard format, needs more work
 
 # References for code
 
@@ -65,9 +71,14 @@ pip install -r requirements.txt
 
 ## Game files
 
+### First time setup
+
 - Buy and download Megaman X Legacy Collection 1 and 2 from Steam
 - Find your game files from the MMXLC or MMXLC2 library
-  - Library > MMXLC Game > Cog > Manage > Browse local files
+  - Go to Steam Library
+  - MMXLC or MMXLC2 game
+  - Cog > Manage > Browse local files
+  - Copy Windows Explorer path
 - Use `python extract_from_game.py` to extract assets from the games
 - All the required files should now be in `.\PC` folder
 
@@ -115,7 +126,7 @@ There are a lot of palette combinations to try and this can be very time consumi
 Use `clut_finder.py` to quickly find the correct CLUT index to use for the given texture you want.
 
 ```sh
-python clut_finder.py SCREENSHOT_file COL_file
+python clut_finder.py SCREENSHOT_file [COL_file]
 ```
 
 - Play the game on an emulator and take a screenshot of the scene you're trying to extract from
@@ -123,3 +134,8 @@ python clut_finder.py SCREENSHOT_file COL_file
 - Using a mouse, highlight the area you want colours for
 - It should help you narrow down the possible CLUTs for the selection
 - Try the results with `extract_tex_to_png.py --clut BASE_INDEX` option
+
+## Test for regressions
+
+- Use `compare-baseline.bat` to generate all renders and diff images against the existing baseline.
+- Manually check diff image files to see what changed. Diff files will highlight what changed and crop accordingly.- Use `compare-baseline-accept.bat` if all diffs are good then commit new baseline.
