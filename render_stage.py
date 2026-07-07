@@ -830,9 +830,18 @@ X5_SHEET_OVERRIDE_INDICES: dict[str, "dict[int, str]"] = {
     #      col=9 tex_bg tile is bg_nz=256, identical on both sheets, or tex_nz<256, a genuine
     #      background).  They are placed ONLY in the two flagged regions, so forcing them to tex is
     #      safe; palette is left at col+64 (col=9 and col=0 are near-identical on the tex rock tiles).
+    #
+    #  (c) col=59 layer1 rock-silhouette batch → tex.  The base _build_chr256_ocl_indices routes
+    #      these to tex_bg, where they hold only sparse fragments (15-64/256), so the layer 1
+    #      rock silhouette renders full of gaps and the solid sunset-sky backdrop (layer 2) shows
+    #      through.  Their real art is a solid rock face on tex256.  These 14 indices
+    #      are the layer-1 formation placements only, listed explicitly (a (col, page) group key would
+    #      also match the partial col=59/page-2 tiles at OCL 920-963 that are already correctly on tex).
     "st070": {2879: "bg",
               **{i: "tex" for i in (1713, 1714, 1715, 1723, 1724, 1725, 1734, 1735, 1736,
-                                    1745, 1746, 1747, 1818, 1819, 1820)}},
+                                    1745, 1746, 1747, 1818, 1819, 1820)},
+              **{i: "tex" for i in (1489, 1490, 1491, 1493, 1606, 1607, 1608, 1609, 1615,
+                                    1618, 1619, 1620, 1621, 1627)}},
 }
 
 
