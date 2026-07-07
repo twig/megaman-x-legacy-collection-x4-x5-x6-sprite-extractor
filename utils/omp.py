@@ -145,12 +145,12 @@ from pathlib import Path
 from PIL import Image
 from PIL.Image import Image as PILImage
 
+from utils.consts import TILE_SIZE
 from utils.ocl import OclEntry, OclPaletteGroup
 from utils.types import ColourRGBA, Palette, TexData
 
 OMP_MAGIC = b"OMP\x00"
 OMP_HEADER_SIZE = 12  # magic(4) + reserved(4) + n_rows(4)
-TILE_SIZE = 16  # pixels per tile edge (assumed 16×16)
 
 # X6 page>=8 (8bpp) tiles index the UN-normalized stage CLUT at col + this offset, not
 # col+64: normalize_x6_stage_palette's col+96->col+64 relocation has a null-keep that

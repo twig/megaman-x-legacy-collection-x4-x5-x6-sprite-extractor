@@ -50,7 +50,8 @@ from pathlib import Path
 from PIL import ImageChops, ImageDraw, ImageFont, Image
 from PIL.Image import Image as PILImage
 
-from utils.omp import TILE_SIZE, load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset, LayoutTable
+from utils.consts import TILE_SIZE, COMPOSED_ORDER_BASIC, COMPOSED_ORDER_REVERSED
+from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset, LayoutTable
 from utils.ocl import load_ocl, OclPaletteGroup
 from utils.tex import load_tex
 from utils.palette import load_col_palettes, normalize_x6_stage_palette, x6_palette_is_vram_snapshot
@@ -459,6 +460,12 @@ def _additive_layer_fold(
     return acc
 
 
+COMPOSED_ORDER_OVERRIDES: dict[GameVersion, dict[str, list[int]]] = {
+    GameVersion.X4: {
+        "SCR00_00": COMPOSED_ORDER_REVERSED,
+    }
+}
+
 def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows: int, game_version: GameVersion, omp_stem: str) -> PILImage:
     """
     Returns an image of the stage with all 3 layers composed together.
@@ -569,9 +576,10 @@ def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows:
     - stsel_eng Stage select
     """
 
-    # Layer order, back-to-front.  X4 uses the inverted (2, 0, 1) order (glass/road
-    # foreground on layer 0 sits between the background and the layer-1 light shafts).
-    order = [2, 0, 1] if game_version == GameVersion.X4 else [2, 1, 0]
+    # Layer order, back-to-front by default.
+    # Alternatively X4 SCR00_00 uses the COMPOSED_ORDER_REVERSED order where glass/road foreground
+    # on layer 0 sits between the background and the layer-1 light shafts.
+    order = COMPOSED_ORDER_OVERRIDES.get(game_version, {}).get(omp_stem, COMPOSED_ORDER_BASIC)
 
     # Additive fold for stages whose STP tiles are additive light effects (see
     # X4_ADDITIVE_STP_STAGES).  Everything else keeps the plain alpha paste so
