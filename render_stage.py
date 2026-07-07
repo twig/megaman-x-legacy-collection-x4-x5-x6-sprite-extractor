@@ -86,6 +86,7 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # - ENDING_REGWOR.omp
     # - SCR0B_01.omp
     # - SCR0D_01_eng_8.omp
+    # - SCR0E_01_eng
     # - ST0F_01.tex
     # - STD_1_1_eng_7.tex
     # - ENDING.ocl
@@ -93,10 +94,12 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # - st0_1.col
     # - stB_1.col
     #
-    # scr00: (Intro) some missing tiles near glass (possibly rendered in-game)
+    # SCR00_00: (Intro) some missing tiles near glass (possibly rendered in-game)
+    # SCR01_01: (Web Spider B) possibly wrong layout offset
+    # SCR04_00: (Magma Dragoon) bg misaligned in composite render
     "X4": dict([
         (key, (
-        data["pc_offset"], data["w"], data["h"] * 3))
+        data["pc_offset"], data["w"],  data["h"] * 3))
         for key, data
         in X4_LAYOUT_OFFSETS.items()
     ]),
@@ -424,7 +427,9 @@ def preload_related_files(omp_path: Path):
 # X5_ADDITIVE_WATER_STAGES; see memory x4-scr00-tube-is-additive-stp.
 #   SCR00_00 (Intro): col=7 glass tubes (layer 0) + col=2/3/6 light shafts (layer 1),
 #     all STP, additively brightening the col=17..23 opaque arch/road background (layer 2).
-X4_ADDITIVE_STP_STAGES: frozenset[str] = frozenset({"SCR00_00"})
+X4_ADDITIVE_STP_STAGES: frozenset[str] = frozenset({
+    "SCR00_00", "SCR01_00", "SCR01_01", "SCR02_01"
+})
 
 
 def _additive_layer_fold(
@@ -459,10 +464,15 @@ def _additive_layer_fold(
     acc.putalpha(painted)
     return acc
 
-
-COMPOSED_ORDER_OVERRIDES: dict[GameVersion, dict[str, list[int]]] = {
+# Return list of layer indices for a given stage.
+# None means "no composition", returns the original image.
+COMPOSED_ORDER_OVERRIDES: dict[GameVersion, dict[str, list[int] | None]] = {
     GameVersion.X4: {
         "SCR00_00": COMPOSED_ORDER_REVERSED,
+        "SCR0E_00": None,
+        "SCR0F_00_eng": None,
+        "SCR01_00": COMPOSED_ORDER_REVERSED,
+        "SCR01_01": COMPOSED_ORDER_REVERSED,
     }
 }
 
@@ -487,62 +497,7 @@ def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows:
         return full_render.crop((0, layer_index * composed_height, composed_width, (layer_index + 1) * composed_height))
 
     """
-    normal rendering is (2, 1, 0)
-    X4
-    - SCR00_01 Intro
-    - SCR0C_01 Sigma
-    - SCR01_00 Web Spider
-    - SCR01_01 Web Spider
-    - SCR03_00 Split Mushroom
-    - SCR03_01 Split Mushroom
-    - SCR04_00 Magma Dragoon
-    - SCR04_01 Magma Dragoon
-    - SCR06_00 Cyber Peacock
-    - SCR06_01 Cyber Peacock
-    - SCR07_00 Storm Owl
-    - SCR07_01 Storm Owl
-    - SCR08_01 Slash Beast
-    - SCR08_01 Slash Beast
-
-    X5
-    - st020/021 Dark Izzy
-    - st050 Squid Adler
-    - st061 Glow Firefly
-    - st070 Spike Rosered
-    - st080 Spiral Pegasus
-    - st120 Zero Stage 4
-    - st160 Zero Stage 1
-    - st170 Zero Stage 2
-    - st180 Zero Stage 3
-
-    X6
-    - st00 Intro
-    - st0cb Final stage
-    - st05x Ground Scaravich
-    - st08x Infinity Mijinion
-
-
-
-    inverted rendering (2, 0, 1)
-    X4
-    - SCR00_00 Intro
-    - SCR0A_00 Space port
-    - SCR0B_00 Final Weapon
-    - SCR0C_00 Final Weapon
-    - SCR02_01 Frost Walrus
-    - SCR05_00/01 Jet Stingray
-    - SCR08_00 Slash Beast
-
-    X6
-    - st04a/b Metal Shark
-    - st06a/x Rainy Turtloid
-    - st07/x Shield Sheldon
-
-
     Broken
-    X4
-    - SCR02_00 Frost Walrus
-
     X5
     - st000 Intro
     - st030 Tidal Whale
@@ -564,10 +519,6 @@ def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows:
     - st08 Infinity Mijinion
 
     Dont compose
-    X4
-    - SCR0E Title screen
-    - SCR0F Weapon Get
-
     X5
     - st130 Stage select
     - staff_eng Credits
@@ -580,6 +531,10 @@ def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows:
     # Alternatively X4 SCR00_00 uses the COMPOSED_ORDER_REVERSED order where glass/road foreground
     # on layer 0 sits between the background and the layer-1 light shafts.
     order = COMPOSED_ORDER_OVERRIDES.get(game_version, {}).get(omp_stem, COMPOSED_ORDER_BASIC)
+
+    if order is None:
+        # No composition for this stage, return the full render as-is.
+        return full_render
 
     # Additive fold for stages whose STP tiles are additive light effects (see
     # X4_ADDITIVE_STP_STAGES).  Everything else keeps the plain alpha paste so

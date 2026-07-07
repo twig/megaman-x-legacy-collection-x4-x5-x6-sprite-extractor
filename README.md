@@ -22,7 +22,9 @@ Maybe
 
 X4
 
-- scr00: (Intro) some missing tiles near glass (possibly rendered in-game)
+- SCR00_00: (Intro) some missing tiles near glass (possibly rendered in-game)
+- SCR01_01: (Web Spider B) possibly wrong layout offset
+- SCR04_00: (Magma Dragoon) background misaligned in composite render
 
 X5
 
