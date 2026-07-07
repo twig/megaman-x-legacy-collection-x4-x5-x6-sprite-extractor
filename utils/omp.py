@@ -139,7 +139,6 @@
 import bisect
 import struct
 from dataclasses import dataclass
-from enum import IntEnum
 from pathlib import Path
 
 from PIL import Image
@@ -158,23 +157,6 @@ OMP_HEADER_SIZE = 12  # magic(4) + reserved(4) + n_rows(4)
 # (the page>=8 "inverted shadows"), so these tiles read raw col+96 directly instead.
 # pad_hi=4 page>=8 tiles are excluded — they use build_x6_padhi_clut_override's alt bank.
 _X6_PAGE8_CLUT_OFFSET = 96
-
-# LayerPreset row boundaries — estimated, adjust after visual confirmation
-_BACKGROUND_MAX_ROW = 25    # rows 0–24 = sparse sky / upper stage area
-_PLATFORM_MIN_ROW = 25      # rows 25–106 = main platforms + ground
-
-
-class LayerPreset(IntEnum):
-    """
-    Named row-range presets for render_omp().
-
-    MAIN:       All rows — full stage map.
-    BACKGROUND: Upper sparse rows (sky / decorative tiles).
-    PLATFORM:   Lower denser rows (platforms, ground, fill).
-    """
-    MAIN = 0
-    BACKGROUND = 1
-    PLATFORM = 2
 
 
 @dataclass
@@ -390,7 +372,6 @@ def build_chr256_ocl_indices(
     ocl_entries: list[OclEntry],
     tex: "TexData",
     tex_bg: "TexData",
-    tile_size: int = TILE_SIZE,
 ) -> frozenset[int]:
     """
     Return a frozenset of OCL indices that should read pixel data from tex_bg
@@ -469,16 +450,16 @@ def build_chr256_ocl_indices(
         """Return True if all pixels in the 16×16 tile block are zero."""
         return not any(
             raw[(gy + dy) * w + gx + dx]
-            for dy in range(tile_size)
-            for dx in range(tile_size)
+            for dy in range(TILE_SIZE)
+            for dx in range(TILE_SIZE)
         )
 
     def _tex_fill(raw: bytes, w: int, gx: int, gy: int) -> int:
         """Return the count of non-zero (opaque) pixels in the 16×16 tile block."""
         return sum(
             1
-            for dy in range(tile_size)
-            for dx in range(tile_size)
+            for dy in range(TILE_SIZE)
+            for dx in range(TILE_SIZE)
             if raw[(gy + dy) * w + gx + dx]
         )
 
@@ -530,8 +511,8 @@ def build_chr256_ocl_indices(
     for key in group_indices:
         page_k, clut_k = key
         cordX_k = clut_k & 0xF; cordY_k = (clut_k >> 4) & 0xF
-        gx_k = (page_k % 8) * 256 + cordX_k * tile_size
-        gy_k = (page_k // 8) * 256 + cordY_k * tile_size
+        gx_k = (page_k % 8) * 256 + cordX_k * TILE_SIZE
+        gy_k = (page_k // 8) * 256 + cordY_k * TILE_SIZE
         group_bg_has_data[key] = not _tex_is_empty(raw_bg, w_bg, gx_k, gy_k)
 
     # Pass 1c: compute the overall index range spanned by all no-large-gap groups.
@@ -581,14 +562,14 @@ def build_chr256_ocl_indices(
 
     def _tiles_differ(gx: int, gy: int) -> bool:
         """Return True if the two textures contain different pixels in this tile."""
-        if (gx + tile_size > w_tex or gy + tile_size > h_tex or
-                gx + tile_size > w_bg  or gy + tile_size > h_bg):
+        if (gx + TILE_SIZE > w_tex or gy + TILE_SIZE > h_tex or
+                gx + TILE_SIZE > w_bg  or gy + TILE_SIZE > h_bg):
             return False
         return not all(
             raw_tex[(gy + dy) * w_tex + gx + dx] ==
             raw_bg [(gy + dy) * w_bg  + gx + dx]
-            for dy in range(tile_size)
-            for dx in range(tile_size)
+            for dy in range(TILE_SIZE)
+            for dx in range(TILE_SIZE)
         )
 
     # Gate for the tex_empty sole-entry rule.
@@ -607,12 +588,12 @@ def build_chr256_ocl_indices(
         and key_count.get((e.pad & 0xF, e.clut_base), 0) == 1
         and not _tex_is_empty(
             raw_tex, w_tex,
-            (e.pad & 0xF) % 8 * 256 + (e.clut_base & 0xF) * tile_size,
-            (e.pad & 0xF) // 8 * 256 + ((e.clut_base >> 4) & 0xF) * tile_size,
+            (e.pad & 0xF) % 8 * 256 + (e.clut_base & 0xF) * TILE_SIZE,
+            (e.pad & 0xF) // 8 * 256 + ((e.clut_base >> 4) & 0xF) * TILE_SIZE,
         )
         and _tiles_differ(
-            (e.pad & 0xF) % 8 * 256 + (e.clut_base & 0xF) * tile_size,
-            (e.pad & 0xF) // 8 * 256 + ((e.clut_base >> 4) & 0xF) * tile_size,
+            (e.pad & 0xF) % 8 * 256 + (e.clut_base & 0xF) * TILE_SIZE,
+            (e.pad & 0xF) // 8 * 256 + ((e.clut_base >> 4) & 0xF) * TILE_SIZE,
         )
         for e in ocl_entries
     )
@@ -656,8 +637,8 @@ def build_chr256_ocl_indices(
         _page_k, _clut_k = _key
         _cordX_k = _clut_k & 0xF
         _cordY_k = (_clut_k >> 4) & 0xF
-        _gx_k = (_page_k % 8) * 256 + _cordX_k * tile_size
-        _gy_k = (_page_k // 8) * 256 + _cordY_k * tile_size
+        _gx_k = (_page_k % 8) * 256 + _cordX_k * TILE_SIZE
+        _gy_k = (_page_k // 8) * 256 + _cordY_k * TILE_SIZE
         if _tex_is_empty(raw_bg, w_bg, _gx_k, _gy_k):
             continue  # tex_bg empty — not a background tile
         if not _tiles_differ(_gx_k, _gy_k):
@@ -709,11 +690,11 @@ def build_chr256_ocl_indices(
             return False  # same col → palette/hit-flash variant batch, keep as chr256
         page_k, clut_k = key
         cordX_k = clut_k & 0xF; cordY_k = (clut_k >> 4) & 0xF
-        gx_k = (page_k % 8) * 256 + cordX_k * tile_size
-        gy_k = (page_k // 8) * 256 + cordY_k * tile_size
+        gx_k = (page_k % 8) * 256 + cordX_k * TILE_SIZE
+        gy_k = (page_k // 8) * 256 + cordY_k * TILE_SIZE
         fg = _tex_fill(raw_tex, w_tex, gx_k, gy_k)
         bg = _tex_fill(raw_bg, w_bg, gx_k, gy_k)
-        return (fg > 0 and bg >= (tile_size * tile_size * 3) // 4
+        return (fg > 0 and bg >= (TILE_SIZE * TILE_SIZE * 3) // 4
                 and fg * 3 <= bg and _tiles_differ(gx_k, gy_k))
 
     seen: set[tuple[int, int]] = set()
@@ -731,8 +712,8 @@ def build_chr256_ocl_indices(
             # sole_diff entries), the tex_empty rule is also restricted to the
             # chr256 region to avoid routing transparent foreground slots to tex_bg.
             cordX = e.clut_base & 0xF; cordY = (e.clut_base >> 4) & 0xF
-            gx = (page % 8) * 256 + cordX * tile_size
-            gy = (page // 8) * 256 + cordY * tile_size
+            gx = (page % 8) * 256 + cordX * TILE_SIZE
+            gy = (page // 8) * 256 + cordY * TILE_SIZE
             if _tex_is_empty(raw_tex, w_tex, gx, gy):
                 if not _gate_tex_empty or _in_chr256_region(i):
                     chr256.add(i)
@@ -789,14 +770,14 @@ def build_chr256_ocl_indices(
                 else:
                     fi = group_indices[key][0]
                     cordX = e.clut_base & 0xF; cordY = (e.clut_base >> 4) & 0xF
-                    gx = (page % 8) * 256 + cordX * tile_size
-                    gy = (page // 8) * 256 + cordY * tile_size
+                    gx = (page % 8) * 256 + cordX * TILE_SIZE
+                    gy = (page // 8) * 256 + cordY * TILE_SIZE
                     if (i - fi) >= CHR256_INDEX_GAP_THRESHOLD and group_bg_has_data[key]:
                         bg_fill = _tex_fill(raw_bg, w_bg, gx, gy)
                         fg_fill = _tex_fill(raw_tex, w_tex, gx, gy)
                         # tex_bg essentially solid (continuous background) and the tex
                         # fragment covers at most half of it → fg version is missing.
-                        if (bg_fill >= (tile_size * tile_size * 3) // 4
+                        if (bg_fill >= (TILE_SIZE * TILE_SIZE * 3) // 4
                                 and fg_fill * 2 <= bg_fill
                                 and _tiles_differ(gx, gy)):
                             chr256.add(i)
@@ -853,8 +834,8 @@ def build_chr256_ocl_indices(
             continue
         page_k, clut_k = key
         cordX_k = clut_k & 0xF; cordY_k = (clut_k >> 4) & 0xF
-        gx_k = (page_k % 8) * 256 + cordX_k * tile_size
-        gy_k = (page_k // 8) * 256 + cordY_k * tile_size
+        gx_k = (page_k % 8) * 256 + cordX_k * TILE_SIZE
+        gy_k = (page_k // 8) * 256 + cordY_k * TILE_SIZE
         if _tex_is_empty(raw_bg, w_bg, gx_k, gy_k):
             continue
         # Only add members whose col is NOT the standard-palette marker (0 or 112).
@@ -925,8 +906,8 @@ def build_chr256_ocl_indices(
             continue  # all same col — no chr256 batch split
         page_k, clut_k = key
         cordX_k = clut_k & 0xF; cordY_k = (clut_k >> 4) & 0xF
-        gx_k = (page_k % 8) * 256 + cordX_k * tile_size
-        gy_k = (page_k // 8) * 256 + cordY_k * tile_size
+        gx_k = (page_k % 8) * 256 + cordX_k * TILE_SIZE
+        gy_k = (page_k // 8) * 256 + cordY_k * TILE_SIZE
         if _tex_is_empty(raw_bg, w_bg, gx_k, gy_k):
             continue  # no background pixel data — not a chr256 tile
         for j in sorted_g:
@@ -936,36 +917,6 @@ def build_chr256_ocl_indices(
 
     return frozenset(chr256)
 
-
-def extract_tile_pixels(
-    raw_pixels: bytes | bytearray,
-    tex_width: int,
-    tile_id: int,
-    tile_size: int = TILE_SIZE,
-) -> list[int]:
-    """
-    Extract a flat list of raw 8bpp pixel values for one tile from the TEX pixel array.
-
-    raw_pixels: the raw_image bytes from TexData (row-major, 8bpp = 1 byte/pixel)
-    tex_width:  full texture width in pixels (from TexData["width"])
-    tile_id:    tile index (from OMP, after confirming it is non-zero)
-    tile_size:  pixels per tile edge (default 16)
-
-    Returns tile_size×tile_size raw CLUT indices (0–255), row-major; transparency is
-    decided later in _apply_palette_to_tile (value-based, not index-0-based).
-    """
-    tiles_per_row = tex_width // tile_size
-    tile_col = tile_id % tiles_per_row
-    tile_row = tile_id // tiles_per_row
-
-    ox = tile_col * tile_size  # pixel X of top-left corner in TEX sheet
-    oy = tile_row * tile_size  # pixel Y of top-left corner in TEX sheet
-
-    pixels: list[int] = []
-    for y in range(tile_size):
-        row_start = (oy + y) * tex_width + ox
-        pixels.extend(raw_pixels[row_start : row_start + tile_size])
-    return pixels
 
 
 def _apply_palette_to_tile(
@@ -1004,13 +955,8 @@ def render_omp(
     layer: OmpLayer,
     ocl_entries: list[OclEntry],
     tex: TexData,
-    # tex_fg: TexData,
     tex_bg: TexData,
     flags_to_palette: dict[OclPaletteGroup, Palette],
-    preset: LayerPreset = LayerPreset.MAIN,
-    row_start: int = 0,
-    row_end: int | None = None,
-    tile_size: int = TILE_SIZE,
     chr256_override: "frozenset[int] | None" = None,
     clut_row_override: "dict[int, int] | None" = None,
     x6_page8_palette: "Palette | None" = None,
@@ -1030,31 +976,16 @@ def render_omp(
     flags_to_palette:  maps OclPaletteGroup → Palette. OclEntry.palette_group() maps
                        any tile_type to one of the named groups; unregistered collision
                        types fall back to STANDARD so no tile is silently dropped.
-    row_start:         first screen_id to render (inclusive). Ignored when preset != MAIN.
-    row_end:           one-past-last screen_id. None = layer.n_screens.
-                       Ignored when preset != MAIN.
-    preset:            LayerPreset controlling which screen rows to render.
-    tile_size:         pixels per tile edge (default 16).
 
     Returns an RGBA PIL Image with dimensions (256 * tile_size, n_screens * tile_size).
     """
-    # Resolve row range from preset
-    if preset == LayerPreset.BACKGROUND:
-        r_start, r_end = 0, _BACKGROUND_MAX_ROW
-    elif preset == LayerPreset.PLATFORM:
-        r_start, r_end = _PLATFORM_MIN_ROW, layer.height
-    else:  # MAIN
-        r_start = row_start
-        r_end = layer.height if row_end is None else row_end
+    r_start = 0
+    r_end = layer.height
 
-    r_start = max(0, r_start)
-    r_end = min(layer.height, r_end)
-    n_rows = r_end - r_start
-
-    canvas_w = layer.width * tile_size
-    canvas_h = n_rows * tile_size
+    canvas_w = layer.width * TILE_SIZE
+    canvas_h = layer.height * TILE_SIZE
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-    chr256_indices = chr256_override if chr256_override is not None else build_chr256_ocl_indices(ocl_entries, tex, tex_bg, tile_size)
+    chr256_indices = chr256_override if chr256_override is not None else build_chr256_ocl_indices(ocl_entries, tex, tex_bg)
 
     def _resolve_tile(entry: OclEntry, ocl_idx: int) -> list[int] | None:
         # OCL byte2 (stored as field 'clut_base'): encodes TEX tile coordinates
@@ -1091,14 +1022,15 @@ def render_omp(
         active_width = active_tex["width"]
         active_height = len(raw_pixels) // active_width if active_width > 0 else 0
 
-        gx = (page % 8) * 256 + cordX * tile_size
-        gy = (page // 8) * 256 + cordY * tile_size
-        if gx + tile_size > active_width or gy + tile_size > active_height:
+
+        gx = (page % 8) * 256 + cordX * TILE_SIZE
+        gy = (page // 8) * 256 + cordY * TILE_SIZE
+        if gx + TILE_SIZE > active_width or gy + TILE_SIZE > active_height:
             return None
         result: list[int] = []
-        for row in range(tile_size):
+        for row in range(TILE_SIZE):
             row_start = (gy + row) * active_width + gx
-            result.extend(raw_pixels[row_start : row_start + tile_size])
+            result.extend(raw_pixels[row_start : row_start + TILE_SIZE])
         return result
 
     for row_idx in range(r_start, r_end):
@@ -1159,11 +1091,11 @@ def render_omp(
                 clut_row = entry.col + _X6_PAGE8_CLUT_OFFSET
             rgba_pixels = _apply_palette_to_tile(raw_tile, clut_row, active_palette)
 
-            tile_img = Image.new("RGBA", (tile_size, tile_size))
+            tile_img = Image.new("RGBA", (TILE_SIZE, TILE_SIZE))
             tile_img.putdata(rgba_pixels)
 
-            px = col_idx * tile_size
-            py = canvas_row * tile_size
+            px = col_idx * TILE_SIZE
+            py = canvas_row * TILE_SIZE
             canvas.alpha_composite(tile_img, (px, py))  # see render_level note
 
     return canvas
@@ -1177,9 +1109,7 @@ def render_level(
     level_height_screens: int,
     tex: TexData,
     tex_bg: TexData,
-    # tex_fg: TexData,
     flags_to_palette: dict[OclPaletteGroup, Palette],
-    tile_size: int = TILE_SIZE,
     chr256_override: "frozenset[int] | None" = None,
     clut_row_override: "dict[int, int] | None" = None,
     x6_page8_palette: "Palette | None" = None,
@@ -1205,10 +1135,10 @@ def render_level(
         omp_col   = wy * 16 + wx          (within-screen index, x fast)
         ocl_idx   = layer.tiles[screen_id][omp_col]
     """
-    canvas_w = level_width_screens * 16 * tile_size
-    canvas_h = level_height_screens * 16 * tile_size
+    canvas_w = level_width_screens * 16 * TILE_SIZE
+    canvas_h = level_height_screens * 16 * TILE_SIZE
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-    chr256_indices = chr256_override if chr256_override is not None else build_chr256_ocl_indices(ocl_entries, tex, tex_bg, tile_size)
+    chr256_indices = chr256_override if chr256_override is not None else build_chr256_ocl_indices(ocl_entries, tex, tex_bg)
 
     def _resolve_tile(entry: OclEntry, ocl_idx: int) -> list[int] | None:
         cordX = entry.clut_base & 0xF
@@ -1231,14 +1161,14 @@ def render_level(
         active_width = active_tex["width"]
         active_height = len(raw_pixels) // active_width if active_width > 0 else 0
 
-        gx = (page % 8) * 256 + cordX * tile_size
-        gy = (page // 8) * 256 + cordY * tile_size
-        if gx + tile_size > active_width or gy + tile_size > active_height:
+        gx = (page % 8) * 256 + cordX * TILE_SIZE
+        gy = (page // 8) * 256 + cordY * TILE_SIZE
+        if gx + TILE_SIZE > active_width or gy + TILE_SIZE > active_height:
             return None
         result: list[int] = []
-        for row in range(tile_size):
+        for row in range(TILE_SIZE):
             row_start = (gy + row) * active_width + gx
-            result.extend(raw_pixels[row_start : row_start + tile_size])
+            result.extend(raw_pixels[row_start : row_start + TILE_SIZE])
         return result
 
     for sy in range(level_height_screens):
@@ -1325,14 +1255,14 @@ def render_level(
                             for (r, g, b, a) in rgba_pixels
                         ]
 
-                    tile_img = Image.new("RGBA", (tile_size, tile_size))
+                    tile_img = Image.new("RGBA", (TILE_SIZE, TILE_SIZE))
                     tile_img.putdata(rgba_pixels)
 
                     # level tile position (lx, ly)
                     lx = sx * 16 + wx
                     ly = sy * 16 + wy
-                    px = lx * tile_size
-                    py = ly * tile_size
+                    px = lx * TILE_SIZE
+                    py = ly * TILE_SIZE
                     # alpha_composite (not paste+mask) so semi-transparent pixels keep an
                     # un-premultiplied (r,g,b,a) — paste blends RGB by alpha, corrupting
                     # translucent tiles (e.g. STP waterfalls).  Tiles never overlap and the

@@ -51,7 +51,7 @@ from PIL import ImageChops, ImageDraw, ImageFont, Image
 from PIL.Image import Image as PILImage
 
 from utils.consts import TILE_SIZE, COMPOSED_ORDER_BASIC, COMPOSED_ORDER_REVERSED
-from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset, LayoutTable
+from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayoutTable
 from utils.ocl import load_ocl, OclPaletteGroup
 from utils.tex import load_tex
 from utils.palette import load_col_palettes, normalize_x6_stage_palette, x6_palette_is_vram_snapshot
@@ -671,7 +671,6 @@ def main() -> None:
             # tex_foreground,
             tex_background,
             flags_to_palette=flags_to_palette,
-            preset=LayerPreset.MAIN,
             chr256_override=chr256_extra,
             clut_row_override=clut_row_fix,
             x6_page8_palette=x6_page8_palette,
