@@ -48,7 +48,7 @@ import sys
 import csv
 from pathlib import Path
 
-from PIL import ImageDraw, ImageFont
+from PIL import ImageDraw, ImageFont, Image
 from PIL.Image import Image as PILImage
 
 from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset, LayoutTable, _build_chr256_ocl_indices
@@ -2080,7 +2080,9 @@ def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows:
         return full_render.crop((0, layer_index * composed_height, composed_width, (layer_index + 1) * composed_height))
 
     # take the background layer of full_render to create the composed image while maintaining transparency
-    composed_image = crop_layer(2)
+    layer = crop_layer(2)
+    composed_image = Image.new("RGBA", (composed_width, composed_height), (0, 0, 0, 0))
+    composed_image.paste(layer, (0, 0), mask=layer)
     layer = crop_layer(1)
     composed_image.paste(layer, (0, 0), mask=layer)
     layer = crop_layer(0)
