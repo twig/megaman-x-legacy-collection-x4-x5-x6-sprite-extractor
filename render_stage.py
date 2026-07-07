@@ -48,7 +48,7 @@ import sys
 import csv
 from pathlib import Path
 
-from PIL import ImageDraw, ImageFont, Image
+from PIL import ImageChops, ImageDraw, ImageFont, Image
 from PIL.Image import Image as PILImage
 
 from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset, LayoutTable, _build_chr256_ocl_indices
@@ -2068,6 +2068,51 @@ def build_x6_padhi_clut_override(ocl: list[OclEntry], stage_stem: str) -> "dict[
     return out
 
 
+# Stages whose layer fold must ADD the PSX semi-transparency (STP / OMP bit 0x4000)
+# tiles instead of alpha-blending them.  For these stages the STP tiles are additive
+# light effects (glows, light shafts, reflective glass) whose in-game look is B+F over
+# the composited background — a plain 50%-alpha paste renders them dull.  Gated per
+# stage because the SAME 0x4000 bit marks *translucent* effects elsewhere (e.g. the
+# SCR01 Web Spider waterfalls), which must stay alpha-blended.  Analogue of
+# X5_ADDITIVE_WATER_STAGES; see memory x4-scr00-tube-is-additive-stp.
+#   SCR00_00 (Intro): col=7 glass tubes (layer 0) + col=2/3/6 light shafts (layer 1),
+#     all STP, additively brightening the col=17..23 opaque arch/road background (layer 2).
+X4_ADDITIVE_STP_STAGES: frozenset[str] = frozenset({"SCR00_00"})
+
+
+def _additive_layer_fold(
+    crop_layer, order: list[int], composed_width: int, composed_height: int
+) -> PILImage:
+    """
+    Fold layer bands back-to-front, ADDING PSX semi-transparency (STP) pixels.
+
+    render_level flags STP pixels by halving their alpha (opaque=255, STP=127,
+    transparent=0), so alpha alone tells the fold how to blend each pixel:
+      - a == 255 : opaque tile pixel  -> replace the accumulated colour
+      - 0 < a < 255 : STP tile pixel  -> ADD its colour (clamped) to the background
+      - a == 0   : transparent        -> leave the accumulator untouched
+    This makes additive glow effects (X4 intro glass tubes / light shafts) brighten the
+    scene behind them, matching the in-game render.  `order` lists layer indices
+    back-to-front (X4 intro uses [2, 0, 1]).
+    """
+    acc = Image.new("RGB", (composed_width, composed_height), (0, 0, 0))
+    painted = Image.new("L", (composed_width, composed_height), 0)
+    for layer_index in order:
+        layer = crop_layer(layer_index).convert("RGBA")
+        rgb = layer.convert("RGB")
+        a = layer.getchannel("A")
+        opaque_mask = a.point(lambda v: 255 if v == 255 else 0)
+        stp_mask = a.point(lambda v: 255 if 0 < v < 255 else 0)
+        # Opaque pixels replace the accumulator; STP pixels add (ImageChops.add clamps
+        # at 255).  The two masks are disjoint within a layer, so order is irrelevant.
+        acc = Image.composite(rgb, acc, opaque_mask)
+        acc = Image.composite(ImageChops.add(acc, rgb), acc, stp_mask)
+        painted = ImageChops.lighter(painted, a.point(lambda v: 255 if v > 0 else 0))
+    acc = acc.convert("RGBA")
+    acc.putalpha(painted)
+    return acc
+
+
 def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows: int, game_version: GameVersion, omp_stem: str) -> PILImage:
     """
     Returns an image of the stage with all 3 layers composed together.
@@ -2178,24 +2223,22 @@ def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows:
     - stsel_eng Stage select
     """
 
+    # Layer order, back-to-front.  X4 uses the inverted (2, 0, 1) order (glass/road
+    # foreground on layer 0 sits between the background and the layer-1 light shafts).
+    order = [2, 0, 1] if game_version == GameVersion.X4 else [2, 1, 0]
+
+    # Additive fold for stages whose STP tiles are additive light effects (see
+    # X4_ADDITIVE_STP_STAGES).  Everything else keeps the plain alpha paste so
+    # translucent STP effects (e.g. SCR01 waterfalls) render unchanged.
+    if omp_stem in X4_ADDITIVE_STP_STAGES:
+        return _additive_layer_fold(crop_layer, order, composed_width, composed_height)
+
     # take the background layer of full_render to create the composed image while maintaining transparency
     composed_image = Image.new("RGBA", (composed_width, composed_height), (0, 0, 0, 0))
-    if game_version == GameVersion.X4:
-        layer = crop_layer(2)
-        composed_image.paste(layer, (0, 0), mask=layer)
-        layer = crop_layer(0)
-        composed_image.paste(layer, (0, 0), mask=layer)
-        layer = crop_layer(1)
-        composed_image.paste(layer, (0, 0), mask=layer)
-    else:
-        layer = crop_layer(2)
-        composed_image.paste(layer, (0, 0), mask=layer)
-        layer = crop_layer(1)
-        composed_image.paste(layer, (0, 0), mask=layer)
-        layer = crop_layer(0)
+    for layer_index in order:
+        layer = crop_layer(layer_index)
         composed_image.paste(layer, (0, 0), mask=layer)
 
-    # raise NotImplementedError("Stage composition not yet implemented")
     return composed_image
 
 
