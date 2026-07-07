@@ -362,10 +362,10 @@ def preload_related_files(omp_path: Path):
         raise FileNotFoundError(f"ERROR: COL palette not found at {col_path}")
 
     if game_version == GameVersion.X4:
-        if EXE_PATH_LC1.exists():
+        if not EXE_PATH_LC1.exists():
             raise FileNotFoundError(f"ERROR: RXC1.exe not found at {EXE_PATH_LC2}")
     else:
-        if EXE_PATH_LC2.exists():
+        if not EXE_PATH_LC2.exists():
             raise FileNotFoundError(f"ERROR: RXC2.exe not found at {EXE_PATH_LC2}")
 
     print(f"Stage:  {omp_stem}")
