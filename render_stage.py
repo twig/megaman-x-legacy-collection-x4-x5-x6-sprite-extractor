@@ -2079,14 +2079,112 @@ def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows:
     def crop_layer(layer_index: int) -> PILImage:
         return full_render.crop((0, layer_index * composed_height, composed_width, (layer_index + 1) * composed_height))
 
+    """
+    normal rendering is (2, 1, 0)
+    X4
+    - SCR00_01 Intro
+    - SCR0C_01 Sigma
+    - SCR01_00 Web Spider
+    - SCR01_01 Web Spider
+    - SCR03_00 Split Mushroom
+    - SCR03_01 Split Mushroom
+    - SCR04_00 Magma Dragoon
+    - SCR04_01 Magma Dragoon
+    - SCR06_00 Cyber Peacock
+    - SCR06_01 Cyber Peacock
+    - SCR07_00 Storm Owl
+    - SCR07_01 Storm Owl
+    - SCR08_01 Slash Beast
+    - SCR08_01 Slash Beast
+
+    X5
+    - st020/021 Dark Izzy
+    - st050 Squid Adler
+    - st061 Glow Firefly
+    - st070 Spike Rosered
+    - st080 Spiral Pegasus
+    - st120 Zero Stage 4
+    - st160 Zero Stage 1
+    - st170 Zero Stage 2
+    - st180 Zero Stage 3
+
+    X6
+    - st00 Intro
+    - st0cb Final stage
+    - st05x Ground Scaravich
+    - st08x Infinity Mijinion
+
+
+
+    inverted rendering (2, 0, 1)
+    X4
+    - SCR00_00 Intro
+    - SCR0A_00 Space port
+    - SCR0B_00 Final Weapon
+    - SCR0C_00 Final Weapon
+    - SCR02_01 Frost Walrus
+    - SCR05_00/01 Jet Stingray
+    - SCR08_00 Slash Beast
+
+    X6
+    - st04a/b Metal Shark
+    - st06a/x Rainy Turtloid
+    - st07/x Shield Sheldon
+
+
+    Broken
+    X4
+    - SCR02_00 Frost Walrus
+
+    X5
+    - st000 Intro
+    - st030 Tidal Whale
+    - st040/041 Burn Mattrex
+    - st060 Glow Firefly
+    - st090_00/01 Dynamo
+    - st100_00/01 Dynamo
+    - st220 Training stage
+
+    X6
+    - st0ca Final stage
+    - st0g Final stage
+    - st0h Final stage
+    - st01/x Yammark
+    - st02/x Blizzard Wolfgang
+    - st03/x Blaze Heatnix
+    - st04x Metal Shark
+    - st05 Ground Scaravich
+    - st08 Infinity Mijinion
+
+    Dont compose
+    X4
+    - SCR0E Title screen
+    - SCR0F Weapon Get
+
+    X5
+    - st130 Stage select
+    - staff_eng Credits
+
+    X6
+    - stsel_eng Stage select
+    """
+
     # take the background layer of full_render to create the composed image while maintaining transparency
-    layer = crop_layer(2)
     composed_image = Image.new("RGBA", (composed_width, composed_height), (0, 0, 0, 0))
-    composed_image.paste(layer, (0, 0), mask=layer)
-    layer = crop_layer(1)
-    composed_image.paste(layer, (0, 0), mask=layer)
-    layer = crop_layer(0)
-    composed_image.paste(layer, (0, 0), mask=layer)
+    if game_version == GameVersion.X4:
+        layer = crop_layer(2)
+        composed_image.paste(layer, (0, 0), mask=layer)
+        layer = crop_layer(0)
+        composed_image.paste(layer, (0, 0), mask=layer)
+        layer = crop_layer(1)
+        composed_image.paste(layer, (0, 0), mask=layer)
+    else:
+        layer = crop_layer(2)
+        composed_image.paste(layer, (0, 0), mask=layer)
+        layer = crop_layer(1)
+        composed_image.paste(layer, (0, 0), mask=layer)
+        layer = crop_layer(0)
+        composed_image.paste(layer, (0, 0), mask=layer)
 
     # raise NotImplementedError("Stage composition not yet implemented")
     return composed_image

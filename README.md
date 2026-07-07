@@ -20,6 +20,10 @@ Maybe
 
 # Remaining issues
 
+X4
+
+- scr00: (Intro) some missing tiles near glass, glass is not bright enough
+
 X5
 
 - st070: (Spike Rosered) ropes near vines partially missing (possibly rendered in-game)
