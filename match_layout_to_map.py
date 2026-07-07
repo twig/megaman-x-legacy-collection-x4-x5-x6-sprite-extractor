@@ -34,7 +34,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from render_stage import preload_related_files, build_x6_chr256_override, EXE_PATH
+from render_stage import preload_related_files, build_x6_chr256_override, EXE_PATH_LC2
 from utils.omp import render_level, LayoutTable
 
 TS = 64                                                   # thumbnail / descriptor resolution
@@ -226,7 +226,7 @@ def main():
     omp, ocl, tex, tbg, fp, gv = preload_related_files(omp_path_for(args.game, args.stage))
     chr256 = build_x6_chr256_override(ocl, tex, tbg) if args.game == "X6" else None
     N = omp.n_screens
-    exe = EXE_PATH.read_bytes()
+    exe = EXE_PATH_LC2.read_bytes()
 
     mp = Image.open(args.map)
     cols, rows = mp.size[0] // 256, mp.size[1] // 256

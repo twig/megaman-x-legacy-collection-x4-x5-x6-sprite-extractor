@@ -58,8 +58,8 @@ from utils.types import GameVersion, TexData
 from x4_pc_mmxlc1_layout_offsets import X4_LAYOUT_OFFSETS
 
 # Paths
-EXE_PATH_X4 = Path("PC/RXC1.exe")
-EXE_PATH = Path("PC/RXC2.exe")
+EXE_PATH_LC1 = Path("PC/RXC1.exe")
+EXE_PATH_LC2 = Path("PC/RXC2.exe")
 
 # Tile geometry / palette constants
 TILE_SIZE = 16                    # pixels per tile edge
@@ -360,10 +360,16 @@ def preload_related_files(omp_path: Path):
     for p in (ocl_path, tex_path):
         if not p.exists():
             raise FileNotFoundError(f"ERROR: Required sibling file not found: {p}")
-    if not EXE_PATH.exists():
-        raise FileNotFoundError(f"ERROR: RXC2.exe not found at {EXE_PATH} (run from workspace root)")
+
     if not col_path.exists():
         raise FileNotFoundError(f"ERROR: COL palette not found at {col_path}")
+
+    if game_version == GameVersion.X4:
+        if EXE_PATH_LC1.exists():
+            raise FileNotFoundError(f"ERROR: RXC1.exe not found at {EXE_PATH_LC2}")
+    else:
+        if EXE_PATH_LC2.exists():
+            raise FileNotFoundError(f"ERROR: RXC2.exe not found at {EXE_PATH_LC2}")
 
     print(f"Stage:  {omp_stem}")
     print(f"OMP:    {omp_path}")
@@ -988,7 +994,7 @@ X5_ADDITIVE_WATER_STAGES: dict[str, int] = {
 }
 
 
-def bake_x5_additive_water(
+def x5_additive_water(
     level_img,
     omp,
     ocl: list[OclEntry],
@@ -2152,32 +2158,9 @@ def main() -> None:
 
         print()
 
-        if game_version == GameVersion.X4:
-            print(f"Loading layout from RXC1.exe (layer {args.layer})...")
-            layout = load_layout_from_exe(EXE_PATH_X4, offset=offset, width=w, height=h, layer=args.layer)
-        else:
-            print(f"Loading layout from RXC2.exe (layer {args.layer})...")
-            layout = load_layout_from_exe(EXE_PATH, offset=offset, width=w, height=h, layer=args.layer)
-
-
-        #---
-        # offset = 2486
-        # w = 24
-        # h = 8
-
-        # exe_path = Path('layouts_rxc2.bin')
-        # layer_size = w * h
-        # total_size = layer_size * 3
-        # data = exe_path.read_bytes()
-        # if offset + total_size > len(data):
-        #     raise ValueError(
-        #         f"EXE too small for layout at {hex(offset)}: "
-        #         f"need {total_size} bytes, file has {len(data) - offset}"
-        #     )
-        # layout_bytes = data[offset : offset + total_size]
-        # layout = LayoutTable.from_bytes(layout_bytes, w, h, args.layer)
-        # print(f"total size {total_size} > {offset+total_size}")
-        #---
+        EXE_PATH = EXE_PATH_LC1 if game_version == GameVersion.X4 else EXE_PATH_LC2
+        print(f"Loading layout from {EXE_PATH}...")
+        layout = load_layout_from_exe(EXE_PATH, offset=offset, width=w, height=h, layer=args.layer)
 
         n_sx = len(layout.screens[0]) if layout.screens else 0
         n_sy = len(layout.screens)
@@ -2236,8 +2219,8 @@ def main() -> None:
         if game_version == GameVersion.X5:
             # Bake the additive reflective sheen onto st070's STP water tiles (no-op for
             # other stages).  Post-render so it can use the tall stack's back layers as each
-            # water tile's local background — see bake_x5_additive_water.
-            n_water = bake_x5_additive_water(level_img, omp, ocl, layout, n_sx, n_sy, omp_stem)
+            # water tile's local background — see x5_additive_water.
+            n_water = x5_additive_water(level_img, omp, ocl, layout, n_sx, n_sy, omp_stem)
             if n_water:
                 print(f"  X5 additive-water bake: {n_water} tiles composited")
         if args.debug:
