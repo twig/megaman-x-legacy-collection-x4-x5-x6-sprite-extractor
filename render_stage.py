@@ -101,9 +101,6 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         for key, data
         in X4_LAYOUT_OFFSETS.items()
     ]),
-    # st000 (intro stage) layout is NOT in the 0x02d9xxxx region with st010+;
-    # It sits in a separate block near the ORIGINAL guess 0x02EC2D4B.
-    #
     # Found by match_layout_to_map.py
     # - recovering the screen-id grid from X5_ST00_00_INTRO_combined.png
     # - then Hough-voting it across the whole EXE
@@ -2160,7 +2157,7 @@ def main() -> None:
 
         EXE_PATH = EXE_PATH_LC1 if game_version == GameVersion.X4 else EXE_PATH_LC2
         print(f"Loading layout from {EXE_PATH}...")
-        layout = load_layout_from_exe(EXE_PATH, offset=offset, width=w, height=h, layer=args.layer)
+        layout = load_layout_from_exe(EXE_PATH, offset=offset, width=w, height=h)
 
         n_sx = len(layout.screens[0]) if layout.screens else 0
         n_sy = len(layout.screens)

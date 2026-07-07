@@ -26,33 +26,9 @@ from tkinter import ttk, messagebox
 
 from PIL import ImageTk
 
-from utils.omp import render_level, LayoutTable
+from utils.omp import load_layout_from_exe, render_level
 from render_stage import preload_related_files, _debug_overlay_level, STAGE_LAYOUT
 from utils.types import GameVersion
-
-
-# ── Layout loader ─────────────────────────────────────────────────────────────
-
-def load_layout_from_binary(
-    data: bytes,
-    offset: int,
-    width: int,
-    height: int,
-    layer: int = 0,
-) -> LayoutTable | None:
-    """
-    Load a LayoutTable from raw binary data at a given byte offset.
-
-    Mirrors load_layout_from_exe() but reads from a pre-loaded bytes buffer
-    instead of the game EXE.  Returns None when offset + required bytes
-    exceeds the buffer length.
-    """
-    layer_size = width * height
-    total_size = layer_size * 3
-    if offset < 0 or offset + total_size > len(data):
-        return None
-    layout_bytes = data[offset : offset + total_size]
-    return LayoutTable.from_bytes(layout_bytes, width, height, layer)
 
 
 # ── Main application ──────────────────────────────────────────────────────────
@@ -63,8 +39,7 @@ class LayoutExplorer(tk.Tk):
 
         self.omp_path = omp_path
         self.bin_path = bin_path
-        self.bin_data = bin_path.read_bytes()
-        self.bin_size = len(self.bin_data)
+        self.bin_size = len(self.bin_path.read_bytes())
         self.base_offset = max(0, min(base_offset, self.bin_size - 1))
 
         self.title(f"Layout Explorer — {omp_path.name}  |  {bin_path.name}")
@@ -431,7 +406,7 @@ class LayoutExplorer(tk.Tk):
         cancel: threading.Event,
     ) -> None:
         try:
-            layout = load_layout_from_binary(self.bin_data, offset=offset, width=w, height=h)
+            layout = load_layout_from_exe(self.bin_path, offset=offset, width=w, height=h)
             if layout is None:
                 needed = w * h * 3
                 self._result_queue.put((

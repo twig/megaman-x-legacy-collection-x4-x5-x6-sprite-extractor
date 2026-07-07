@@ -256,7 +256,7 @@ class LayoutTable:
         return LayoutTable(screens=grid)
 
     @staticmethod
-    def from_bytes(data: bytes, width: int, height: int, layer: int = 0) -> "LayoutTable":
+    def from_bytes(data: bytes, width: int, height: int) -> "LayoutTable":
         """
         Parse a LayoutTable from raw layout binary data.
 
@@ -272,16 +272,16 @@ class LayoutTable:
             layer:  which layer to extract (0=foreground, 1=BG1, 2=BG2)
         """
         layer_size = width * height
-        layer_start = layer * layer_size
-        if layer_start + layer_size > len(data):
+        # layer_start = layer * layer_size
+        if layer_size > len(data):
             raise ValueError(
-                f"Layout data too small: need {layer_start + layer_size} bytes, "
+                f"Layout data too small: need {layer_size} bytes, "
                 f"got {len(data)}"
             )
         grid: list[list[int]] = []
         for sy in range(height):
             row = [
-                data[layer_start + sy * width + sx]
+                data[sy * width + sx]
                 for sx in range(width)
             ]
             grid.append(row)
@@ -359,31 +359,19 @@ def load_omp(omp_path: Path) -> OmpLayer:
 #   Layer 0, sy=4, sx=4 → screen_id = 30 (0x1E)  ✓
 #   Layer 0, sy=4, sx=8 → screen_id = 34 (0x22)  ✓
 
-ST000_LAYOUT_OFFSET = 0x02EC2D4B   # EXE file offset of the first layout byte
-ST000_LAYOUT_WIDTH  = 15
-ST000_LAYOUT_HEIGHT = 24
-ST000_LAYOUT_LAYERS = 3            # 0=foreground, 1=BG1, 2=BG2
-
-
 def load_layout_from_exe(
     exe_path: Path,
-    offset: int = ST000_LAYOUT_OFFSET,
-    width: int = ST000_LAYOUT_WIDTH,
-    height: int = ST000_LAYOUT_HEIGHT,
-    layer: int = 0,
-) -> "LayoutTable":
+    offset: int,
+    width: int,
+    height: int,
+) -> LayoutTable:
     """
-    Load a LayoutTable from the game executable (RXC2.exe for MMLC2).
+    Load a LayoutTable from the game executable.
 
-    Uses the confirmed st000 constants by default.  Pass different ``offset``,
-    ``width``, ``height`` to load a different stage's table.
-
-    Args:
-        exe_path: path to RXC2.exe (or the PSX EXE for other versions)
-        offset:   file offset of the first layout byte (all 3 layers)
-        width:    screens per row
-        height:   screen rows
-        layer:    0 = foreground layer (default), 1 = BG1, 2 = BG2
+    @param exe_path path to EXE
+    @param offset   file offset of the first layout byte for stage
+    @param width    screens per row
+    @param height   screen rows
     """
     layer_size = width * height
     # total_size = layer_size * 3
@@ -395,7 +383,7 @@ def load_layout_from_exe(
             f"need {total_size} bytes, file has {len(data) - offset}"
         )
     layout_bytes = data[offset : offset + total_size]
-    return LayoutTable.from_bytes(layout_bytes, width, height, layer)
+    return LayoutTable.from_bytes(layout_bytes, width, height)
 
 
 def _build_chr256_ocl_indices(

@@ -185,7 +185,7 @@ def render_ncc(omp, ocl, tex, tbg, fp, chr256, exe, off, W, H, N, map_small, SZ)
     """Render layer 0 at (off,W,H), return edge-NCC vs the map (1.0 == exact)."""
     if off < 0 or off + W*H*3 > len(exe): return -9.0
     if max(exe[off:off + W*H]) >= N: return -9.0      # invalid layer-0 id
-    lay = LayoutTable.from_bytes(exe[off:off + W*H*3], W, H, 0)
+    lay = LayoutTable.from_bytes(exe[off:off + W*H*3], W, H)
     im = render_level(omp, ocl, lay, W, H, tex=tex, tex_bg=tbg,
                       flags_to_palette=fp, chr256_override=chr256).convert("L")
     RE = edge(np.asarray(im.resize(SZ), float))
