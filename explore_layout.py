@@ -51,7 +51,7 @@ class LayoutExplorer(tk.Tk):
         except Exception as exc:
             messagebox.showerror("Load Error", str(exc))
             sys.exit(1)
-        self.omp, self.ocl, self.tex, self.tex_bg, self.flags_to_palette, game_version = result
+        self.omp, self.ocl, self.tex, self.tex_bg, self.flags_to_palette, game_version, _ = result
 
         # Render state
         self._photo: ImageTk.PhotoImage | None = None
