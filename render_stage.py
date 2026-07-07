@@ -49,6 +49,7 @@ import csv
 from pathlib import Path
 
 from PIL import ImageDraw, ImageFont
+from PIL.Image import Image as PILImage
 
 from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe, LayerPreset, LayoutTable, _build_chr256_ocl_indices
 from utils.ocl import load_ocl, OclEntry, OclPaletteGroup
@@ -2058,14 +2059,45 @@ def build_x6_padhi_clut_override(ocl: list[OclEntry], stage_stem: str) -> "dict[
     return out
 
 
+def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows: int, game_version: GameVersion, omp_stem: str) -> PILImage:
+    """
+    Returns an image of the stage with all 3 layers composed together.
+
+    The layers of stages are usually "layout_rows / 3" to get
+    - layer 0: top layer
+    - layer 1: middle layer
+    - layer 2: background layer
+
+    Except in the cases of stages like ending credits or stage select.
+
+    Layouts are measured in screens. Each screen is 16x16 tiles, so 256x256 pixels.
+    """
+    layer_rows = layout_rows // 3
+    composed_width = layout_columns * 256
+    composed_height = layer_rows * 256
+
+    def crop_layer(layer_index: int) -> PILImage:
+        return full_render.crop((0, layer_index * composed_height, composed_width, (layer_index + 1) * composed_height))
+
+    # take the background layer of full_render to create the composed image while maintaining transparency
+    composed_image = crop_layer(2)
+    layer = crop_layer(1)
+    composed_image.paste(layer, (0, 0), mask=layer)
+    layer = crop_layer(0)
+    composed_image.paste(layer, (0, 0), mask=layer)
+
+    # raise NotImplementedError("Stage composition not yet implemented")
+    return composed_image
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Render a stage OMP to PNG (level + catalog)."
     )
     parser.add_argument("omp_file", type=Path, help="Path to the .omp file")
     parser.add_argument(
-        "--layer", type=int, default=0, choices=[0, 1, 2],
-        help="Layout layer to render (0=foreground, 1=BG1, 2=BG2; default: 0)",
+        "--composed", action=argparse.BooleanOptionalAction, default=False,
+        help="Render composed stage or as seperate layers (layer 0=front, 1=middle, 2=background)",
     )
     parser.add_argument(
         "--skip-stage", action=argparse.BooleanOptionalAction,
@@ -2222,6 +2254,10 @@ def main() -> None:
                 print(f"  X5 additive-water bake: {n_water} tiles composited")
         if args.debug:
             _debug_overlay_level(level_img, layout, n_sx, n_sy)
+
+        if args.composed:
+            level_img = compose_stage_image(level_img, w, h, game_version, omp_stem)
+
         level_out = output_dir / Path(f"{omp_stem}_level.png")
         level_img.save(level_out)
         print(f"  Saved {level_out}  ({level_img.width}×{level_img.height} px)")
