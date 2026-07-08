@@ -207,6 +207,14 @@ class LayoutTable:
     """
     screens: list[list[int]]  # screens[sy][sx] = screen_id
 
+    @property
+    def width(self) -> int:
+        return len(self.screens[0]) if self.screens else 0
+
+    @property
+    def height(self) -> int:
+        return len(self.screens)
+
     def get(self, sx: int, sy: int) -> int | None:
         """Return the screen_id for level screen (sx, sy), or None if unknown."""
         if 0 <= sy < len(self.screens) and 0 <= sx < len(self.screens[sy]):

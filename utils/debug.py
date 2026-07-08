@@ -4,6 +4,7 @@ from PIL import Image, ImageDraw
 
 from utils.types import Palette, TexData, TexFormat
 from utils.palette import convert_palette_to_clut
+from utils.omp import LayoutTable, OmpLayer
 
 
 def debug_palette_txt(palette: Palette, output_path: Path):
@@ -106,3 +107,31 @@ def debug_tex_csv(tex_data: TexData, input_path: Path) -> None:
 
                     writer_grey.writerow(row_grey)
                     writer_alpha.writerow(row_alpha)
+
+def debug_layout_csv(layer: OmpLayer, layout: LayoutTable, output_path: Path):
+    level_width_screens = layout.width
+    level_height_screens = layout.height
+
+    with output_path.open("w", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+
+        for sy in range(level_height_screens):
+            # for each screen in the row, loop through the 16 rows vertically,
+            # combining the data from each screen into a single row in the CSV
+            for wy in range(16):
+                row: list[int] = []
+
+                for sx in range(level_width_screens):
+                    screen_id = layout.get(sx, sy)
+
+                    if screen_id is None:
+                        continue
+
+                    screen_tiles = layer.tiles[screen_id]
+
+                    # raw_ocl_idx = screen_tiles[wy * 16 + wx]
+                    row.extend([screen_tiles[wy * 16 + wx] for wx in range(16)])
+
+                writer.writerow(row)
+
+    print(f"Debug layout CSV written to: {output_path}")
