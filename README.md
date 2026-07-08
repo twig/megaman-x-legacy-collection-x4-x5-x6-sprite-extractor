@@ -28,7 +28,6 @@ X4
 
 X5
 
-- st041: (Burn Dinorex B) garbled boss background
 - st070: (Spike Rosered) ropes near vines partially missing (possibly rendered in-game)
 - st180: (Zero Stage 3) missing slope tiles at the start (possibly rendered in-game)
 - st220: (Training stage) non-standard format, needs more work

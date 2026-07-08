@@ -211,7 +211,7 @@ def build_x5_chr256_bg_override(
 # so coherence and level-seam-continuity metrics both mis-classify it — so the corrections
 # are listed per stage against ground truth.
 #
-#   st040 (Burn Dinorex / Axle the Red, Area 1): the wall-mounted dragon-head flamethrowers
+#   st040 (Burn Dinorex Area 1): the wall-mounted dragon-head flamethrowers
 #     are an 8bpp chr256 tileset, but col=16 is not a chr256 palette indicator (0/112) so
 #     the base router left the whole class on tex.  CRUCIALLY this stage has TWO col=16
 #     page-10/11 batches that REUSE the same texture coordinates but resolve to OPPOSITE
@@ -233,6 +233,12 @@ def build_x5_chr256_bg_override(
 X5_SHEET_OVERRIDE_BY_STAGE: dict[str, "dict[tuple[int, int], str]"] = {
     # stem -> {(col, page): "bg" | "tex"}
     "staff_eng": {(64, 11): "bg", (80, 10): "bg", (80, 11): "bg", (96, 10): "bg"},
+    # st041 (Burn Dinorex Area 2): fixes boss room background tileset whose page-10 portion
+    # base router + tex-empty recovery correctly route to tex_bg, but whose page-9 portion
+    # is garbled in tex. Real 8bpp page-9 tiles is on tex_bg due to
+    # build_x5_chr256_bg_override only walking pages<8 and the tex-empty recovery only
+    # fires when tex is blank.
+    "st041": {(16, 9): "bg"},
 }
 X5_SHEET_OVERRIDE_INDICES: dict[str, "dict[int, str]"] = {
     # stem -> {ocl_idx: "bg" | "tex"}
