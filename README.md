@@ -10,8 +10,8 @@ Trying to find ways to make it easier for sprite rippers to get accurate sprites
 
 Incomplete
 
-- render_stage in --composite mode (stack layers 0 and 1)
-- figure out what to do with background (layer 3) not aligning because of parallaxing
+- render_stage in --composite mode (stack layers 0, 1 and 2)
+- figure out what to do with background (layer 3) when not aligning or repeating due to in-game parallaxing
 - post-render patching to match in-game fixes
 
 Maybe
@@ -28,6 +28,7 @@ X4
 
 X5
 
+- st041: (Burn Dinorex B) garbled boss background
 - st070: (Spike Rosered) ropes near vines partially missing (possibly rendered in-game)
 - st180: (Zero Stage 3) missing slope tiles at the start (possibly rendered in-game)
 - st220: (Training stage) non-standard format, needs more work

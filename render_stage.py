@@ -110,23 +110,24 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # st010 found by trial and error.
     # the others were within range, good enough to start debugging tile rendering.
     "X5": {
-        "st000":     (0x02EC2B18, 24, 21), # LAYOUT DONE, TILES DONE (Intro stage)
+        "st000":     (0x02EC2B18, 24, 24), # LAYOUT DONE, TILES DONE (Intro stage)
         "st010":     (0x02D98528, 39, 9),  # LAYOUT DONE, TILES DONE (Crescent Grizzly)
         "st020":     (0x02EC2EB8, 22, 12), # LAYOUT DONE, TILES DONE (Dark Necrobat: Area 1)
         "st021":     (0x02EC2FC0, 22, 12), # LAYOUT DONE, TILES DONE (Dark Necrobat: Area 2)
-        "st030":     (0x02D98D88, 24, 24), # LAYOUT DONE, TILES DONE (Tidal Whale)
-        "st040":     (0x02EC3398, 18, 36), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 1)
-        "st041":     (0x02EC36A0, 20, 18), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 2)
+        "st030":     (0x02D98D88, 24, 30), # LAYOUT DONE, TILES DONE (Tidal Whale)
+        "st040":     (0x02EC3398, 18, 42), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 1)
+        # garbled boss bg
+        "st041":     (0x02EC36A0, 20, 33), # LAYOUT DONE, TILES ALMOST (Burn Dinorex: Area 2)
         "st050":     (0x02D98890, 36, 21), # LAYOUT DONE, TILES DONE (Volt Kraken)
         "st060":     (0x02EC3C70, 34, 9),  # LAYOUT DONE, TILES DONE (Shining Firefly: Area 1)
         "st061":     (0x02D99058, 21, 33), # LAYOUT DONE, TILES DONE (Shining Firefly: Area 2)
         # ropes near vines partially missing (possibly rendered in-game)
         "st070":     (0x02D98B88, 34, 15), # LAYOUT DONE, TILES MOST (Spike Rosered)
         "st080":     (0x02D98688, 19, 27), # LAYOUT DONE, TILES DONE (Spiral Pegasus)
-        "st090_00":  (0x02D98695, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Enigma Cannon)
-        "st090_01":  (0x02D98695, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 1)
-        "st100_00":  (0x02D9852F, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Space Shuttle)
-        "st100_01":  (0x02D98695, 2, 4),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 2)
+        "st090_00":  (0x02D98695, 2, 6),   # LAYOUT DONE, TILES DONE (Dynamo: Enigma Cannon)
+        "st090_01":  (0x02D98695, 2, 6),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 1)
+        "st100_00":  (0x02D9852F, 2, 6),   # LAYOUT DONE, TILES DONE (Dynamo: Space Shuttle)
+        "st100_01":  (0x02D98695, 2, 6),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 2)
         "st160":     (0x02EC5390, 12, 57), # LAYOUT DONE, TILES DONE (Zero Space 1: Origin)
         "st170":     (0x02EC5660, 21, 30), # LAYOUT DONE, TILES DONE (Zero Space 2: Grief)
         # missing slope tiles at the start (possibly rendered in-game)
@@ -136,9 +137,9 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         # missing tiles (lots), colour issues, non-standard layers
         "st220":     (0x02D97FDA, 25, 12), # LAYOUT LIKELY, TILES SOME (Training Area)
         "staff_eng": (0x02D9852F, 9, 6),   # LAYOUT DONE, TILES DONE (End Credits)
-        "st140_eng": (0x02D98695, 2, 1),   # LAYOUT DONE, TILES DONE (Title screen)
-        "st141_eng": (0x02D98695, 2, 1),   # LAYOUT DONE, TILES DONE (Player Select screen)
-        "st150":     (0x02D98695, 2, 1),   # LAYOUT DONE, TILES DONE (Gameplay Report screen)
+        "st140_eng": (0x02D98695, 2, 3),   # LAYOUT DONE, TILES DONE (Title screen)
+        "st141_eng": (0x02D98695, 2, 3),   # LAYOUT DONE, TILES DONE (Player Select screen)
+        "st150":     (0x02D98695, 2, 3),   # LAYOUT DONE, TILES DONE (Gameplay Report screen)
     },
     # Offsets read from RXC2.exe's per-stage LAYOUT POINTER TABLE (file 0x0307E898),
     # each entry is a virtual-address located + decoded by extract_layout_offsets.py
@@ -428,7 +429,10 @@ def preload_related_files(omp_path: Path):
 #   SCR00_00 (Intro): col=7 glass tubes (layer 0) + col=2/3/6 light shafts (layer 1),
 #     all STP, additively brightening the col=17..23 opaque arch/road background (layer 2).
 X4_ADDITIVE_STP_STAGES: frozenset[str] = frozenset({
-    "SCR00_00", "SCR01_00", "SCR01_01", "SCR02_01"
+    # X4
+    "SCR00_00", "SCR01_00", "SCR01_01", "SCR02_01",
+    # X5
+    # "st061",
 })
 
 
@@ -473,6 +477,11 @@ COMPOSED_ORDER_OVERRIDES: dict[GameVersion, dict[str, list[int] | None]] = {
         "SCR0F_00_eng": None,
         "SCR01_00": COMPOSED_ORDER_REVERSED,
         "SCR01_01": COMPOSED_ORDER_REVERSED,
+    },
+    GameVersion.X5: {
+        "st041": COMPOSED_ORDER_REVERSED,
+        "st130": None,
+        "staff_eng": None,
     }
 }
 
@@ -499,13 +508,9 @@ def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows:
     """
     Broken
     X5
-    - st000 Intro
-    - st030 Tidal Whale
-    - st040/041 Burn Mattrex
-    - st060 Glow Firefly
-    - st090_00/01 Dynamo
-    - st100_00/01 Dynamo
-    - st220 Training stage
+    - st010 Crescent Grizzly (misaligned background)
+    - st060 Glow Firefly (background)
+    - st220 Training stage (needs a lot of manual work)
 
     X6
     - st0ca Final stage

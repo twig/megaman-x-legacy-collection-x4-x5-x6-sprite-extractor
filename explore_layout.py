@@ -26,6 +26,7 @@ from tkinter import ttk, messagebox
 
 from PIL import ImageTk
 
+from utils.debug import debug_layout_csv
 from utils.omp import load_layout_from_exe, render_level
 from render_stage import preload_related_files, _debug_overlay_level, STAGE_LAYOUT
 from utils.types import GameVersion
@@ -41,6 +42,7 @@ class LayoutExplorer(tk.Tk):
         self.bin_path = bin_path
         self.bin_size = len(self.bin_path.read_bytes())
         self.base_offset = max(0, min(base_offset, self.bin_size - 1))
+        self.layout = None
 
         self.title(f"Layout Explorer — {omp_path.name}  |  {bin_path.name}")
         self.state("zoomed")  # maximise on Windows
@@ -407,6 +409,8 @@ class LayoutExplorer(tk.Tk):
     ) -> None:
         try:
             layout = load_layout_from_exe(self.bin_path, offset=offset, width=w, height=h)
+            self.layout = layout  # store for debug overlay
+
             if layout is None:
                 needed = w * h * 3
                 self._result_queue.put((
@@ -415,6 +419,8 @@ class LayoutExplorer(tk.Tk):
                     f"> file size {self.bin_size}",
                 ))
                 return
+
+            # debug_layout_csv(self.omp, layout, Path(f"{self.omp_path.stem}.csv"))
 
             if cancel.is_set():
                 return
