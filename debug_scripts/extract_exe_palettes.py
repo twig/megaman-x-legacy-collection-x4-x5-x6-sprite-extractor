@@ -38,6 +38,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from utils.consts import EXE_PATH_LC2
 from utils.palette import load_col_palettes
 from utils.debug import debug_palette_png
 
@@ -125,7 +126,7 @@ def write_col(path: Path, clut_bytes: bytes) -> int:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--exe", type=Path, default=Path("PC/RXC2.exe"))
+    ap.add_argument("--exe", type=Path, default=EXE_PATH_LC2)
     ap.add_argument("--out-dir", type=Path, default=Path("scrapbook/warning/exe_palettes"))
     args = ap.parse_args()
 

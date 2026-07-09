@@ -26,6 +26,7 @@ from tkinter import ttk, messagebox
 
 from PIL import ImageTk
 
+from utils.consts import EXE_PATH_LC1, EXE_PATH_LC2
 from utils.debug import debug_layout_csv, debug_overlay_level
 from utils.omp import load_layout_from_exe, render_level
 from render_stage import preload_related_files, STAGE_LAYOUT
@@ -488,10 +489,10 @@ _EXE_BASE_OFFSETS: dict[GameVersion, int] = {
 }
 
 
-_EXE_NAMES: dict[GameVersion, str] = {
-    GameVersion.X4: "RXC1.exe",
-    GameVersion.X5: "RXC2.exe",
-    GameVersion.X6: "RXC2.exe",
+_GAME_EXE_MAP: dict[GameVersion, Path] = {
+    GameVersion.X4: EXE_PATH_LC1,
+    GameVersion.X5: EXE_PATH_LC2,
+    GameVersion.X6: EXE_PATH_LC2,
 }
 
 
@@ -533,7 +534,7 @@ def main() -> None:
             sys.exit(1)
 
         print('Detected GameVersion:', game)
-        bin_path = args.exe if args.exe is not None else Path(f"PC/{_EXE_NAMES[game]}")
+        bin_path = args.exe if args.exe is not None else _GAME_EXE_MAP[game]
         base_offset = _EXE_BASE_OFFSETS[game]
 
         layout_entry = STAGE_LAYOUT.get(f"X{game}", {}).get(omp_file.stem)

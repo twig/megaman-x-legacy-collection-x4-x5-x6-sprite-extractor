@@ -50,7 +50,7 @@ from pathlib import Path
 from PIL import ImageChops, Image
 from PIL.Image import Image as PILImage
 
-from utils.consts import COMPOSED_ORDER_BASIC, COMPOSED_ORDER_REVERSED
+from utils.consts import COMPOSED_ORDER_BASIC, COMPOSED_ORDER_REVERSED, EXE_PATH_LC1, EXE_PATH_LC2
 from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe
 from utils.ocl import load_ocl, OclPaletteGroup
 from utils.tex import load_tex
@@ -61,10 +61,6 @@ from utils.fixes_x5 import build_x5_chr256_bg_override, build_x5_sheet_override,
 from utils.fixes_x6 import build_x6_chr256_override, build_x6_padhi_clut_override, build_x6_clut_row_override
 from utils.debug import debug_overlay_catalog, debug_overlay_level
 from x4_pc_mmxlc1_layout_offsets import X4_LAYOUT_OFFSETS
-
-# Paths
-EXE_PATH_LC1 = Path("PC/RXC1.exe")
-EXE_PATH_LC2 = Path("PC/RXC2.exe")
 
 
 # Stage layout
