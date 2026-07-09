@@ -1,10 +1,15 @@
 import csv
 from pathlib import Path
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from utils.types import Palette, TexData, TexFormat
 from utils.palette import convert_palette_to_clut
 from utils.omp import LayoutTable, OmpLayer
+from utils.consts import TILE_SIZE
+
+_DEBUG_LINE  = (255, 220, 0, 210)   # yellow-ish grid lines
+_DEBUG_TEXT  = (255, 220, 0, 255)   # yellow text
+_DEBUG_TEXTBG = (0, 0, 0, 170)      # semi-transparent black text background
 
 
 def debug_palette_txt(palette: Palette, output_path: Path):
@@ -108,6 +113,7 @@ def debug_tex_csv(tex_data: TexData, input_path: Path) -> None:
                     writer_grey.writerow(row_grey)
                     writer_alpha.writerow(row_alpha)
 
+# ── Debug overlay helpers ─────────────────────────────────────────────────────
 def debug_layout_csv(layer: OmpLayer, layout: LayoutTable, output_path: Path):
     level_width_screens = layout.width
     level_height_screens = layout.height
@@ -135,3 +141,50 @@ def debug_layout_csv(layer: OmpLayer, layout: LayoutTable, output_path: Path):
                 writer.writerow(row)
 
     print(f"Debug layout CSV written to: {output_path}")
+
+
+def debug_overlay_catalog(img, n_screens: int, tile_size: int = TILE_SIZE) -> None:
+    """Draw per-screen boundary lines and screen-id labels on the catalog image."""
+    draw = ImageDraw.Draw(img, "RGBA")
+    font = ImageFont.load_default()
+    for sid in range(n_screens):
+        y = sid * tile_size
+        draw.line([(0, y), (img.width - 1, y)], fill=_DEBUG_LINE, width=1)
+        label = f"scr {sid}"
+        tw = len(label) * 6 + 2
+        draw.rectangle([0, y, tw, y + 9], fill=_DEBUG_TEXTBG)
+        draw.text((1, y), label, fill=_DEBUG_TEXT, font=font)
+
+
+def debug_overlay_level(
+    img,
+    layout: LayoutTable,
+    level_width_screens: int,
+    level_height_screens: int,
+    tile_size: int = TILE_SIZE,
+) -> None:
+    """Draw screen boundary grid lines and (sx,sy)/id labels on the level image."""
+    draw = ImageDraw.Draw(img, "RGBA")
+    font = ImageFont.load_default()
+    screen_px = TILE_SIZE * tile_size  # pixels per screen edge
+
+    # Grid lines
+    for sx in range(level_width_screens + 1):
+        x = sx * screen_px
+        draw.line([(x, 0), (x, img.height - 1)], fill=_DEBUG_LINE, width=1)
+    for sy in range(level_height_screens + 1):
+        y = sy * screen_px
+        draw.line([(0, y), (img.width - 1, y)], fill=_DEBUG_LINE, width=1)
+
+    # Per-screen labels
+    for sy in range(level_height_screens):
+        for sx in range(level_width_screens):
+            screen_id = layout.get(sx, sy)
+            px = sx * screen_px + 2
+            py = sy * screen_px + 2
+            sid_str = str(screen_id) if screen_id is not None else "?"
+            lines = [f"Screen ({sx},{sy}), ID #{sid_str}"]
+            tw = max(len(l) for l in lines) * 6 + 2
+            draw.rectangle([px - 1, py - 1, px + tw, py + 19], fill=_DEBUG_TEXTBG)
+            for i, line in enumerate(lines):
+                draw.text((px, py + i * 10), line, fill=_DEBUG_TEXT, font=font)

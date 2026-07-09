@@ -26,9 +26,9 @@ from tkinter import ttk, messagebox
 
 from PIL import ImageTk
 
-from utils.debug import debug_layout_csv
+from utils.debug import debug_layout_csv, debug_overlay_level
 from utils.omp import load_layout_from_exe, render_level
-from render_stage import preload_related_files, _debug_overlay_level, STAGE_LAYOUT
+from render_stage import preload_related_files, STAGE_LAYOUT
 from utils.types import GameVersion
 
 
@@ -440,7 +440,7 @@ class LayoutExplorer(tk.Tk):
                 return
 
             if debug:
-                _debug_overlay_level(img, layout, w, h)
+                debug_overlay_level(img, layout, w, h)
 
             self._result_queue.put(("ok", img, offset, w, h))
 
