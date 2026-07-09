@@ -93,19 +93,12 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     #
     # SCR00_00: (Intro) some missing tiles near glass (possibly rendered in-game)
     # SCR01_01: (Web Spider B) possibly wrong layout offset
-    # SCR04_00: (Magma Dragoon) bg misaligned in composite render
     "X4": dict([
         (key, (
         data["pc_offset"], data["w"],  data["h"] * 3))
         for key, data
         in X4_LAYOUT_OFFSETS.items()
     ]),
-    # Found by match_layout_to_map.py
-    # - recovering the screen-id grid from X5_ST00_00_INTRO_combined.png
-    # - then Hough-voting it across the whole EXE
-    #
-    # st010 found by trial and error.
-    # the others were within range, good enough to start debugging tile rendering.
     "X5": {
         "st000":     (0x02EC2B18, 24, 24), # LAYOUT DONE, TILES DONE (Intro stage)
         "st010":     (0x02D98528, 39, 9),  # LAYOUT DONE, TILES DONE (Crescent Grizzly)
@@ -113,12 +106,12 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st021":     (0x02EC2FC0, 22, 12), # LAYOUT DONE, TILES DONE (Dark Necrobat: Area 2)
         "st030":     (0x02D98D88, 24, 30), # LAYOUT DONE, TILES DONE (Tidal Whale)
         "st040":     (0x02EC3398, 18, 42), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 1)
-        "st041":     (0x02EC36A0, 20, 33), # LAYOUT DONE, TILES ALMOST (Burn Dinorex: Area 2)
+        "st041":     (0x02EC36A0, 20, 33), # LAYOUT DONE, TILES DONE (Burn Dinorex: Area 2)
         "st050":     (0x02D98890, 36, 21), # LAYOUT DONE, TILES DONE (Volt Kraken)
         "st060":     (0x02EC3C70, 34, 9),  # LAYOUT DONE, TILES DONE (Shining Firefly: Area 1)
         "st061":     (0x02D99058, 21, 33), # LAYOUT DONE, TILES DONE (Shining Firefly: Area 2)
         # ropes near vines partially missing (possibly rendered in-game)
-        "st070":     (0x02D98B88, 34, 15), # LAYOUT DONE, TILES MOST (Spike Rosered)
+        "st070":     (0x02D98B88, 34, 15), # LAYOUT DONE, TILES ALMOST (Spike Rosered)
         "st080":     (0x02D98688, 19, 27), # LAYOUT DONE, TILES DONE (Spiral Pegasus)
         "st090_00":  (0x02D98695, 2, 6),   # LAYOUT DONE, TILES DONE (Dynamo: Enigma Cannon)
         "st090_01":  (0x02D98695, 2, 6),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 1)
@@ -137,12 +130,6 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st141_eng": (0x02D98695, 2, 3),   # LAYOUT DONE, TILES DONE (Player Select screen)
         "st150":     (0x02D98695, 2, 3),   # LAYOUT DONE, TILES DONE (Gameplay Report screen)
     },
-    # Offsets read from RXC2.exe's per-stage LAYOUT POINTER TABLE (file 0x0307E898),
-    # each entry is a virtual-address located + decoded by extract_layout_offsets.py
-    # layout_file_offset = VA - 0x400e00
-    #
-    # These are the offsets the GAME uses and verified to be correct after
-    # width/height guesses using explore_layout.py
     "X6": {
         "st00":      (0x02DD3FF0, 26, 18),  # LAYOUT DONE, TILES DONE (Intro - Eurasia Ruins)
         "st01":      (0x02DD41E0, 26, 27),  # LAYOUT DONE, TILES DONE (Commander Yammark; Amazon Area)

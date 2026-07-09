@@ -144,3 +144,33 @@ python clut_finder.py SCREENSHOT_file [COL_file]
 
 - Use `compare-baseline.bat` to generate all renders and diff images against the existing baseline.
 - Manually check diff image files to see what changed. Diff files will highlight what changed and crop accordingly.- Use `compare-baseline-accept.bat` if all diffs are good then commit new baseline.
+
+# Finding stage layout offsets
+
+In case the games get updated and offsets change, this is how you can find the new offsets.
+
+Offsets are current as of;
+
+- MMXLC1: 1.0.3.0 / 17 March 2026
+- MMXLC2: 1.0.3.0 / 17 March 2026
+
+## X4
+
+X4 offsets are stored in a table, so we use this data to extract the PSX layouts and find the equivalent content in the PC EXE.
+
+- Extract the PSX X4 layouts using `python x4_extract_psx_layouts.py`
+- Run `python x4_find_pc_offsets.py`
+- You will get `x4_pc_mmxlc1_layout_offsets.py` containing all found offsets ready for use
+
+## X5 and X6
+
+The script scans the EXEs for patterns matching the provided map image files and ranks the potential offsets.
+
+It brute-forces this search for a variety of width and heights as we don't have that information before-hand.
+
+- Download the existing dumped maps
+  - X5; [acediez's partial X5 stage dumps](https://archive.org/download/mmx_ps1_rips/Stage%20Layout/)
+  - X6; [vgmaps.com](https://vgmaps.com/Atlas/PSX/index.htm#MegaManX6)
+- Run `python match_layout_to_map.py [stage] [map_file.png] --game [VERSION]`
+
+eg. `python match_layout_to_map.py st000 screenshots/X5_ST00_00_INTRO.png --game X5`
