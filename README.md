@@ -10,12 +10,11 @@ Trying to find ways to make it easier for sprite rippers to get accurate sprites
 
 Incomplete
 
-- render_stage in --composite mode (stack layers 0, 1 and 2)
-- figure out what to do with background (layer 3) when not aligning or repeating due to in-game parallaxing
-- post-render patching to match in-game fixes
+- backgrund issues with --composite mode; what to do with background (layer 3) when not aligning or repeating due to in-game parallaxing
 
 Maybe
 
+- post-render patching to match in-game fixes
 - Animation sprites
 
 # Remaining issues

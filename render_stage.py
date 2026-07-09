@@ -147,29 +147,29 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     # These are the offsets the GAME uses and verified to be correct after
     # width/height guesses using explore_layout.py
     "X6": {
-        "st00":      (0x02DD3FF0, 26, 17),  # LAYOUT DONE, TILES DONE (Intro - Eurasia Ruins)
-        "st01":      (0x02DD41E0, 26, 24),  # LAYOUT DONE, TILES DONE (Commander Yammark; Amazon Area)
-        "st01x":     (0x02DD6A18, 26, 21),  # LAYOUT DONE, TILES DONE (Commander Yammark; sub stage)
-        "st02":      (0x02DD44A0, 27, 15),  # LAYOUT DONE, TILES DONE (Blizzard Wolfang; North Pole Area)
-        "st02x":     (0x02DD6CD8, 15, 33),  # LAYOUT DONE, TILES DONE sub stage
+        "st00":      (0x02DD3FF0, 26, 18),  # LAYOUT DONE, TILES DONE (Intro - Eurasia Ruins)
+        "st01":      (0x02DD41E0, 26, 27),  # LAYOUT DONE, TILES DONE (Commander Yammark; Amazon Area)
+        "st01x":     (0x02DD6A18, 26, 27),  # LAYOUT DONE, TILES DONE (Commander Yammark; sub stage)
+        "st02":      (0x02DD44A0, 27, 21),  # LAYOUT DONE, TILES DONE (Blizzard Wolfang; North Pole Area)
+        "st02x":     (0x02DD6CD8, 15, 45),  # LAYOUT DONE, TILES DONE sub stage
         "st03":      (0x02DD46D8, 18, 39),  # LAYOUT DONE, TILES DONE (Blaze Heatnix; Magma Area)
         "st03x":     (0x02DD6F80, 15, 21),  # LAYOUT DONE, TILES DONE sub stage
         "st04a":     (0x02DD4998, 22, 24),  # LAYOUT DONE, TILES DONE (Recycle Lab: Area 1)
         "st04b":     (0x02DD4BA8, 26, 15),  # LAYOUT DONE, TILES DONE (Recycle Lab: Area 2)
-        "st04x":     (0x02DD7118, 15, 15),  # LAYOUT DONE, TILES DONE sub-stage
-        "st05":      (0x02DD4D30, 16, 36),  # LAYOUT DONE, TILES DONE (Ground Scaravich; Central Museum)
+        "st04x":     (0x02DD7118, 15, 18),  # LAYOUT DONE, TILES DONE sub-stage
+        "st05":      (0x02DD4D30, 16, 48),  # LAYOUT DONE, TILES DONE (Ground Scaravich; Central Museum)
         "st05x":     (0x02DD7228,  6, 18),  # LAYOUT DONE, TILES DONE sub stage
         "st06a":     (0x02DD5030, 37, 18),  # LAYOUT DONE, TILES DONE (Rainy Turtloid; Inami Temple)
         "st06x":     (0x02DD7300,  8, 15),  # LAYOUT DONE, TILES DONE sub stage
         "st07":      (0x02DD52E7, 24, 21),  # LAYOUT DONE, TILES DONE (Shield Sheldon; Laser Institute)
         "st07x":     (0x02DD7378, 26,  9),  # LAYOUT DONE, TILES DONE sub stage
-        "st08":      (0x02DD5540, 24, 21),  # LAYOUT DONE, TILES DONE (Infinity Mijinion; Weapons Facility)
+        "st08":      (0x02DD5540, 24, 18),  # LAYOUT DONE, TILES DONE (Infinity Mijinion; Weapons Facility)
         "st08x":     (0x02DD7468, 10, 12),  # LAYOUT DONE, TILES DONE sub stage
-        "st0ca":     (0x02DD5750, 12, 36),  # LAYOUT DONE, TILES DONE (Secret Lab 3: Area 1)
+        "st0ca":     (0x02DD5750, 12, 42),  # LAYOUT DONE, TILES DONE (Secret Lab 3: Area 1)
         "st0cb":     (0x02DD5948, 16, 12),  # LAYOUT DONE, TILES DONE (Secret Lab 3: Area 2)
-        "st0g":      (0x02DD61D0, 40, 15),  # LAYOUT DONE, TILES DONE (Secret Lab 1)
-        "st0h":      (0x02DD64A0, 24, 21),  # LAYOUT DONE, TILES DONE (Secret Lab 2)
-        "st0i":      (0x02DD6728, 25, 24),  # LAYOUT DONE, TILES DONE sub-stage
+        "st0g":      (0x02DD61D0, 40, 18),  # LAYOUT DONE, TILES DONE (Secret Lab 1)
+        "st0h":      (0x02DD64A0, 24, 27),  # LAYOUT DONE, TILES DONE (Secret Lab 2)
+        "st0i":      (0x02DD6728, 25, 30),  # LAYOUT DONE, TILES DONE sub-stage
         "stsel_eng": (0x02DD6110,  7,  6),  # LAYOUT DONE, TILES DONE (Stage Select screen)
     }
 }
@@ -481,7 +481,13 @@ COMPOSED_ORDER_OVERRIDES: dict[GameVersion, dict[str, list[int] | None]] = {
         "st041": COMPOSED_ORDER_REVERSED,
         "st130": None,
         "staff_eng": None,
-    }
+    },
+    GameVersion.X6: {
+        "st04a": COMPOSED_ORDER_REVERSED,
+        "st04b": COMPOSED_ORDER_REVERSED,
+        "st04x": COMPOSED_ORDER_REVERSED,
+        "stsel_eng": None,
+    },
 }
 
 def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows: int, game_version: GameVersion, omp_stem: str) -> PILImage:
@@ -510,25 +516,6 @@ def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows:
     - st010 Crescent Grizzly (misaligned background)
     - st060 Glow Firefly (background)
     - st220 Training stage (needs a lot of manual work)
-
-    X6
-    - st0ca Final stage
-    - st0g Final stage
-    - st0h Final stage
-    - st01/x Yammark
-    - st02/x Blizzard Wolfgang
-    - st03/x Blaze Heatnix
-    - st04x Metal Shark
-    - st05 Ground Scaravich
-    - st08 Infinity Mijinion
-
-    Dont compose
-    X5
-    - st130 Stage select
-    - staff_eng Credits
-
-    X6
-    - stsel_eng Stage select
     """
 
     # Layer order, back-to-front by default.
@@ -538,6 +525,7 @@ def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows:
 
     if order is None:
         # No composition for this stage, return the full render as-is.
+        print(f"  Composition None override for {game_version} {omp_stem}, returning full render.")
         return full_render
 
     # Additive fold for stages whose STP tiles are additive light effects (see
