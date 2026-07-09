@@ -223,7 +223,7 @@ def main():
     ap.add_argument("--top", type=int, default=8)
     args = ap.parse_args()
 
-    omp, ocl, tex, tbg, fp, gv = preload_related_files(omp_path_for(args.game, args.stage))
+    omp, ocl, tex, tbg, fp, gv, _ = preload_related_files(omp_path_for(args.game, args.stage))
     chr256 = build_x6_chr256_override(ocl, tex, tbg) if args.game == "X6" else None
     N = omp.n_screens
     exe = EXE_PATH_LC2.read_bytes()
