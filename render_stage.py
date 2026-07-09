@@ -501,6 +501,10 @@ def main() -> None:
         help="Render composed stage or as seperate layers (layer 0=front, 1=middle, 2=background)",
     )
     parser.add_argument(
+        "--split-layers", action=argparse.BooleanOptionalAction, default=False,
+        help="Render each layer out to a different file",
+    )
+    parser.add_argument(
         "--skip-stage", action=argparse.BooleanOptionalAction,
         help="Only produce the catalog PNG, skip level render",
     )
@@ -655,10 +659,18 @@ def main() -> None:
         if args.debug:
             debug_overlay_level(level_img, layout, n_sx, n_sy)
 
+        level_out = output_dir / Path(f"{omp_stem}_level.png")
+
+        if args.split_layers:
+            for layer_index in range(3):
+                layer_img = level_img.crop((0, layer_index * (level_img.height // 3), level_img.width, (layer_index + 1) * (level_img.height // 3)))
+                layer_out = level_out.with_stem(f"{level_out.stem}_layer{layer_index}")
+                layer_img.save(layer_out)
+                print(f"  Saved {layer_out}")
+
         if args.composed:
             level_img = compose_stage_image(level_img, w, h, game_version, omp_stem)
 
-        level_out = output_dir / Path(f"{omp_stem}_level.png")
         level_img.save(level_out)
         print(f"  Saved {level_out}  ({level_img.width}×{level_img.height} px)")
     else:
