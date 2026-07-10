@@ -1,11 +1,17 @@
 # Mega Man X Legacy Collection (1 & 2) Sprite Extractor
 
-Trying to find ways to make it easier for sprite rippers to get accurate sprites straight from the source.
+Making it easier for sprite rippers to get accurate sprites straight from the source.
+
+The code for this project heavily referenced information from [TehemanX4 Editor](https://github.com/Kuumba123/TeheManX4_Editor) to get past the layouts/OMP/OCL blocker, then worked on reverse engineering the data to work with X5 and X6.
+
+Shoutout to acediez for [providing technical dumps](https://x.com/acediez/status/2061990111147937946) on Twitter which provided lots of guidance!
+
+And [X GOD's vgmaps.com PSX stage dumps](https://www.vgmaps.com/Atlas/PSX/index.htm#MegaManX5) which saved countless hours in having to play the games and aided in finding layout offsets.
 
 # Features
 
 - MegaMan X4: all stages render correctly
-- MegaMan X5: most stages render correctly
+- MegaMan X5: almost all stages render correctly
 - MegaMan X6: all stages render correctly
 
 # Requirements
@@ -13,6 +19,28 @@ Trying to find ways to make it easier for sprite rippers to get accurate sprites
 - Python 3.13+
 - Megaman X Legacy Collection [1](https://store.steampowered.com/app/743890/Mega_Man_X_Legacy_Collection/) and [2](https://store.steampowered.com/app/743900/Mega_Man_X_Legacy_Collection_2/) on PC/Steam (for ARC files)
 - [Watto Game Extractor](https://www.watto.org/game_extractor.html) (to extract ARC files)
+
+Tested on Windows 11, Python Python 3.13 and 3.14
+
+# Quick start
+
+```sh
+python -m venv .venv
+.venv\Scripts\activate.bat # Windows
+# source .venv/bin/activate # Linux
+
+# Install requirements
+pip install -r requirements.txt
+
+# Extract game assets
+python extract_from_game.py
+
+# Render a stage:
+python render_stage.py PC\X4\stage\map\SCR02_01.omp
+
+# Extract tiles
+python clut_finder.py SCR02_01.png
+```
 
 # Setup
 
@@ -30,30 +58,14 @@ pip install -r requirements.txt
 
 ### First time setup
 
-- Buy and download Megaman X Legacy Collection 1 and 2 from Steam
-- Find your game files from the MMXLC or MMXLC2 library
+- Buy and download Megaman X Legacy Collection 1 and/or 2 from Steam
+- Find your game files from the MMXLC 1/2 library
   - Go to Steam Library
-  - MMXLC or MMXLC2 game
+  - MMXLC 1/2 game
   - Cog > Manage > Browse local files
   - Copy Windows Explorer path
 - Use `python extract_from_game.py` to extract assets from the games
 - All the required files should now be in `.\PC` folder
-
-# Quick start
-
-```sh
-python -m venv .venv
-.venv\Scripts\activate.bat   # Windows
-# source .venv/bin/activate # Linux
-
-pip install -r requirements.txt
-
-# Render a stage:
-python render_stage.py PC\X4\stage\map\SCR02_01.omp
-
-# Extract tiles
-python clut_finder.py st00_level.png
-```
 
 # High level workflow
 
@@ -67,16 +79,16 @@ Always remember to get into Python virtualenv with `.venv\Scripts\activate.bat`
 
 Use `python render_stage.py PC\X4\stage\map\SCR02_01.omp` to export a whole stage as PNG.
 
-The output file will be `SCR02_01.png`.
+The output file will be `SCR02_01.png` with layer transparency preserved.
 
-- Layers 0, 1 and 2 are separated by default.
-- Some sprites are split across multiple layers, making it difficult to export. Use `--composed` flag which flattens the 3 layers.
-- `--split-layers` flag to export each layer separately.
+- Layers 0, 1 and 2 are rendered as-is based on layout data as separate sections in the same output PNG.
+- Use `--composed` flag to flatten the 3 layers. Useful for extracting sprites which are split across multiple layers.
+- The `--split-layers` flag will export each layer into separate files.
 - `--debug` flag draws overlay to help visualise layout.
 
 ## Extracting palette information and tiles
 
-`clut_finder.py` can be used for finding palette indexes from in-game screenshots.
+`clut_finder.py` can be used for finding palette indexes from in-game screenshots or extracting rendered tiles.
 
 Can also be used to dig a bit deeper to rendered sprite assets with different palettes or extract portions of the stage as tiles, use `python clut_finder.py st00_level.png`
 
@@ -97,25 +109,35 @@ After making changes to the render code, it's a good idea to test rendering of a
 
 # Low level workflow
 
-These are tools more designed for debugging game assets when rendering is not working as expected.
+These tools are more geared towards debugging specific game assets when rendering is not working as expected.
 
-Description of file types
+Some common file types used
 
-| Extension | Description                                                             |
-| --------- | ----------------------------------------------------------------------- |
-| ARC       | Capcom MT Framework archives files containing other files               |
-| EXE       | Megaman Legacy Collection executable binary file                        |
-| COL       | Palette files.                                                          |
-| TEX       | Image files. Capcom MT Framework formats <br>0x07: 32bpp <br>0x12: 8bpp |
-| OCL       | Object Colour Lookup table, links tile to correct palette.              |
-| OMP       | Stage tile catalogs.                                                    |
-| CSV       | Spreadsheet files.                                                      |
+| Extension | Description                                                                                   |
+| --------- | --------------------------------------------------------------------------------------------- |
+| ARC       | Capcom MT Framework archives files containing other files.                                    |
+| EXE       | Megaman Legacy Collection executable binary file.                                             |
+| COL       | Palette files.                                                                                |
+| TEX       | Capcom MT Framework image/texture files.<br>Format 7 (0x07): 32bpp <br>Format 18 (0x12): 8bpp |
+| OCL       | Object Colour Lookup table, links tile to correct palette.                                    |
+| OMP       | Stage tile catalogs.                                                                          |
+| CSV       | Spreadsheet files.                                                                            |
+
+## Listing and extracting from ARC archives
+
+Use `utils/arc.py` to extract from ARC files. The `--list` option will simply list all files instead of extracting.
+
+**Extracting from PSX X5/X6 DAT archive**
+
+The PSX version X5 and X6 has an extra layer of compression where all the ARC files have been lumped into a giant `ROCK_X5.dat` or `ROCK_X6.dat`. You'll need to use `psx_dat_extract.py` to pull the ARC files out from there.
+
+The script created by [@Kuumba123](https://github.com/Kuumba123/MMX5---X6-DAT-Extract) was provided out of convenience as a way to help extract PSX assets for comparison against PC assets. No further effort around PSX will be provided as this project is focused on the PC Legacy Collection version.
 
 ## Rendering palette files (COL) to PNG
 
-Use `render_palette.py` to generate a PNG of the COL file, letting you preview the contents.
+Use `render_palette.py file.col` to generate a PNG of the COL file to preview the contents.
 
-There are labels to indicate what the palette/CLUT index is.
+Labels are provided to indicate which CLUT/palette index is shown.
 
 ## Extract tiles (TEX) images
 
@@ -130,13 +152,17 @@ python debug_scripts/extract_tex_to_png.py PC\X5\chr\stage\obj00_0a_000.tex PC\X
 - By default, the script will export a different PNG for each colour in the palette COL file for the given TEX file.
 - Use `--clut #` to generate PNG for a specific palette (CLUT index)
 
-`python debug_scripts/extract_tex_to_png.py PC\X5\chr\stage\obj00_0a_000.tex PC\X5\col\stage\col00_0x_eng.col --clut 67`
+```sh
+python debug_scripts/extract_tex_to_png.py PC\X5\chr\stage\obj00_0a_000.tex PC\X5\col\stage\col00_0x_eng.col --clut 67
+```
 
 ## Finding stage layout offsets
 
 ### What is a layout, screen, offset?
 
 TEX and COL files are considered low level data. Going one level higher, the games use a combination of OMP and OCL (Object Colour Lookup) data to determine what palette is used to render a tile on the stage.
+
+> Note: be aware that most X5/X6 stages use 2 tilesets (TEX files), the main TEX and the chr256 TEX. This explains why acediez's stage dumps are half garbled for each tileset. `build_chr256_ocl_indices()` contains a bunch of heuristics to determine which OCL indexes should be rendered using tex_bg/chr256.
 
 What we consider the "stage map" is called a "layout", and is broken down into 16x16 tile grids called "screens" (each one being 256x256px since each tile is 16x16px). As the player moves around the level, different screens are loaded into memory. Assuming this was done to minimise memory usage on PSX.
 
@@ -216,6 +242,7 @@ X5
 - [mmx5 improvement project addendum Workbook_2022.07.19.xlsx](https://archive.org/download/mmx5_improvement_project_addendum)
 - [Mega Man X6 Tweaks Workbook](https://www.romhacking.net/documents/780/)
 - [MT Framework .Tex files?](https://gbatemp.net/threads/mt-framework-tex-files.456868/)
+- [Kuumba123's MMX5---X6-DAT-Extract](https://github.com/Kuumba123/MMX5---X6-DAT-Extract) to compare PSX files
 - [r/mahvelmods Texture Tutorial](https://www.reddit.com/r/mahvelmods/wiki/textures/)
 - [xdanieldzd's Scarlet.IO.ImageFormats/CapcomTEX.cs](https://github.com/xdanieldzd/Scarlet/blob/master/Scarlet.IO.ImageFormats/CapcomTEX.cs)
 - [FrozenFish24's TurnaboutTools TEXporter](https://github.com/FrozenFish24/TurnaboutTools/blob/master/TEXporter/TEXporter/Program.cs)
@@ -224,8 +251,7 @@ X5
 - [AsteriskAmpersand's MHR_Tex_Chopper](https://github.com/AsteriskAmpersand/MHR_Tex_Chopper)
 - [RandomTBush's RTB-QuickBMS-Scripts CapcomMTFrameworkPC_TEX.bms](https://github.com/RandomTBush/RTB-QuickBMS-Scripts/blob/master/Textures%2FCapcomMTFrameworkPC_TEX.bms)
 - [Silvris's MH-Tools-and-Scripts Noesis plugin tex_mtFramework_tex.py](https://github.com/Silvris/MH-Tools-and-Scripts/blob/master/Noesis%2Fplugins%2Fpython%2Ftex_mtFramework_tex.py)
-- [Kuumba123's MMX5---X6-DAT-Extract](https://github.com/Kuumba123/MMX5---X6-DAT-Extract) to compare PSX files
 
 # Licensing
 
-See `LICENSE`
+Released under MIT License. For more details, see `LICENSE`

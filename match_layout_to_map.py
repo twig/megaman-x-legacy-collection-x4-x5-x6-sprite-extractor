@@ -1,6 +1,6 @@
 """
 Find a stage's LAYOUT OFFSET (+ row-width W) in the game EXE by matching an
-acediez-style stage-layout map.  Validated on X5 st000/st030/st070 and X6 st00.
+acediez-style stage-layout map.  Validated on X5 and X6.
 
 Two complementary methods run by default:
 
