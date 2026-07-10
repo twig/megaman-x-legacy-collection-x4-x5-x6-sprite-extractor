@@ -112,6 +112,34 @@ class CLUTFinderApp:
         self.side_panel.grid(row=0, column=2, sticky="ns")
         self.side_panel.pack_propagate(False)
 
+        # save as PNG buttons
+        self.export_png_label = tk.Label(
+            self.side_panel, text="Export to PNG", anchor="w"
+        )
+        self.export_png_label.pack(fill="x", padx=10, pady=(0, 2))
+
+        self.save_ss_selection_button = tk.Button(
+            self.side_panel,
+            text="Screenshot selection",
+            command=self.save_screenshot_selection,
+        )
+        self.save_ss_selection_button.pack(fill="x", pady=(0, 2), padx=10)
+
+        self.save_tex_selection_button = tk.Button(
+            self.side_panel,
+            text="TEX selection",
+            command=self.save_tex_selection,
+        )
+        self.save_tex_selection_button.pack(fill="x", pady=(0, 2), padx=10)
+
+        self.save_tex_button = tk.Button(
+            self.side_panel,
+            text="Full TEX preview",
+            command=self.save_tex_preview,
+        )
+        self.save_tex_button.pack(fill="x", pady=(0, 2), padx=10)
+
+        # colours
         self.is_clut_locked = tk.BooleanVar(value=False)
         self.lock_clut_check = tk.Checkbutton(
             self.side_panel,
@@ -120,27 +148,6 @@ class CLUTFinderApp:
             command=self.on_lock_clut_toggled,
         )
         self.lock_clut_check.pack(fill="x", padx=10, pady=(10, 2))
-
-        self.save_tex_button = tk.Button(
-            self.side_panel,
-            text="Save TEX as PNG",
-            command=self.save_tex_preview,
-        )
-        self.save_tex_button.pack(fill="x", pady=(0, 2), padx=10)
-
-        self.save_ss_selection_button = tk.Button(
-            self.side_panel,
-            text="Save screenshot selection",
-            command=self.save_screenshot_selection,
-        )
-        self.save_ss_selection_button.pack(fill="x", pady=(0, 2), padx=10)
-
-        self.save_tex_selection_button = tk.Button(
-            self.side_panel,
-            text="Save TEX selection",
-            command=self.save_tex_selection,
-        )
-        self.save_tex_selection_button.pack(fill="x", pady=(0, 2), padx=10)
 
         self.unique_colours_label = tk.Label(self.side_panel, text="", anchor="w")
         self.unique_colours_label.pack(fill="x", padx=10, pady=(4, 2))
@@ -438,6 +445,9 @@ class CLUTFinderApp:
 
     def save_tex_preview(self):
         if not self.tex_file or not hasattr(self, "preview_tex_image"):
+            messagebox.showinfo(
+                "Save TEX selection", "Open a TEX file first."
+            )
             return
 
         default_name = f"tex-{self.tex_file.stem}-col-{self.palette_file.stem}-clut-{self.clut_index}.png"
@@ -488,6 +498,12 @@ class CLUTFinderApp:
         self._save_crop(self.screenshot_image, self.ss_rect_coords)
 
     def save_tex_selection(self):
+        if self.tex_file is None:
+            messagebox.showinfo(
+                "Save TEX selection", "Open a TEX file first."
+            )
+            return
+
         if self.tex_rect_coords is None or self.preview_tex_pil is None:
             messagebox.showinfo(
                 "Save TEX selection", "Select an area on the TEX preview first."
