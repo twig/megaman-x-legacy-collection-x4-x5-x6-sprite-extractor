@@ -508,7 +508,7 @@ def main() -> None:
         help="Game EXE path (default: RXC1.exe for X4, RXC2.exe for X5/X6)",
     )
     parser.add_argument(
-        "--layouts", type=Path, default=None,
+        "--layout", type=Path, default=None,
         help="Override: use a binary layout file instead of the EXE (starts at offset 0)",
     )
     args = parser.parse_args()
@@ -517,8 +517,8 @@ def main() -> None:
     layout_w = 25
     layout_h = 25
 
-    if args.layouts is not None:
-        bin_path = args.layouts
+    if args.layout is not None:
+        bin_path = args.layout
         base_offset = 0
     else:
         if args.game is not None:
