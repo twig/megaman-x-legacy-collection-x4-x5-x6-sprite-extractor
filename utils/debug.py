@@ -7,8 +7,9 @@ from utils.palette import convert_palette_to_clut
 from utils.omp import LayoutTable, OmpLayer
 from utils.consts import TILE_SIZE
 
-_DEBUG_LINE  = (255, 220, 0, 210)   # yellow-ish grid lines
-_DEBUG_TEXT  = (255, 220, 0, 255)   # yellow text
+_DEBUG_SCREEN_LINE  = (255, 220, 0, 210)   # yellow-ish grid lines
+_DEBUG_SCREEN_TEXT  = (255, 220, 0, 255)   # yellow text
+_DEBUG_LAYER_LINE  = (255, 0, 255, 255)   # layer lines
 _DEBUG_TEXTBG = (0, 0, 0, 170)      # semi-transparent black text background
 
 
@@ -149,11 +150,11 @@ def debug_overlay_catalog(img, n_screens: int, tile_size: int = TILE_SIZE) -> No
     font = ImageFont.load_default()
     for sid in range(n_screens):
         y = sid * tile_size
-        draw.line([(0, y), (img.width - 1, y)], fill=_DEBUG_LINE, width=1)
+        draw.line([(0, y), (img.width - 1, y)], fill=_DEBUG_SCREEN_LINE, width=1)
         label = f"scr {sid}"
         tw = len(label) * 6 + 2
         draw.rectangle([0, y, tw, y + 9], fill=_DEBUG_TEXTBG)
-        draw.text((1, y), label, fill=_DEBUG_TEXT, font=font)
+        draw.text((1, y), label, fill=_DEBUG_SCREEN_TEXT, font=font)
 
 
 def debug_overlay_level(
@@ -171,10 +172,10 @@ def debug_overlay_level(
     # Grid lines
     for sx in range(level_width_screens + 1):
         x = sx * screen_px
-        draw.line([(x, 0), (x, img.height - 1)], fill=_DEBUG_LINE, width=1)
+        draw.line([(x, 0), (x, img.height - 1)], fill=_DEBUG_SCREEN_LINE, width=1)
     for sy in range(level_height_screens + 1):
         y = sy * screen_px
-        draw.line([(0, y), (img.width - 1, y)], fill=_DEBUG_LINE, width=1)
+        draw.line([(0, y), (img.width - 1, y)], fill=_DEBUG_SCREEN_LINE, width=1)
 
     # Per-screen labels
     for sy in range(level_height_screens):
@@ -187,4 +188,11 @@ def debug_overlay_level(
             tw = max(len(l) for l in lines) * 6 + 2
             draw.rectangle([px - 1, py - 1, px + tw, py + 19], fill=_DEBUG_TEXTBG)
             for i, line in enumerate(lines):
-                draw.text((px, py + i * 10), line, fill=_DEBUG_TEXT, font=font)
+                draw.text((px, py + i * 10), line, fill=_DEBUG_SCREEN_TEXT, font=font)
+
+    # Add in lines for layers 0, 1 and 2 for every ⅓ level_height_screens
+    # only when height is clealy divisible by 3
+    if level_height_screens % 3 == 0:
+        for layer in range(3):
+            y = (layer * level_height_screens // 3) * screen_px
+            draw.line([(0, y), (img.width - 1, y)], fill=_DEBUG_LAYER_LINE, width=1)
