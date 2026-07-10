@@ -60,14 +60,14 @@ class CLUTFinderApp:
         menubar.add_cascade(label="File", menu=file_menu)
         root.config(menu=menubar)
 
-        content_frame = tk.Frame(root)
-        content_frame.pack(fill="both", expand=True)
-        content_frame.columnconfigure(0, weight=1)
-        content_frame.columnconfigure(1, weight=1)
-        content_frame.columnconfigure(2, weight=0)
-        content_frame.rowconfigure(0, weight=1)
+        self.content_frame = tk.Frame(root)
+        self.content_frame.pack(fill="both", expand=True)
+        self.content_frame.columnconfigure(0, weight=1)
+        self.content_frame.columnconfigure(1, weight=0)
+        self.content_frame.columnconfigure(2, weight=0)
+        self.content_frame.rowconfigure(0, weight=1)
 
-        screenshot_outer = tk.Frame(content_frame)
+        screenshot_outer = tk.Frame(self.content_frame)
         screenshot_outer.grid(row=0, column=0, sticky="nsew")
         screenshot_outer.rowconfigure(0, weight=1)
         screenshot_outer.columnconfigure(0, weight=1)
@@ -88,26 +88,27 @@ class CLUTFinderApp:
         ss_hscroll.grid(row=1, column=0, sticky="ew")
         self.screenshot_canvas.config(yscrollcommand=ss_vscroll.set, xscrollcommand=ss_hscroll.set)
 
-        tex_outer = tk.Frame(content_frame)
-        tex_outer.grid(row=0, column=1, sticky="nsew")
-        tex_outer.rowconfigure(0, weight=1)
-        tex_outer.columnconfigure(0, weight=1)
+        self.tex_outer = tk.Frame(self.content_frame)
+        self.tex_outer.grid(row=0, column=1, sticky="nsew")
+        self._set_tex_preview_visible(False)
+        self.tex_outer.rowconfigure(0, weight=1)
+        self.tex_outer.columnconfigure(0, weight=1)
 
-        self.tex_canvas = tk.Canvas(tex_outer, width=1, height=1, bg="#1a1a1a")
+        self.tex_canvas = tk.Canvas(self.tex_outer, width=1, height=1, bg="#1a1a1a")
         self.tex_canvas.grid(row=0, column=0, sticky="nsew")
         tex_vscroll = tk.Scrollbar(
-            tex_outer, orient="vertical", command=self.tex_canvas.yview
+            self.tex_outer, orient="vertical", command=self.tex_canvas.yview
         )
         tex_vscroll.grid(row=0, column=1, sticky="ns")
         tex_hscroll = tk.Scrollbar(
-            tex_outer, orient="horizontal", command=self.tex_canvas.xview
+            self.tex_outer, orient="horizontal", command=self.tex_canvas.xview
         )
         tex_hscroll.grid(row=1, column=0, sticky="ew")
         self.tex_canvas.config(
             yscrollcommand=tex_vscroll.set, xscrollcommand=tex_hscroll.set
         )
 
-        self.side_panel = tk.Frame(content_frame, width=200)
+        self.side_panel = tk.Frame(self.content_frame, width=200)
         self.side_panel.grid(row=0, column=2, sticky="ns")
         self.side_panel.pack_propagate(False)
 
@@ -183,8 +184,13 @@ class CLUTFinderApp:
         self.tex_canvas.bind("<B1-Motion>", self.on_tex_mouse_drag)
         self.tex_canvas.bind("<ButtonRelease-1>", self.on_tex_button_release)
 
-        if self.tex_file:
-            self.preview_tex()
+    def _set_tex_preview_visible(self, visible: bool) -> None:
+        if visible:
+            self.tex_outer.grid()
+            self.content_frame.columnconfigure(1, weight=1)
+        else:
+            self.tex_outer.grid_remove()
+            self.content_frame.columnconfigure(1, weight=0)
 
     def snap_to_grid(self, value: int) -> int:
         return (value // self.GRID_SIZE) * self.GRID_SIZE
@@ -427,6 +433,7 @@ class CLUTFinderApp:
 
         self.clear_selection()
         self.tex_file = Path(path)
+        self._set_tex_preview_visible(True)
         self.preview_tex()
 
     def save_tex_preview(self):
