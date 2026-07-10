@@ -34,9 +34,9 @@ class CLUTFinderApp:
         self.palette_file = palette_file
         self.clut = convert_palette_to_clut(palette)
         self.clut_index = -1
-        self.image = screenshot.convert("RGB")
-        self.photo = ImageTk.PhotoImage(self.image)
-        self.w, self.h = self.image.size
+        self.screenshot_image = screenshot.convert("RGB")
+        self.screenshot_tkimage = ImageTk.PhotoImage(self.screenshot_image)
+        self.w, self.h = self.screenshot_image.size
         self.tex_file: Path | None = tex_file
         self.tex_w = 0
         self.tex_h = 0
@@ -72,21 +72,21 @@ class CLUTFinderApp:
         screenshot_outer.rowconfigure(0, weight=1)
         screenshot_outer.columnconfigure(0, weight=1)
 
-        self.canvas = tk.Canvas(screenshot_outer, width=1, height=1)
-        self.canvas.grid(row=0, column=0, sticky="nsew")
-        self.canvas_image = self.canvas.create_image(
-            0, 0, anchor="nw", image=self.photo
+        self.screenshot_canvas = tk.Canvas(screenshot_outer, width=1, height=1)
+        self.screenshot_canvas.grid(row=0, column=0, sticky="nsew")
+        self.canvas_image = self.screenshot_canvas.create_image(
+            0, 0, anchor="nw", image=self.screenshot_tkimage
         )
-        self.canvas.config(scrollregion=(0, 0, self.w, self.h))
+        self.screenshot_canvas.config(scrollregion=(0, 0, self.w, self.h))
         ss_vscroll = tk.Scrollbar(
-            screenshot_outer, orient="vertical", command=self.canvas.yview
+            screenshot_outer, orient="vertical", command=self.screenshot_canvas.yview
         )
         ss_vscroll.grid(row=0, column=1, sticky="ns")
         ss_hscroll = tk.Scrollbar(
-            screenshot_outer, orient="horizontal", command=self.canvas.xview
+            screenshot_outer, orient="horizontal", command=self.screenshot_canvas.xview
         )
         ss_hscroll.grid(row=1, column=0, sticky="ew")
-        self.canvas.config(yscrollcommand=ss_vscroll.set, xscrollcommand=ss_hscroll.set)
+        self.screenshot_canvas.config(yscrollcommand=ss_vscroll.set, xscrollcommand=ss_hscroll.set)
 
         tex_outer = tk.Frame(content_frame)
         tex_outer.grid(row=0, column=1, sticky="nsew")
@@ -176,9 +176,9 @@ class CLUTFinderApp:
         self.colour_set = set()
 
         # bind events
-        self.canvas.bind("<ButtonPress-1>", self.on_button_press)
-        self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
-        self.canvas.bind("<ButtonRelease-1>", self.on_button_release)
+        self.screenshot_canvas.bind("<ButtonPress-1>", self.on_button_press)
+        self.screenshot_canvas.bind("<B1-Motion>", self.on_mouse_drag)
+        self.screenshot_canvas.bind("<ButtonRelease-1>", self.on_button_release)
         self.tex_canvas.bind("<ButtonPress-1>", self.on_tex_button_press)
         self.tex_canvas.bind("<B1-Motion>", self.on_tex_mouse_drag)
         self.tex_canvas.bind("<ButtonRelease-1>", self.on_tex_button_release)
@@ -230,8 +230,8 @@ class CLUTFinderApp:
         )
 
     def on_button_press(self, event):
-        raw_x = int(self.canvas.canvasx(event.x))
-        raw_y = int(self.canvas.canvasy(event.y))
+        raw_x = int(self.screenshot_canvas.canvasx(event.x))
+        raw_y = int(self.screenshot_canvas.canvasy(event.y))
         self.start_x = self.snap_to_grid(raw_x)
         self.start_y = self.snap_to_grid(raw_y)
         self.start_x = max(0, min(self.w - 1, self.start_x))
@@ -242,8 +242,8 @@ class CLUTFinderApp:
         if self.start_x is None or self.start_y is None:
             return
 
-        x = self.snap_to_grid(int(self.canvas.canvasx(event.x)))
-        y = self.snap_to_grid(int(self.canvas.canvasy(event.y)))
+        x = self.snap_to_grid(int(self.screenshot_canvas.canvasx(event.x)))
+        y = self.snap_to_grid(int(self.screenshot_canvas.canvasy(event.y)))
         x = max(0, min(self.w - 1, x))
         y = max(0, min(self.h - 1, y))
         self.moved = True
@@ -253,7 +253,7 @@ class CLUTFinderApp:
         )
 
         if self.rect_id is None:
-            self.rect_id = self.canvas.create_rectangle(
+            self.rect_id = self.screenshot_canvas.create_rectangle(
                 px0,
                 py0,
                 px1,
@@ -263,14 +263,14 @@ class CLUTFinderApp:
                 tags=("selrect",),
             )
         else:
-            self.canvas.coords(self.rect_id, px0, py0, px1, py1)
+            self.screenshot_canvas.coords(self.rect_id, px0, py0, px1, py1)
 
     def on_button_release(self, event):
         if self.start_x is None or self.start_y is None:
             return
 
-        end_x = self.snap_to_grid(int(self.canvas.canvasx(event.x)))
-        end_y = self.snap_to_grid(int(self.canvas.canvasy(event.y)))
+        end_x = self.snap_to_grid(int(self.screenshot_canvas.canvasx(event.x)))
+        end_y = self.snap_to_grid(int(self.screenshot_canvas.canvasy(event.y)))
         end_x = max(0, min(self.w - 1, end_x))
         end_y = max(0, min(self.h - 1, end_y))
 
@@ -285,7 +285,7 @@ class CLUTFinderApp:
         )
 
         if self.rect_id is not None:
-            self.canvas.coords(self.rect_id, px0, py0, px1, py1)
+            self.screenshot_canvas.coords(self.rect_id, px0, py0, px1, py1)
 
         self.ss_rect_coords = (px0, py0, px1, py1)
 
@@ -296,7 +296,7 @@ class CLUTFinderApp:
         )
 
         self.colour_set = set()
-        pixels = self.image.load()
+        pixels = self.screenshot_image.load()
 
         for yy in range(py0, py1 + 1):
             for xx in range(px0, px1 + 1):
@@ -390,11 +390,11 @@ class CLUTFinderApp:
         self.load_screenshot(image)
 
     def load_screenshot(self, image: PILImage):
-        self.image = image.convert("RGB")
-        self.photo = ImageTk.PhotoImage(self.image)
-        self.w, self.h = self.image.size
-        self.canvas.itemconfig(self.canvas_image, image=self.photo)
-        self.canvas.config(scrollregion=(0, 0, self.w, self.h))
+        self.screenshot_image = image.convert("RGB")
+        self.screenshot_tkimage = ImageTk.PhotoImage(self.screenshot_image)
+        self.w, self.h = self.screenshot_image.size
+        self.screenshot_canvas.itemconfig(self.canvas_image, image=self.screenshot_tkimage)
+        self.screenshot_canvas.config(scrollregion=(0, 0, self.w, self.h))
         self.clear_selection()
 
     def open_palette(self):
@@ -478,7 +478,7 @@ class CLUTFinderApp:
                 "Save screenshot selection", "Select an area on the screenshot first."
             )
             return
-        self._save_crop(self.image, self.ss_rect_coords)
+        self._save_crop(self.screenshot_image, self.ss_rect_coords)
 
     def save_tex_selection(self):
         if self.tex_rect_coords is None or self.preview_tex_pil is None:
@@ -595,7 +595,7 @@ class CLUTFinderApp:
 
     def clear_screenshot_selection(self):
         if self.rect_id is not None:
-            self.canvas.delete(self.rect_id)
+            self.screenshot_canvas.delete(self.rect_id)
             self.rect_id = None
         self.ss_rect_coords = None
         self.start_x = None
