@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from tkinter import filedialog
 
-from extract_arc import extract_all_from_arc
+from utils.arc import extract_all_from_arc
 
 # Need
 # - project path
@@ -150,3 +150,5 @@ if LC2_EXE:
 
     print(f"Copying RXC2.exe")
     shutil.copy(LC2_EXE, EXTRACT_DIR)
+
+print("Done.")
