@@ -50,7 +50,7 @@ from pathlib import Path
 from PIL import ImageChops, Image
 from PIL.Image import Image as PILImage
 
-from utils.consts import COMPOSED_ORDER_BASIC, COMPOSED_ORDER_REVERSED, EXE_PATH_LC1, EXE_PATH_LC2
+from utils.consts import COMPOSED_ORDER_BASIC, COMPOSED_ORDER_REVERSED, EXE_PATH_LC1, EXE_PATH_LC2, CLUT_COLORS_PER_ROW
 from utils.omp import load_omp, render_level, render_omp, load_layout_from_exe
 from utils.ocl import load_ocl, OclPaletteGroup
 from utils.tex import load_tex
@@ -318,18 +318,18 @@ def preload_related_files(omp_path: Path):
             src_col = load_col_palettes(src_path, stp_as_alpha=True) if src_path.exists() else None
         if src_col is not None:
             stage_palette = list(stage_palette)
-            n_anim = len(src_col) // 16
+            n_anim = len(src_col) // CLUT_COLORS_PER_ROW
             applied = 0
             for dest, src, length in frames:
                 for k in range(length):
                     if src + k >= n_anim or dest + k < 0:
                         continue
-                    row = src_col[(src + k) * 16:(src + k + 1) * 16]
+                    row = src_col[(src + k) * CLUT_COLORS_PER_ROW:(src + k + 1) * CLUT_COLORS_PER_ROW]
                     if opaque:
                         # this slot is opaque in-game (unlike the translucent X4 waterfalls);
                         # drop the STP-derived alpha so the fill matches the static baseline.
                         row = [(r, g, b, 255) for (r, g, b, _a) in row]
-                    stage_palette[(dest + k) * 16:(dest + k + 1) * 16] = row
+                    stage_palette[(dest + k) * CLUT_COLORS_PER_ROW:(dest + k + 1) * CLUT_COLORS_PER_ROW] = row
                     applied += 1
             print(f"  CLUT-anime still-frame: {applied} row(s) from {src_name or col_path_animated.name}")
 

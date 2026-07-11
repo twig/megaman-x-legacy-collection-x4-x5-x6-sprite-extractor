@@ -1,4 +1,4 @@
-from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START, PAGE_SIZE_PX
+from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START, PAGE_SIZE_PX, TILES_PER_SCREEN
 from utils.ocl import OclEntry
 from utils.types import TexData
 from utils.omp import LayoutTable, build_chr256_ocl_indices
@@ -75,7 +75,7 @@ def build_x5_chr256_bg_override(
 
     # Placement: which OCL indices appear in the foreground layer (top third of the
     # vertical-stacked 3-layer layout) and which appear anywhere.
-    fg_rows = (level_height_screens // 3) * 16  # tile rows belonging to layer 0
+    fg_rows = (level_height_screens // 3) * TILES_PER_SCREEN  # tile rows belonging to layer 0
     placed_fg: set[int] = set()
     placed_all: set[int] = set()
     for sy in range(level_height_screens):
@@ -84,10 +84,10 @@ def build_x5_chr256_bg_override(
             if sid is None or sid >= n_screens:
                 continue
             screen = omp_tiles[sid]
-            for wy in range(16):
-                ly = sy * 16 + wy
-                for wx in range(16):
-                    raw = screen[wy * 16 + wx]
+            for wy in range(TILES_PER_SCREEN):
+                ly = sy * TILES_PER_SCREEN + wy
+                for wx in range(TILES_PER_SCREEN):
+                    raw = screen[wy * TILES_PER_SCREEN + wx]
                     if not raw:
                         continue
                     idx = raw & 0x3FFF
@@ -469,7 +469,7 @@ def x5_additive_water(
     if water_col is None or n_sy % 3 != 0:
         return 0
 
-    tiles_per_layer = (n_sy // 3) * 16
+    tiles_per_layer = (n_sy // 3) * TILES_PER_SCREEN
     th = tiles_per_layer * 16  # third height in px
 
     work = level_img.convert("RGBA")
@@ -482,9 +482,9 @@ def x5_additive_water(
             sc = layout.get(sx, sy)
             if sc is None or sc >= omp.n_screens:
                 continue
-            for wy in range(16):
-                for wx in range(16):
-                    t = omp.tiles[sc][wy * 16 + wx]
+            for wy in range(TILES_PER_SCREEN):
+                for wx in range(TILES_PER_SCREEN):
+                    t = omp.tiles[sc][wy * TILES_PER_SCREEN + wx]
                     if t == 0 or not (t & 0x4000):
                         continue
                     idx = t & 0x3FFF
@@ -493,7 +493,7 @@ def x5_additive_water(
                     e = ocl[idx]
                     if e.col != water_col or e.pad == 0xFF:
                         continue
-                    lx, ly = sx * 16 + wx, sy * 16 + wy
+                    lx, ly = sx * TILES_PER_SCREEN + wx, sy * TILES_PER_SCREEN + wy
                     layer = ly // tiles_per_layer
                     py_local = (ly % tiles_per_layer) * 16
                     px = lx * 16

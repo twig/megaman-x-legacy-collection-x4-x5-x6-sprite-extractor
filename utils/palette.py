@@ -4,8 +4,8 @@ COL palette file loader for Mega Man X4/X5/X6 (PC, MMLC).
 == VRAM CLUT layout ==
 
 At runtime the game writes palette data into a flat CLUT table in VRAM.
-Each CLUT row is 16 entries wide (16 × 2 bytes = 32 bytes in PSX VRAM, or
-16 × 4 bytes as RGBA8 after decoding).  Rows are grouped by function:
+Each CLUT row is CLUT_COLORS_PER_ROW (16) entries wide (16 × 2 bytes = 32 bytes
+in PSX VRAM, or 16 × 4 bytes as RGBA8 after decoding).  Rows are grouped by function:
 
     Rows   0–63  : player / sprite / object palettes
     Rows  64–82  : stage animation tile palette   (col 0–18 → col+64 = 64–82)
@@ -57,6 +57,7 @@ from pathlib import Path
 
 from utils.types import Palette, CLUT
 from utils.ocl import STAGE_CLUT_BASE_ROW
+from utils.consts import CLUT_COLORS_PER_ROW
 
 COL_HEADER_SIZE = 12  # COL file: 4-byte magic + 4-byte unknown + 4-byte entry count
 COL_BLOCK_SIZE = 2
@@ -73,9 +74,9 @@ NULL_CLUT_MAX_BRIGHTNESS = 30  # a CLUT whose max channel < this is treated as n
 
 def convert_palette_to_clut(palette: Palette) -> CLUT:
     """
-    Converts a flat palette to a 2D 16-column table/CLUT (colour lookup table)
+    Converts a flat palette to a 2D CLUT_COLORS_PER_ROW-column table/CLUT (colour lookup table)
     """
-    return [palette[i : i + 16] for i in range(0, len(palette), 16)]
+    return [palette[i : i + CLUT_COLORS_PER_ROW] for i in range(0, len(palette), CLUT_COLORS_PER_ROW)]
 
 
 def load_col_palettes(palette_path: Path, stp_as_alpha: bool = False) -> Palette:
@@ -165,8 +166,8 @@ def is_palette_all_black(palette: Palette) -> bool:
 
 def _clut_max_brightness(palette: Palette, clut_row: int) -> int:
     """Return the maximum RGB channel value across one 16-entry CLUT row."""
-    base = clut_row * 16
-    return max(max(palette[base + j][:3]) for j in range(16))
+    base = clut_row * CLUT_COLORS_PER_ROW
+    return max(max(palette[base + j][:3]) for j in range(CLUT_COLORS_PER_ROW))
 
 
 def x6_palette_is_vram_snapshot(col: Palette) -> bool:
@@ -187,10 +188,10 @@ def x6_palette_is_vram_snapshot(col: Palette) -> bool:
     GREEN_SENTINELS_MIN = 4
     n = 0
     for row in range(STAGE_CLUT_BASE_ROW, STAGE_CLUT_BASE_ROW + 19):  # rows 64-82
-        base = row * 16
-        if base + 16 > len(col):
+        base = row * CLUT_COLORS_PER_ROW
+        if base + CLUT_COLORS_PER_ROW > len(col):
             break
-        for r, g, b, _a in col[base:base + 16]:
+        for r, g, b, _a in col[base:base + CLUT_COLORS_PER_ROW]:
             if r < 40 and g > 180 and b < 90:   # bright-green sentinel ~(0,231,33)
                 n += 1
                 if n >= GREEN_SENTINELS_MIN:
@@ -226,12 +227,12 @@ def normalize_x6_stage_palette(col: Palette) -> Palette:
     The input is not mutated; a new list is returned.
     """
     out: Palette = list(col)
-    n_cluts = len(col) // 16
+    n_cluts = len(col) // CLUT_COLORS_PER_ROW
     for c in range(n_cluts - X6_STAGE_CLUT_OFFSET):
         dst = c + STAGE_CLUT_BASE_ROW
         src = c + X6_STAGE_CLUT_OFFSET
         if _clut_max_brightness(col, src) < NULL_CLUT_MAX_BRIGHTNESS:
             continue  # null col+96 row — keep col+64
-        for j in range(16):
-            out[dst * 16 + j] = col[src * 16 + j]
+        for j in range(CLUT_COLORS_PER_ROW):
+            out[dst * CLUT_COLORS_PER_ROW + j] = col[src * CLUT_COLORS_PER_ROW + j]
     return out

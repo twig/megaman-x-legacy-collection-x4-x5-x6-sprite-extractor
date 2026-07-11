@@ -4,6 +4,12 @@ from pathlib import Path
 
 TILE_SIZE = 16
 
+# A screen is 16x16 tiles (so TILES_PER_SCREEN x TILE_SIZE pixels square).
+TILES_PER_SCREEN = 16
+
+# A CLUT / palette row holds CLUT_COLORS_PER_ROW colour entries.
+CLUT_COLORS_PER_ROW = 16
+
 # OCL tile-address bit layout: page/cordX/cordY are packed as 4-bit nibbles in
 # the pad / clut_base bytes.
 # Low nibble via ``& NIBBLE_MASK``

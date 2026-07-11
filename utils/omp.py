@@ -30,14 +30,14 @@
 #
 #   To render level tile at position (lx, ly):
 #
-#     sx = lx // 16           # level screen x
-#     sy = ly // 16           # level screen y
-#     wx = lx % 16            # within-screen x (0–15)
-#     wy = ly % 16            # within-screen y (0–15)
+#     sx = lx // TILES_PER_SCREEN    # level screen x    (TILES_PER_SCREEN == 16)
+#     sy = ly // TILES_PER_SCREEN    # level screen y
+#     wx = lx % TILES_PER_SCREEN     # within-screen x (0–15)
+#     wy = ly % TILES_PER_SCREEN     # within-screen y (0–15)
 #
-#     screen_id = layout[sy][sx]           # from LayoutTable (see below)
-#     omp_row   = screen_id                # OMP row = screen_id
-#     omp_col   = wy * 16 + wx             # within-screen tile index (x fast)
+#     screen_id = layout[sy][sx]                   # from LayoutTable (see below)
+#     omp_row   = screen_id                        # OMP row = screen_id
+#     omp_col   = wy * TILES_PER_SCREEN + wx       # within-screen tile index (x fast)
 #     ocl_idx   = omp.tiles[omp_row][omp_col]
 #
 #   Confirmed with 4 data points:
@@ -144,7 +144,7 @@ from pathlib import Path
 from PIL import Image
 from PIL.Image import Image as PILImage
 
-from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START, PAGE_SIZE_PX
+from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START, PAGE_SIZE_PX, TILES_PER_SCREEN, CLUT_COLORS_PER_ROW
 from utils.ocl import OclEntry, OclPaletteGroup
 from utils.types import ColourRGBA, Palette, TexData
 
@@ -164,8 +164,9 @@ class OmpLayer:
     """
     Parsed contents of an OMP file.
 
-    Each row represents one complete 16×16-tile screen (screen_id = row index).
-    tiles[screen_id][wy * 16 + wx] = OCL index for tile (wx, wy) of that screen.
+    Each row represents one complete TILES_PER_SCREEN×TILES_PER_SCREEN-tile screen
+    (screen_id = row index).
+    tiles[screen_id][wy * TILES_PER_SCREEN + wx] = OCL index for tile (wx, wy) of that screen.
     Use render_level() with a LayoutTable for correct level rendering.
     Use render_omp() to dump the raw screen catalog for debugging.
     """
@@ -184,7 +185,7 @@ class OmpLayer:
     def tile_at(self, screen_id: int, wx: int, wy: int) -> int:
         """Return the OCL index for tile (wx, wy) within the given screen_id."""
         if 0 <= screen_id < self.n_screens:
-            idx = wy * 16 + wx
+            idx = wy * TILES_PER_SCREEN + wx
             return self.tiles[screen_id][idx]
         return 0
 
@@ -928,7 +929,7 @@ def _apply_palette_to_tile(
 ) -> list[ColourRGBA]:
     """
     Convert a list of raw 8bpp tile pixel values to RGBA colours using a palette.
-    Each pixel value v selects palette[clut_base * 16 + v].
+    Each pixel value v selects palette[clut_base * CLUT_COLORS_PER_ROW + v].
 
     Transparency is value-based (PSX rule): a pixel is transparent only when the CLUT
     colour it selects is the all-zero sentinel (RGB 0,0,0), not merely when the index is
@@ -938,7 +939,7 @@ def _apply_palette_to_tile(
     so only genuinely-coloured index-0 pixels differ.)
     """
     result: list[ColourRGBA] = []
-    base = clut_base * 16
+    base = clut_base * CLUT_COLORS_PER_ROW
     pal_size = len(palette)
     for v in raw_tile:
         idx = base + v
@@ -1131,11 +1132,11 @@ def render_level(
 
     Addressing:
         screen_id = layout.get(sx, sy)
-        omp_col   = wy * 16 + wx          (within-screen index, x fast)
+        omp_col   = wy * TILES_PER_SCREEN + wx   (within-screen index, x fast)
         ocl_idx   = layer.tiles[screen_id][omp_col]
     """
-    canvas_w = level_width_screens * 16 * TILE_SIZE
-    canvas_h = level_height_screens * 16 * TILE_SIZE
+    canvas_w = level_width_screens * TILES_PER_SCREEN * TILE_SIZE
+    canvas_h = level_height_screens * TILES_PER_SCREEN * TILE_SIZE
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
     chr256_indices = chr256_override if chr256_override is not None else build_chr256_ocl_indices(ocl_entries, tex, tex_bg)
 
@@ -1176,9 +1177,9 @@ def render_level(
 
             screen_tiles = layer.tiles[screen_id]
 
-            for wy in range(16):
-                for wx in range(16):
-                    omp_col = wy * 16 + wx
+            for wy in range(TILES_PER_SCREEN):
+                for wx in range(TILES_PER_SCREEN):
+                    omp_col = wy * TILES_PER_SCREEN + wx
                     raw_id = screen_tiles[omp_col]
                     if raw_id == 0:
                         continue  # transparent
@@ -1255,8 +1256,8 @@ def render_level(
                     tile_img.putdata(rgba_pixels)
 
                     # level tile position (lx, ly)
-                    lx = sx * 16 + wx
-                    ly = sy * 16 + wy
+                    lx = sx * TILES_PER_SCREEN + wx
+                    ly = sy * TILES_PER_SCREEN + wy
                     px = lx * TILE_SIZE
                     py = ly * TILE_SIZE
                     # alpha_composite (not paste+mask) so semi-transparent pixels keep an

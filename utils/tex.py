@@ -4,6 +4,7 @@ from PIL.Image import Image as PILImage
 
 from utils.types import TexData, TexFormat, ColourRGBA, Palette
 from utils.palette import is_palette_all_black
+from utils.consts import CLUT_COLORS_PER_ROW
 
 
 def parse_tex_header(data: bytes) -> tuple[int, int, int, int]:
@@ -97,18 +98,18 @@ def convert_tex_to_image(
 
     print("convert_tex_to_image", format_code, width, height, clut_index)
 
-    clut_start = clut_index * 16
-    if clut_start + 16 > len(palette):
+    clut_start = clut_index * CLUT_COLORS_PER_ROW
+    if clut_start + CLUT_COLORS_PER_ROW > len(palette):
         raise ValueError(
             f"Clut index {clut_index} out of range for palette size {len(palette)} (clut start {clut_start})"
         )
 
-    if is_palette_all_black(palette[clut_start : clut_start + 16]):
+    if is_palette_all_black(palette[clut_start : clut_start + CLUT_COLORS_PER_ROW]):
         print(f"skip: Clut index {clut_index} only has black")
         return None
 
-    # Each pixel in TEX data is a palette index into the active 16-entry CLUT block:
-    #   final_index = clut_index * 16 + colour_index
+    # Each pixel in TEX data is a palette index into the active CLUT_COLORS_PER_ROW-entry CLUT block:
+    #   final_index = clut_index * CLUT_COLORS_PER_ROW + colour_index
     # clut_index is supplied externally — it is not encoded in the pixel data.
     # Transparency is value-based (matching utils/omp._apply_palette_to_tile): a pixel
     # is transparent only when the CLUT colour it selects is the all-zero sentinel
@@ -123,10 +124,10 @@ def convert_tex_to_image(
     for pixel_index in range(width * height):
         if format_code == TexFormat.FORMAT_32BPP:
             colour_index = raw_image[pixel_index * 4 + 3]  # index in alpha byte
-            final_index = clut_index * 16 + colour_index
+            final_index = clut_index * CLUT_COLORS_PER_ROW + colour_index
         elif format_code == TexFormat.FORMAT_8BPP:
             colour_index = raw_image[pixel_index]  # index is the full byte
-            final_index = clut_index * 16 + colour_index
+            final_index = clut_index * CLUT_COLORS_PER_ROW + colour_index
         else:
             raise Exception(f"Unsupported TEX format 0x{format_code:02x}")
 

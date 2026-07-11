@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw, ImageFont
 from utils.types import Palette, TexData, TexFormat
 from utils.palette import convert_palette_to_clut
 from utils.omp import LayoutTable, OmpLayer
-from utils.consts import TILE_SIZE
+from utils.consts import TILE_SIZE, TILES_PER_SCREEN, CLUT_COLORS_PER_ROW
 
 _DEBUG_SCREEN_LINE  = (255, 220, 0, 210)   # yellow-ish grid lines
 _DEBUG_SCREEN_TEXT  = (255, 220, 0, 255)   # yellow text
@@ -40,19 +40,18 @@ def debug_palette_png(original_palette: Palette, output_path: Path, skip_trailin
     else:
         palette = original_palette
 
-    cols = 16
     cell_size = 16
     label_width = 40
     num_colors = len(palette)
-    rows = (num_colors + cols - 1) // cols
-    image_width = cols * cell_size + label_width
+    rows = (num_colors + CLUT_COLORS_PER_ROW - 1) // CLUT_COLORS_PER_ROW
+    image_width = CLUT_COLORS_PER_ROW * cell_size + label_width
     image_height = rows * cell_size
 
     image = Image.new("RGB", (image_width, image_height), color=(0, 0, 0))
     draw = ImageDraw.Draw(image)
     for i, (r, g, b, a) in enumerate(palette):
-        x = (i % cols) * cell_size
-        y = (i // cols) * cell_size
+        x = (i % CLUT_COLORS_PER_ROW) * cell_size
+        y = (i // CLUT_COLORS_PER_ROW) * cell_size
         for dx in range(cell_size):
             for dy in range(cell_size):
                 image.putpixel((x + dx, y + dy), (r, g, b))
@@ -60,7 +59,7 @@ def debug_palette_png(original_palette: Palette, output_path: Path, skip_trailin
     for row in range(rows):
         y = row * cell_size
         label = str(row)
-        draw.text((cols * cell_size + 2, y + 2), label, fill=(255, 255, 255))
+        draw.text((CLUT_COLORS_PER_ROW * cell_size + 2, y + 2), label, fill=(255, 255, 255))
 
     image.save(output_path)
 
@@ -125,7 +124,7 @@ def debug_layout_csv(layer: OmpLayer, layout: LayoutTable, output_path: Path):
         for sy in range(level_height_screens):
             # for each screen in the row, loop through the 16 rows vertically,
             # combining the data from each screen into a single row in the CSV
-            for wy in range(16):
+            for wy in range(TILES_PER_SCREEN):
                 row: list[int] = []
 
                 for sx in range(level_width_screens):
@@ -137,7 +136,7 @@ def debug_layout_csv(layer: OmpLayer, layout: LayoutTable, output_path: Path):
                     screen_tiles = layer.tiles[screen_id]
 
                     # raw_ocl_idx = screen_tiles[wy * 16 + wx]
-                    row.extend([screen_tiles[wy * 16 + wx] for wx in range(16)])
+                    row.extend([screen_tiles[wy * TILES_PER_SCREEN + wx] for wx in range(TILES_PER_SCREEN)])
 
                 writer.writerow(row)
 
