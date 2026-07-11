@@ -601,7 +601,7 @@ def build_x6_chr256_override(
             e = ocl[i]
             if e.page >= CHR256_PAGE_START or i not in extra:
                 return False
-            idxs = groups_fs[(page, e.clut_base)]
+            idxs = groups_fs[(e.page, e.clut_base)]
             if len(idxs) < 2 or min(idxs) != i:
                 return False                       # only a group's first occurrence
             return len({ocl[j].col for j in idxs}) >= 2   # mixed-col duplicate (fg/bg pair shape)
@@ -919,7 +919,7 @@ def build_x6_chr256_override(
                 continue
             if entry.page < CHR256_PAGE_START or entry.page > CHR256_PAGE_MAX:
                 continue
-            members = bg_cb_by_pagecol.get((page, entry.col))
+            members = bg_cb_by_pagecol.get((entry.page, entry.col))
             if not members:
                 continue
             if not (any(c < entry.clut_base for c in members) and any(c > entry.clut_base for c in members)):
