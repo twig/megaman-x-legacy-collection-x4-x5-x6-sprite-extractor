@@ -947,7 +947,7 @@ def build_x6_chr256_override(
         if group_ov or idx_ov:
             for idx, entry in enumerate(ocl):
                 sheet = idx_ov.get(idx) or group_ov.get(
-                    (entry.col, entry.page, (entry.pad >> NIBBLE_SHIFT) & NIBBLE_MASK))
+                    (entry.col, entry.page, entry.clut_bank_selector))
                 if sheet == "bg":
                     extra.add(idx)
                 elif sheet == "tex":
@@ -1037,7 +1037,7 @@ def build_x6_padhi_clut_override(ocl: list[OclEntry], stage_stem: str) -> "dict[
     by_col_page = X6_PADHI_ROW_BY_STAGE.get(stage_stem, {})
     out: dict[int, int] = {}
     for idx, entry in enumerate(ocl):
-        if (entry.pad >> NIBBLE_SHIFT) & NIBBLE_MASK != X6_PADHI_ALT_BANK:
+        if entry.clut_bank_selector != X6_PADHI_ALT_BANK:
             continue
         # Per-stage deviation wins; otherwise the universal 320 + col rule.
         out[idx] = by_col_page.get((entry.col, entry.page), X6_PADHI_DEFAULT_BANK + entry.col)

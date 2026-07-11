@@ -1084,7 +1084,7 @@ def render_omp(
             if clut_row_override is not None and tile_id in clut_row_override:
                 clut_row = clut_row_override[tile_id]   # explicit per-index wins
             elif (x6_page8_palette is not None
-                  and (entry.pad >> NIBBLE_SHIFT) & NIBBLE_MASK == 0 and 8 <= entry.page <= 0xB):
+                  and entry.clut_bank_selector == 0 and 8 <= entry.page <= 0xB):
                 # X6 page>=8 pad_hi=0 8bpp tile: read the raw stage CLUT at col+96.
                 active_palette = x6_page8_palette
                 clut_row = entry.col + _X6_PAGE8_CLUT_OFFSET
@@ -1224,7 +1224,7 @@ def render_level(
                     if clut_row_override is not None and ocl_idx in clut_row_override:
                         clut_row = clut_row_override[ocl_idx]   # explicit per-index wins
                     elif (x6_page8_palette is not None
-                          and (entry.pad >> NIBBLE_SHIFT) & NIBBLE_MASK == 0 and 8 <= entry.page <= 0xB):
+                          and entry.clut_bank_selector == 0 and 8 <= entry.page <= 0xB):
                         # X6 page>=8 pad_hi=0 8bpp tile: read the raw stage CLUT at col+96
                         # (bypasses normalize's null-keep — the 'inverted shadows' fix).
                         active_palette = x6_page8_palette
