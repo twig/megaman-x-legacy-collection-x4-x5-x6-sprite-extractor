@@ -1,4 +1,4 @@
-from utils.consts import TILE_SIZE
+from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT
 from utils.ocl import OclEntry
 from utils.types import TexData
 from utils.omp import LayoutTable, build_chr256_ocl_indices
@@ -54,9 +54,9 @@ def build_x5_chr256_bg_override(
     base = set(build_chr256_ocl_indices(ocl, tex, tex_bg))
 
     def _grid(t: "TexData", e: OclEntry) -> "list[list[int]] | None":
-        cordX = e.clut_base & 0xF
-        cordY = (e.clut_base >> 4) & 0xF
-        page = e.pad & 0xF
+        cordX = e.clut_base & NIBBLE_MASK
+        cordY = (e.clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
+        page = e.pad & NIBBLE_MASK
         raw = t["raw_image"]; w = t["width"]; h = len(raw) // w
         gx = (page % 8) * 256 + cordX * TILE_SIZE
         gy = (page // 8) * 256 + cordY * TILE_SIZE
@@ -74,7 +74,7 @@ def build_x5_chr256_bg_override(
         return any(p for row in g for p in row)
 
     def _tilepos(e: OclEntry) -> int:
-        return (e.pad & 0xF) * 256 + e.clut_base
+        return (e.pad & NIBBLE_MASK) * 256 + e.clut_base
 
     # Placement: which OCL indices appear in the foreground layer (top third of the
     # vertical-stacked 3-layer layout) and which appear anywhere.
@@ -147,11 +147,11 @@ def build_x5_chr256_bg_override(
     n = len(ocl)
     i = 0
     while i < n:
-        if (ocl[i].pad & 0xF) >= 8:
+        if (ocl[i].pad & NIBBLE_MASK) >= 8:
             i += 1
             continue
         j = i
-        while (j + 1 < n and (ocl[j + 1].pad & 0xF) < 8
+        while (j + 1 < n and (ocl[j + 1].pad & NIBBLE_MASK) < 8
                and _tilepos(ocl[j + 1]) == _tilepos(ocl[j]) + 1):
             j += 1
         run = list(range(i, j + 1))
@@ -174,7 +174,7 @@ def build_x5_chr256_bg_override(
     # (each fragment was already vetted in _classify), so a foreground placement in one
     # part of a sheet can never drag in the rest — unlike merging into one run.
     def _tp_key(k: int) -> "tuple[int, int]":
-        return (ocl[k].pad & 0xF, _tilepos(ocl[k]))
+        return (ocl[k].pad & NIBBLE_MASK, _tilepos(ocl[k]))
 
     moved_tp = {_tp_key(k) for k in moved}
     changed = True
@@ -183,8 +183,8 @@ def build_x5_chr256_bg_override(
         for notbase in runs:
             if all(k in moved for k in notbase):
                 continue
-            if any((ocl[k].pad & 0xF, _tilepos(ocl[k]) - 1) in moved_tp
-                   or (ocl[k].pad & 0xF, _tilepos(ocl[k]) + 1) in moved_tp
+            if any((ocl[k].pad & NIBBLE_MASK, _tilepos(ocl[k]) - 1) in moved_tp
+                   or (ocl[k].pad & NIBBLE_MASK, _tilepos(ocl[k]) + 1) in moved_tp
                    for k in notbase):
                 for k in notbase:
                     if k not in moved:
@@ -318,7 +318,7 @@ def build_x5_sheet_override(
     group_ov = group_ov or {}
     out = set(chr256_set)
     for idx, e in enumerate(ocl):
-        sheet = idx_ov.get(idx) or group_ov.get((e.col, e.pad & 0xF))
+        sheet = idx_ov.get(idx) or group_ov.get((e.col, e.pad & NIBBLE_MASK))
         if sheet == "bg":
             out.add(idx)
         elif sheet == "tex":
@@ -372,15 +372,15 @@ def build_x5_pg8_empty_bg_override(
     for idx, e in enumerate(ocl):
         if e.pad == 0xFF:
             continue  # sky-fill sentinel (page nibble 15 too) — never real art
-        page = e.pad & 0xF
+        page = e.pad & NIBBLE_MASK
         # 8-0xB are the 8bpp bitmap pages; page 15 (pad=0x0F) is the page-band-1 art
         # slot (gy=256) that _resolve_tile also draws — the X5 st170 Rangda Bangda W
         # background whose tex block is blank while tex_bg holds it (same tex-empty
         # recovery, so still regression-free; sky stays dropped as its tex_bg is empty too).
         if not (8 <= page <= 0xB or page == 15) or idx in out:
             continue
-        cordX = e.clut_base & 0xF
-        cordY = (e.clut_base >> 4) & 0xF
+        cordX = e.clut_base & NIBBLE_MASK
+        cordY = (e.clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
         gx = (page % 8) * 256 + cordX * TILE
         gy = (page // 8) * 256 + cordY * TILE
         if _block_has_data(tex_raw, tex_w, tex_h, gx, gy) is False \
@@ -428,7 +428,7 @@ def build_x5_clut_row_override(
     out: dict[int, int] = {}
     for idx in chr256_set:
         if 0 <= idx < len(ocl):
-            row = fixes.get((ocl[idx].col, ocl[idx].pad & 0xF))
+            row = fixes.get((ocl[idx].col, ocl[idx].pad & NIBBLE_MASK))
             if row is not None:
                 out[idx] = row
     return out or None

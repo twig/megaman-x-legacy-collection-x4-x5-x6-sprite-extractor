@@ -1,4 +1,4 @@
-from utils.consts import TILE_SIZE
+from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT
 from utils.ocl import load_ocl, OclEntry, OclPaletteGroup
 from utils.omp import LayoutTable, build_chr256_ocl_indices
 from utils.types import GameVersion, TexData
@@ -144,15 +144,15 @@ def build_x6_chr256_override(
     # Count occurrences per page>=8 (page, clut_base) coordinate for the sole-entry gate.
     pg8_coord_count: dict[tuple, int] = {}
     for entry in ocl:
-        if (entry.pad & 0xF) >= 8:
-            key = (entry.pad & 0xF, entry.clut_base)
+        if (entry.pad & NIBBLE_MASK) >= 8:
+            key = (entry.pad & NIBBLE_MASK, entry.clut_base)
             pg8_coord_count[key] = pg8_coord_count.get(key, 0) + 1
 
     # Cols already confirmed as background by the base routing.
     confirmed_bg_page_col: set[tuple] = set()
     for idx in extra:
         entry = ocl[idx]
-        page = entry.pad & 0xF
+        page = entry.pad & NIBBLE_MASK
         if page >= 8:
             confirmed_bg_page_col.add((page, entry.col))
 
@@ -167,7 +167,7 @@ def build_x6_chr256_override(
         for idx, entry in enumerate(ocl):
             if idx in extra:
                 continue
-            page = entry.pad & 0xF
+            page = entry.pad & NIBBLE_MASK
             if page < 8:
                 continue
             if (page, entry.col) not in confirmed_bg_page_col:
@@ -176,8 +176,8 @@ def build_x6_chr256_override(
             if (pg8_coord_count.get((page, entry.clut_base), 0) > 1
                     and entry.col not in X6_BG_INDICATOR_COLS):
                 continue
-            cordX = entry.clut_base & 0xF
-            cordY = (entry.clut_base >> 4) & 0xF
+            cordX = entry.clut_base & NIBBLE_MASK
+            cordY = (entry.clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
             gx = (page % 8) * 256 + cordX * TILE_SIZE
             gy = (page // 8) * 256 + cordY * TILE_SIZE
             if (gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h or
@@ -227,11 +227,11 @@ def build_x6_chr256_override(
         for idx, entry in enumerate(ocl):
             if idx in extra:
                 continue
-            page = entry.pad & 0xF
+            page = entry.pad & NIBBLE_MASK
             if page < 8:
                 continue
-            cordX = entry.clut_base & 0xF
-            cordY = (entry.clut_base >> 4) & 0xF
+            cordX = entry.clut_base & NIBBLE_MASK
+            cordY = (entry.clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
             gx = (page % 8) * 256 + cordX * TILE_SIZE
             gy = (page // 8) * 256 + cordY * TILE_SIZE
             if (gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h or
@@ -279,10 +279,10 @@ def build_x6_chr256_override(
         """Length of the lockstep chr256 strip (consecutive index + clut_base) through idx."""
         n = 1
         k = idx - 1
-        while k >= 0 and k in pre_gap and (ocl[k].pad & 0xF) == page and ocl[k].clut_base == cb - (idx - k):
+        while k >= 0 and k in pre_gap and (ocl[k].pad & NIBBLE_MASK) == page and ocl[k].clut_base == cb - (idx - k):
             n += 1; k -= 1
         k = idx + 1
-        while k < len(ocl) and k in pre_gap and (ocl[k].pad & 0xF) == page and ocl[k].clut_base == cb + (k - idx):
+        while k < len(ocl) and k in pre_gap and (ocl[k].pad & NIBBLE_MASK) == page and ocl[k].clut_base == cb + (k - idx):
             n += 1; k += 1
         return n
 
@@ -290,20 +290,20 @@ def build_x6_chr256_override(
         if idx in pre_gap:
             continue
         entry = ocl[idx]
-        page = entry.pad & 0xF
+        page = entry.pad & NIBBLE_MASK
         if page >= 8:
             continue
         if (idx - 1) not in pre_gap or (idx + 1) not in pre_gap:
             continue
         prev_e, next_e = ocl[idx - 1], ocl[idx + 1]
-        if (prev_e.pad & 0xF) != page or (next_e.pad & 0xF) != page:
+        if (prev_e.pad & NIBBLE_MASK) != page or (next_e.pad & NIBBLE_MASK) != page:
             continue
         if prev_e.clut_base != entry.clut_base - 1 or next_e.clut_base != entry.clut_base + 1:
             continue
         if _strip_run(idx, page, entry.clut_base) < MIN_STRIP_RUN:
             continue
-        cordX = entry.clut_base & 0xF
-        cordY = (entry.clut_base >> 4) & 0xF
+        cordX = entry.clut_base & NIBBLE_MASK
+        cordY = (entry.clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
         gx = (page % 8) * 256 + cordX * TILE_SIZE
         gy = (page // 8) * 256 + cordY * TILE_SIZE
         if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
@@ -353,7 +353,7 @@ def build_x6_chr256_override(
         n = 0
         k = start
         want = cb0
-        while (0 <= k < len(ocl) and k in pre_bridge and (ocl[k].pad & 0xF) == page
+        while (0 <= k < len(ocl) and k in pre_bridge and (ocl[k].pad & NIBBLE_MASK) == page
                and ocl[k].clut_base == want):
             n += 1; k += step; want += step
         return n
@@ -364,24 +364,24 @@ def build_x6_chr256_override(
             if idx in pre_bridge:
                 idx += 1; continue
             entry = ocl[idx]
-            page = entry.pad & 0xF
+            page = entry.pad & NIBBLE_MASK
             # Left bracket: previous index must be a tex_bg lockstep predecessor.
             prev = ocl[idx - 1]
             if (page >= 8 or (idx - 1) not in pre_bridge
-                    or (prev.pad & 0xF) != page
+                    or (prev.pad & NIBBLE_MASK) != page
                     or prev.clut_base != entry.clut_base - 1):
                 idx += 1; continue
             # Collect the maximal run of tex (not-bg) lockstep tiles starting at idx.
             run = [idx]
             j = idx + 1
-            while (j < len(ocl) and j not in pre_bridge and (ocl[j].pad & 0xF) == page
+            while (j < len(ocl) and j not in pre_bridge and (ocl[j].pad & NIBBLE_MASK) == page
                    and ocl[j].clut_base == ocl[j - 1].clut_base + 1
                    and len(run) <= _GAP_MAX):
                 run.append(j); j += 1
             # Right bracket: tile after the run must be a tex_bg lockstep successor.
             nxt = ocl[j] if j < len(ocl) else None
             ok = (len(run) <= _GAP_MAX and nxt is not None and j in pre_bridge
-                  and (nxt.pad & 0xF) == page
+                  and (nxt.pad & NIBBLE_MASK) == page
                   and nxt.clut_base == ocl[j - 1].clut_base + 1)
             if ok:
                 left_len = _bg_run_len(idx - 1, -1, page, entry.clut_base - 1)
@@ -389,8 +389,8 @@ def build_x6_chr256_override(
                 if left_len + right_len >= _GAP_MIN_BRACKET:
                     for g in run:
                         e = ocl[g]
-                        cordX = e.clut_base & 0xF
-                        cordY = (e.clut_base >> 4) & 0xF
+                        cordX = e.clut_base & NIBBLE_MASK
+                        cordY = (e.clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
                         gx = (page % 8) * 256 + cordX * TILE_SIZE
                         gy = (page // 8) * 256 + cordY * TILE_SIZE
                         if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
@@ -440,7 +440,7 @@ def build_x6_chr256_override(
     if palette_fan_guard:
         members_by_coord: dict[tuple, list[int]] = {}
         for i, entry in enumerate(ocl):
-            members_by_coord.setdefault((entry.pad & 0xF, entry.clut_base), []).append(i)
+            members_by_coord.setdefault((entry.pad & NIBBLE_MASK, entry.clut_base), []).append(i)
         # Cols confirmed as foreground "text/recolor" palettes by the all-low-band
         # fan rule below; used to recover narrower (2-3 col) members of the same
         # recolored glyph set that fall under X6_PALETTE_FAN_MIN_COLS.  Empty for
@@ -450,8 +450,8 @@ def build_x6_chr256_override(
             cols = {ocl[i].col for i in idxs}
             if len(cols) < X6_PALETTE_FAN_MIN_COLS:
                 continue
-            cordX = clut_base & 0xF
-            cordY = (clut_base >> 4) & 0xF
+            cordX = clut_base & NIBBLE_MASK
+            cordY = (clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
             gx = (page % 8) * 256 + cordX * TILE_SIZE
             gy = (page // 8) * 256 + cordY * TILE_SIZE
             if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
@@ -497,8 +497,8 @@ def build_x6_chr256_override(
                     continue
                 if not any(i in extra and ocl[i].col in fg_text_cols for i in idxs):
                     continue
-                cordX = clut_base & 0xF
-                cordY = (clut_base >> 4) & 0xF
+                cordX = clut_base & NIBBLE_MASK
+                cordY = (clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
                 gx = (page % 8) * 256 + cordX * TILE_SIZE
                 gy = (page // 8) * 256 + cordY * TILE_SIZE
                 if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
@@ -537,8 +537,8 @@ def build_x6_chr256_override(
         CHR256_PAIR_MAX_GAP = 280
         groups: dict[tuple, list[int]] = {}
         for i, entry in enumerate(ocl):
-            if (entry.pad & 0xF) < 8:
-                groups.setdefault((entry.pad & 0xF, entry.clut_base), []).append(i)
+            if (entry.pad & NIBBLE_MASK) < 8:
+                groups.setdefault((entry.pad & NIBBLE_MASK, entry.clut_base), []).append(i)
         for (page, clut_base), idxs in groups.items():
             if len(idxs) < 2:
                 continue
@@ -547,8 +547,8 @@ def build_x6_chr256_override(
                 continue                       # background variant too far → not a tight pair
             if not all(i in extra for i in s):
                 continue                       # only the "whole group → chr256" case
-            cordX = clut_base & 0xF
-            cordY = (clut_base >> 4) & 0xF
+            cordX = clut_base & NIBBLE_MASK
+            cordY = (clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
             gx = (page % 8) * 256 + cordX * TILE_SIZE
             gy = (page // 8) * 256 + cordY * TILE_SIZE
             if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
@@ -608,11 +608,11 @@ def build_x6_chr256_override(
     if fg_strip_recover:
         groups_fs: dict[tuple, list[int]] = {}
         for i, e in enumerate(ocl):
-            groups_fs.setdefault((e.pad & 0xF, e.clut_base), []).append(i)
+            groups_fs.setdefault((e.pad & NIBBLE_MASK, e.clut_base), []).append(i)
 
         def _is_fg_strip_cand(i: int) -> bool:
             e = ocl[i]
-            page = e.pad & 0xF
+            page = e.pad & NIBBLE_MASK
             if page >= 8 or i not in extra:
                 return False
             idxs = groups_fs[(page, e.clut_base)]
@@ -621,9 +621,9 @@ def build_x6_chr256_override(
             return len({ocl[j].col for j in idxs}) >= 2   # mixed-col duplicate (fg/bg pair shape)
 
         def _xy(e: OclEntry) -> tuple[int, int]:
-            page = e.pad & 0xF
-            cordX = e.clut_base & 0xF
-            cordY = (e.clut_base >> 4) & 0xF
+            page = e.pad & NIBBLE_MASK
+            cordX = e.clut_base & NIBBLE_MASK
+            cordY = (e.clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
             return (page % 8) * 256 + cordX * TILE_SIZE, (page // 8) * 256 + cordY * TILE_SIZE
 
         i = 0
@@ -634,7 +634,7 @@ def build_x6_chr256_override(
             run = [i]
             j = i + 1
             while (j < nocl and _is_fg_strip_cand(j)
-                   and (ocl[j].pad & 0xF) == (ocl[j - 1].pad & 0xF)
+                   and (ocl[j].pad & NIBBLE_MASK) == (ocl[j - 1].pad & NIBBLE_MASK)
                    and ocl[j].clut_base == ocl[j - 1].clut_base + 1):
                 run.append(j); j += 1
             if len(run) >= _FGSTRIP_MIN_RUN:
@@ -690,7 +690,7 @@ def build_x6_chr256_override(
         """Mean |horizontal-neighbour diff| of nonzero raw px over a page's tiles."""
         tot = cnt = 0
         for cb in clut_bases:
-            cordX = cb & 0xF; cordY = (cb >> 4) & 0xF
+            cordX = cb & NIBBLE_MASK; cordY = (cb >> NIBBLE_SHIFT) & NIBBLE_MASK
             gx = (page % 8) * 256 + cordX * TILE_SIZE
             gy = (page // 8) * 256 + cordY * TILE_SIZE
             if gx + TILE_SIZE > w or gy + TILE_SIZE > h:
@@ -707,7 +707,7 @@ def build_x6_chr256_override(
         """Fraction of nonzero tex_bg pixels over a page's tiles."""
         nz = total = 0
         for cb in clut_bases:
-            cordX = cb & 0xF; cordY = (cb >> 4) & 0xF
+            cordX = cb & NIBBLE_MASK; cordY = (cb >> NIBBLE_SHIFT) & NIBBLE_MASK
             gx = (page % 8) * 256 + cordX * TILE_SIZE
             gy = (page // 8) * 256 + cordY * TILE_SIZE
             if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
@@ -725,7 +725,7 @@ def build_x6_chr256_override(
         pg_entries: dict[int, list[int]] = {}
         pg_coord_count: dict[tuple, int] = {}
         for idx, entry in enumerate(ocl):
-            page = entry.pad & 0xF
+            page = entry.pad & NIBBLE_MASK
             if page >= 8:
                 continue
             pg_entries.setdefault(page, []).append(idx)
@@ -750,8 +750,8 @@ def build_x6_chr256_override(
             # tex is striped garbage, tex_bg holds the coherent art: route every
             # entry on this page whose tex_bg coordinate is non-empty to tex_bg.
             for i in idxs:
-                cordX = ocl[i].clut_base & 0xF
-                cordY = (ocl[i].clut_base >> 4) & 0xF
+                cordX = ocl[i].clut_base & NIBBLE_MASK
+                cordY = (ocl[i].clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
                 gx = (page % 8) * 256 + cordX * TILE_SIZE
                 gy = (page // 8) * 256 + cordY * TILE_SIZE
                 if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
@@ -821,7 +821,7 @@ def build_x6_chr256_override(
         n = 0
         k = idx - 1
         want_cb = cb - 1
-        while (k >= 0 and k in extra and (ocl[k].pad & 0xF) == page
+        while (k >= 0 and k in extra and (ocl[k].pad & NIBBLE_MASK) == page
                and ocl[k].clut_base == want_cb):
             n += 1; k -= 1; want_cb -= 1
         return n
@@ -831,16 +831,16 @@ def build_x6_chr256_override(
             if idx in extra:
                 continue
             entry = ocl[idx]
-            page = entry.pad & 0xF
+            page = entry.pad & NIBBLE_MASK
             if page >= 8:
                 continue
             if (idx - 1) not in extra:
                 continue
             prev = ocl[idx - 1]
-            if (prev.pad & 0xF) != page or prev.clut_base != entry.clut_base - 1:
+            if (prev.pad & NIBBLE_MASK) != page or prev.clut_base != entry.clut_base - 1:
                 continue
-            cordX = entry.clut_base & 0xF
-            cordY = (entry.clut_base >> 4) & 0xF
+            cordX = entry.clut_base & NIBBLE_MASK
+            cordY = (entry.clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
             gx = (page % 8) * 256 + cordX * TILE_SIZE
             gy = (page // 8) * 256 + cordY * TILE_SIZE
             if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
@@ -889,15 +889,15 @@ def build_x6_chr256_override(
             if idx in extra:
                 continue
             entry = ocl[idx]
-            page = entry.pad & 0xF
+            page = entry.pad & NIBBLE_MASK
             if page >= 8:
                 continue
             if (idx - 1) not in extra or (idx + 1) not in extra:
                 continue
-            if (ocl[idx - 1].pad & 0xF) != page or (ocl[idx + 1].pad & 0xF) != page:
+            if (ocl[idx - 1].pad & NIBBLE_MASK) != page or (ocl[idx + 1].pad & NIBBLE_MASK) != page:
                 continue
-            cordX = entry.clut_base & 0xF
-            cordY = (entry.clut_base >> 4) & 0xF
+            cordX = entry.clut_base & NIBBLE_MASK
+            cordY = (entry.clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
             gx = (page % 8) * 256 + cordX * TILE_SIZE
             gy = (page // 8) * 256 + cordY * TILE_SIZE
             if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
@@ -937,12 +937,12 @@ def build_x6_chr256_override(
     if pg8_garbage_hole_suppress:
         bg_cb_by_pagecol: dict[tuple, list[int]] = {}
         for i, e in enumerate(ocl):
-            if (e.pad & 0xF) >= 8 and i in extra:
-                bg_cb_by_pagecol.setdefault((e.pad & 0xF, e.col), []).append(e.clut_base)
+            if (e.pad & NIBBLE_MASK) >= 8 and i in extra:
+                bg_cb_by_pagecol.setdefault((e.pad & NIBBLE_MASK, e.col), []).append(e.clut_base)
         for idx, entry in enumerate(ocl):
             if idx in extra:
                 continue
-            page = entry.pad & 0xF
+            page = entry.pad & NIBBLE_MASK
             if page < 8 or page > 0xB:
                 continue
             members = bg_cb_by_pagecol.get((page, entry.col))
@@ -951,8 +951,8 @@ def build_x6_chr256_override(
             cb = entry.clut_base
             if not (any(c < cb for c in members) and any(c > cb for c in members)):
                 continue
-            cordX = cb & 0xF
-            cordY = (cb >> 4) & 0xF
+            cordX = cb & NIBBLE_MASK
+            cordY = (cb >> NIBBLE_SHIFT) & NIBBLE_MASK
             gx = (page % 8) * 256 + cordX * TILE_SIZE
             gy = (page // 8) * 256 + cordY * TILE_SIZE
             if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
@@ -976,7 +976,7 @@ def build_x6_chr256_override(
         if group_ov or idx_ov:
             for idx, entry in enumerate(ocl):
                 sheet = idx_ov.get(idx) or group_ov.get(
-                    (entry.col, entry.pad & 0xF, (entry.pad >> 4) & 0xF))
+                    (entry.col, entry.pad & NIBBLE_MASK, (entry.pad >> NIBBLE_SHIFT) & NIBBLE_MASK))
                 if sheet == "bg":
                     extra.add(idx)
                 elif sheet == "tex":
@@ -1066,9 +1066,9 @@ def build_x6_padhi_clut_override(ocl: list[OclEntry], stage_stem: str) -> "dict[
     by_col_page = X6_PADHI_ROW_BY_STAGE.get(stage_stem, {})
     out: dict[int, int] = {}
     for idx, entry in enumerate(ocl):
-        if (entry.pad >> 4) & 0xF != X6_PADHI_ALT_BANK:
+        if (entry.pad >> NIBBLE_SHIFT) & NIBBLE_MASK != X6_PADHI_ALT_BANK:
             continue
-        page = entry.pad & 0xF
+        page = entry.pad & NIBBLE_MASK
         # Per-stage deviation wins; otherwise the universal 320 + col rule.
         out[idx] = by_col_page.get((entry.col, page), X6_PADHI_DEFAULT_BANK + entry.col)
     return out
