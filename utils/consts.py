@@ -39,7 +39,7 @@ STP_TRANSLUCENT_BIT = 0x4000
 # Six-bit page field mask on the OCL ``pad`` byte: keeps the page nibble plus the
 # page-band selector bit (0x10), while stripping the X6 pad_hi alt-bank bit (0x40).
 PAGE_MASK_6bit = 0x3F
-# pad byte sentinel meaning "no TEX data" — the crystal sky-fill slot, never real art.
+# pad byte sentinel meaning "no TEX data" - the crystal sky-fill slot, never real art.
 PAD_SKYFILL_SENTINEL = 0xFF
 # On pages >= CHR256_PAGE_START, this OCL col marks a chr256 (tex_bg) background tile
 # (paired with col=0). See X6_BG_INDICATOR_COLS for the X6-specific pairing.
