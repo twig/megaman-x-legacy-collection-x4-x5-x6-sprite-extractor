@@ -41,16 +41,20 @@
 # TEX tile coordinate formula (confirmed)
 # ============================================================
 #
-#   Given an OclEntry e:
-#     cordX = e.clut_base & 0x0F
-#     cordY = (e.clut_base >> 4) & 0x0F
-#     page  = e.pad & 0x0F
+#   Given an OclEntry e, the nibble fields are exposed as properties — prefer
+#   e.page / e.cordX / e.cordY over masking pad/clut_base by hand:
+#     cordX = e.cordX   # == e.clut_base & 0x0F         (low  nibble)
+#     cordY = e.cordY   # == (e.clut_base >> 4) & 0x0F  (high nibble)
+#     page  = e.page    # == e.pad & 0x0F
 #
-#     gx = (page % 8) * 256 + cordX * 16   # pixel X of tile top-left in TEX
-#     gy = (page // 8) * 256 + cordY * 16   # pixel Y of tile top-left in TEX
+#     gx = (e.page % 8) * 256 + e.cordX * 16   # pixel X of tile top-left in TEX
+#     gy = (e.page // 8) * 256 + e.cordY * 16   # pixel Y of tile top-left in TEX
 #
-#   tex_x (tile column in TEX) = page * 16 + cordX
-#   tex_y (tile row    in TEX) = cordY
+#   tex_x (tile column in TEX) = e.page * 16 + e.cordX
+#   tex_y (tile row    in TEX) = e.cordY
+#
+#   The HIGH nibble of pad — (e.pad >> 4) & 0x0F — is the X6 pad_hi CLUT-bank
+#   selector, NOT a tile coordinate; it has no property and is read explicitly.
 #
 # ============================================================
 # CLUT formula (confirmed)
@@ -87,6 +91,8 @@ from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
 
+from utils.consts import NIBBLE_MASK, NIBBLE_SHIFT
+
 OCL_MAGIC = b"OCL\x00"
 OCL_HEADER_SIZE = 12  # magic(4) + version(4) + entry_count(4)
 OCL_ENTRY_SIZE = 4
@@ -122,10 +128,26 @@ class OclEntry:
                     #   Three values carry X5 palette-variant meaning — see OclPaletteGroup.
     col: int        # byte 1: palette column; abs_clut = col + 64  (confirmed)
     clut_base: int  # byte 2: TEX tile coords (legacy field name — NOT a CLUT index)
-                    #   cordX = clut_base & 0x0F
-                    #   cordY = (clut_base >> 4) & 0x0F
+                    #   low nibble  -> cordX  (see .cordX property)
+                    #   high nibble -> cordY  (see .cordY property)
     pad: int        # byte 3: TEX page (legacy field name — NOT padding)
-                    #   page = pad & 0x0F
+                    #   low nibble  -> page   (see .page property)
+                    #   high nibble -> pad_hi (X6 CLUT-bank selector; no property)
+
+    @property
+    def page(self) -> int:
+        """TEX page index (low nibble of pad). NOT the pad_hi CLUT-bank selector."""
+        return self.pad & NIBBLE_MASK
+
+    @property
+    def cordX(self) -> int:
+        """Tile column within the TEX page (low nibble of clut_base)."""
+        return self.clut_base & NIBBLE_MASK
+
+    @property
+    def cordY(self) -> int:
+        """Tile row within the TEX page (high nibble of clut_base)."""
+        return (self.clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
 
     def abs_clut_stage(self) -> int:
         """
