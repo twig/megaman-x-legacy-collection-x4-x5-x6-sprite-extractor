@@ -34,6 +34,9 @@
 #                       TEX page encoding —
 #                         page  = byte3 & 0x0F
 #                       Values observed: 0–5, 10, 11, 15, 16 (0x10), 255 (0xFF)
+#                       Pages 0..CHR256_PAGE_START-1 (0–7) are 4bpp (the tex sheet);
+#                       pages CHR256_PAGE_START.. (8+) are 8bpp and route to chr256
+#                       (tex_bg).  See utils/consts.CHR256_PAGE_START.
 #                       page=16 (0x10→masked to 0) = player/sprite tiles
 #                       page=255 = sentinel/unused entry
 #
@@ -47,8 +50,10 @@
 #     cordY = e.cordY   # == (e.clut_base >> 4) & 0x0F  (high nibble)
 #     page  = e.page    # == e.pad & 0x0F
 #
-#     gx = (e.page % 8) * 256 + e.cordX * 16   # pixel X of tile top-left in TEX
-#     gy = (e.page // 8) * 256 + e.cordY * 16   # pixel Y of tile top-left in TEX
+#     gx = (e.page % PAGES_PER_ROW) * 256 + e.cordX * 16   # pixel X of tile top-left in TEX
+#     gy = (e.page // PAGES_PER_ROW) * 256 + e.cordY * 16   # pixel Y of tile top-left in TEX
+#     (PAGES_PER_ROW == 8: a TEX sheet holds 8 pages across, so page // 8 is the
+#      sheet row/band and page % 8 the column within it.)
 #
 #   tex_x (tile column in TEX) = e.page * 16 + e.cordX
 #   tex_y (tile row    in TEX) = e.cordY

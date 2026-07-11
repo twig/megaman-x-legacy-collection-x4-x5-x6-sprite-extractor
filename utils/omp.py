@@ -71,8 +71,8 @@
 #               cordX = byte2 & 0xF
 #               cordY = (byte2 >> 4) & 0xF
 #               page  = byte3 & 0xF
-#               gx = (page % 8) * 256 + cordX * 16
-#               gy = (page // 8) * 256 + cordY * 16
+#               gx = (page % PAGES_PER_ROW) * 256 + cordX * 16   # PAGES_PER_ROW == 8
+#               gy = (page // PAGES_PER_ROW) * 256 + cordY * 16
 #
 # ============================================================
 # TEX routing (tex vs tex_bg / chr256)
@@ -144,7 +144,7 @@ from pathlib import Path
 from PIL import Image
 from PIL.Image import Image as PILImage
 
-from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT
+from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START
 from utils.ocl import OclEntry, OclPaletteGroup
 from utils.types import ColourRGBA, Palette, TexData
 
@@ -474,7 +474,7 @@ def build_chr256_ocl_indices(
     # Pass 0: count occurrences per key so standalone entries can be detected
     key_count: dict[tuple[int, int], int] = {}
     for e in ocl_entries:
-        if e.page >= 8:
+        if e.page >= CHR256_PAGE_START:
             continue
         key = (e.page, e.clut_base)
         key_count[key] = key_count.get(key, 0) + 1
@@ -483,7 +483,7 @@ def build_chr256_ocl_indices(
     first_col: dict[tuple[int, int], int] = {}
     group_indices: dict[tuple[int, int], list[int]] = {}
     for i, e in enumerate(ocl_entries):
-        if e.page >= 8:
+        if e.page >= CHR256_PAGE_START:
             continue
         key = (e.page, e.clut_base)
         if key not in first_col:
@@ -517,8 +517,8 @@ def build_chr256_ocl_indices(
     for key in group_indices:
         page_k, clut_k = key
         cordX_k = clut_k & NIBBLE_MASK; cordY_k = (clut_k >> NIBBLE_SHIFT) & NIBBLE_MASK
-        gx_k = (page_k % 8) * 256 + cordX_k * TILE_SIZE
-        gy_k = (page_k // 8) * 256 + cordY_k * TILE_SIZE
+        gx_k = (page_k % PAGES_PER_ROW) * 256 + cordX_k * TILE_SIZE
+        gy_k = (page_k // PAGES_PER_ROW) * 256 + cordY_k * TILE_SIZE
         group_bg_has_data[key] = not _tex_is_empty(raw_bg, w_bg, gx_k, gy_k)
 
     # Pass 1c: compute the overall index range spanned by all no-large-gap groups.
@@ -590,16 +590,16 @@ def build_chr256_ocl_indices(
     # entries only in the chr256 batch, so no gating is needed.  Stages with no
     # no-LG groups (e.g. st000) have no defined region, so no gating either.
     _has_sole_diff = _no_lg_min >= 0 and any(
-        e.page < 8
+        e.page < CHR256_PAGE_START
         and key_count.get((e.page, e.clut_base), 0) == 1
         and not _tex_is_empty(
             raw_tex, w_tex,
-            e.page % 8 * 256 + e.cordX * TILE_SIZE,
-            e.page // 8 * 256 + e.cordY * TILE_SIZE,
+            e.page % PAGES_PER_ROW * 256 + e.cordX * TILE_SIZE,
+            e.page // PAGES_PER_ROW * 256 + e.cordY * TILE_SIZE,
         )
         and _tiles_differ(
-            e.page % 8 * 256 + e.cordX * TILE_SIZE,
-            e.page // 8 * 256 + e.cordY * TILE_SIZE,
+            e.page % PAGES_PER_ROW * 256 + e.cordX * TILE_SIZE,
+            e.page // PAGES_PER_ROW * 256 + e.cordY * TILE_SIZE,
         )
         for e in ocl_entries
     )
@@ -643,8 +643,8 @@ def build_chr256_ocl_indices(
         _page_k, _clut_k = _key
         _cordX_k = _clut_k & NIBBLE_MASK
         _cordY_k = (_clut_k >> NIBBLE_SHIFT) & NIBBLE_MASK
-        _gx_k = (_page_k % 8) * 256 + _cordX_k * TILE_SIZE
-        _gy_k = (_page_k // 8) * 256 + _cordY_k * TILE_SIZE
+        _gx_k = (_page_k % PAGES_PER_ROW) * 256 + _cordX_k * TILE_SIZE
+        _gy_k = (_page_k // PAGES_PER_ROW) * 256 + _cordY_k * TILE_SIZE
         if _tex_is_empty(raw_bg, w_bg, _gx_k, _gy_k):
             continue  # tex_bg empty — not a background tile
         if not _tiles_differ(_gx_k, _gy_k):
@@ -696,8 +696,8 @@ def build_chr256_ocl_indices(
             return False  # same col → palette/hit-flash variant batch, keep as chr256
         page_k, clut_k = key
         cordX_k = clut_k & NIBBLE_MASK; cordY_k = (clut_k >> NIBBLE_SHIFT) & NIBBLE_MASK
-        gx_k = (page_k % 8) * 256 + cordX_k * TILE_SIZE
-        gy_k = (page_k // 8) * 256 + cordY_k * TILE_SIZE
+        gx_k = (page_k % PAGES_PER_ROW) * 256 + cordX_k * TILE_SIZE
+        gy_k = (page_k // PAGES_PER_ROW) * 256 + cordY_k * TILE_SIZE
         fg = _tex_fill(raw_tex, w_tex, gx_k, gy_k)
         bg = _tex_fill(raw_bg, w_bg, gx_k, gy_k)
         return (fg > 0 and bg >= (TILE_SIZE * TILE_SIZE * 3) // 4
@@ -706,7 +706,7 @@ def build_chr256_ocl_indices(
     seen: set[tuple[int, int]] = set()
     chr256: set[int] = set()
     for i, e in enumerate(ocl_entries):
-        if e.page >= 8:
+        if e.page >= CHR256_PAGE_START:
             continue
         key = (e.page, e.clut_base)
         if key_count[key] == 1:
@@ -716,8 +716,8 @@ def build_chr256_ocl_indices(
             # When _gate_tex_empty is active (stage has both no-LG groups and
             # sole_diff entries), the tex_empty rule is also restricted to the
             # chr256 region to avoid routing transparent foreground slots to tex_bg.
-            gx = (e.page % 8) * 256 + e.cordX * TILE_SIZE
-            gy = (e.page // 8) * 256 + e.cordY * TILE_SIZE
+            gx = (e.page % PAGES_PER_ROW) * 256 + e.cordX * TILE_SIZE
+            gy = (e.page // PAGES_PER_ROW) * 256 + e.cordY * TILE_SIZE
             if _tex_is_empty(raw_tex, w_tex, gx, gy):
                 if not _gate_tex_empty or _in_chr256_region(i):
                     chr256.add(i)
@@ -773,8 +773,8 @@ def build_chr256_ocl_indices(
                     chr256.add(i)
                 else:
                     fi = group_indices[key][0]
-                    gx = (e.page % 8) * 256 + e.cordX * TILE_SIZE
-                    gy = (e.page // 8) * 256 + e.cordY * TILE_SIZE
+                    gx = (e.page % PAGES_PER_ROW) * 256 + e.cordX * TILE_SIZE
+                    gy = (e.page // PAGES_PER_ROW) * 256 + e.cordY * TILE_SIZE
                     if (i - fi) >= CHR256_INDEX_GAP_THRESHOLD and group_bg_has_data[key]:
                         bg_fill = _tex_fill(raw_bg, w_bg, gx, gy)
                         fg_fill = _tex_fill(raw_tex, w_tex, gx, gy)
@@ -819,7 +819,7 @@ def build_chr256_ocl_indices(
     # they contain no col=0/112 member (they are foreground palette variants).
     _pg8_groups: dict[tuple[int, int], list[int]] = {}
     for i, e in enumerate(ocl_entries):
-        if e.page < 8:
+        if e.page < CHR256_PAGE_START:
             continue
         key = (e.page, e.clut_base)
         if key not in _pg8_groups:
@@ -836,8 +836,8 @@ def build_chr256_ocl_indices(
             continue
         page_k, clut_k = key
         cordX_k = clut_k & NIBBLE_MASK; cordY_k = (clut_k >> NIBBLE_SHIFT) & NIBBLE_MASK
-        gx_k = (page_k % 8) * 256 + cordX_k * TILE_SIZE
-        gy_k = (page_k // 8) * 256 + cordY_k * TILE_SIZE
+        gx_k = (page_k % PAGES_PER_ROW) * 256 + cordX_k * TILE_SIZE
+        gy_k = (page_k // PAGES_PER_ROW) * 256 + cordY_k * TILE_SIZE
         if _tex_is_empty(raw_bg, w_bg, gx_k, gy_k):
             continue
         # Only add members whose col is NOT the standard-palette marker (0 or 112).
@@ -865,7 +865,7 @@ def build_chr256_ocl_indices(
     # THRESHOLD from either side, ensuring only tiles genuinely adjacent to the
     # end of the chr256 batch are included.
     for i, e in enumerate(ocl_entries):
-        if e.page < 8:
+        if e.page < CHR256_PAGE_START:
             continue
         if e.col not in (0, 112):
             continue
@@ -908,8 +908,8 @@ def build_chr256_ocl_indices(
             continue  # all same col — no chr256 batch split
         page_k, clut_k = key
         cordX_k = clut_k & NIBBLE_MASK; cordY_k = (clut_k >> NIBBLE_SHIFT) & NIBBLE_MASK
-        gx_k = (page_k % 8) * 256 + cordX_k * TILE_SIZE
-        gy_k = (page_k // 8) * 256 + cordY_k * TILE_SIZE
+        gx_k = (page_k % PAGES_PER_ROW) * 256 + cordX_k * TILE_SIZE
+        gy_k = (page_k // PAGES_PER_ROW) * 256 + cordY_k * TILE_SIZE
         if _tex_is_empty(raw_bg, w_bg, gx_k, gy_k):
             continue  # no background pixel data — not a chr256 tile
         for j in sorted_g:
@@ -994,8 +994,8 @@ def render_omp(
         #   cordX = byte2 & 0x0F  (low nibble)
         #   cordY = (byte2 >> 4) & 0x0F  (high nibble)
         # OCL byte3 (stored as field 'pad'): low nibble = page number
-        #   gx = (page % 8) * 256 + cordX * tile_size
-        #   gy = (page // 8) * 256 + cordY * tile_size
+        #   gx = (page % PAGES_PER_ROW) * 256 + cordX * tile_size   # PAGES_PER_ROW == 8
+        #   gy = (page // PAGES_PER_ROW) * 256 + cordY * tile_size
         # page is the low SIX bits of pad, not the low four.  Bit 0x10 is a page-band
         # selector (pad=0x10 → page 16 → the third 256px band, gy=512: the X5 rose /
         # st000 / st170 / stsel background tilesets live there).  Bit 0x40 is the X6
@@ -1011,7 +1011,7 @@ def render_omp(
         #   Pages 8–15, col=0: tex_bg (col=0 is the chr256 indicator used in stages
         #     that do not use col=112, e.g. st040).
         #   Pages 8–15, other col: tex.
-        if page < 8:
+        if page < CHR256_PAGE_START:
             active_tex = tex_bg if ocl_idx in chr256_indices else tex
         elif ocl_idx in chr256_indices:
             active_tex = tex_bg
@@ -1023,8 +1023,8 @@ def render_omp(
         active_height = len(raw_pixels) // active_width if active_width > 0 else 0
 
 
-        gx = (page % 8) * 256 + entry.cordX * TILE_SIZE
-        gy = (page // 8) * 256 + entry.cordY * TILE_SIZE
+        gx = (page % PAGES_PER_ROW) * 256 + entry.cordX * TILE_SIZE
+        gy = (page // PAGES_PER_ROW) * 256 + entry.cordY * TILE_SIZE
         if gx + TILE_SIZE > active_width or gy + TILE_SIZE > active_height:
             return None
         result: list[int] = []
@@ -1084,7 +1084,7 @@ def render_omp(
             if clut_row_override is not None and tile_id in clut_row_override:
                 clut_row = clut_row_override[tile_id]   # explicit per-index wins
             elif (x6_page8_palette is not None
-                  and entry.clut_bank_selector == 0 and 8 <= entry.page <= 0xB):
+                  and entry.clut_bank_selector == 0 and CHR256_PAGE_START <= entry.page <= 0xB):
                 # X6 page>=8 pad_hi=0 8bpp tile: read the raw stage CLUT at col+96.
                 active_palette = x6_page8_palette
                 clut_row = entry.col + _X6_PAGE8_CLUT_OFFSET
@@ -1147,7 +1147,7 @@ def render_level(
         page = entry.pad & 0x3F
 
         # Texture routing: see render_omp for full explanation.
-        if page < 8:
+        if page < CHR256_PAGE_START:
             active_tex = tex_bg if ocl_idx in chr256_indices else tex
         elif ocl_idx in chr256_indices:
             active_tex = tex_bg
@@ -1158,8 +1158,8 @@ def render_level(
         active_width = active_tex["width"]
         active_height = len(raw_pixels) // active_width if active_width > 0 else 0
 
-        gx = (page % 8) * 256 + entry.cordX * TILE_SIZE
-        gy = (page // 8) * 256 + entry.cordY * TILE_SIZE
+        gx = (page % PAGES_PER_ROW) * 256 + entry.cordX * TILE_SIZE
+        gy = (page // PAGES_PER_ROW) * 256 + entry.cordY * TILE_SIZE
         if gx + TILE_SIZE > active_width or gy + TILE_SIZE > active_height:
             return None
         result: list[int] = []
@@ -1224,7 +1224,7 @@ def render_level(
                     if clut_row_override is not None and ocl_idx in clut_row_override:
                         clut_row = clut_row_override[ocl_idx]   # explicit per-index wins
                     elif (x6_page8_palette is not None
-                          and entry.clut_bank_selector == 0 and 8 <= entry.page <= 0xB):
+                          and entry.clut_bank_selector == 0 and CHR256_PAGE_START <= entry.page <= 0xB):
                         # X6 page>=8 pad_hi=0 8bpp tile: read the raw stage CLUT at col+96
                         # (bypasses normalize's null-keep — the 'inverted shadows' fix).
                         active_palette = x6_page8_palette

@@ -1,4 +1,4 @@
-from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT
+from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START
 from utils.ocl import load_ocl, OclEntry, OclPaletteGroup
 from utils.omp import LayoutTable, build_chr256_ocl_indices
 from utils.types import GameVersion, TexData
@@ -144,7 +144,7 @@ def build_x6_chr256_override(
     # Count occurrences per page>=8 (page, clut_base) coordinate for the sole-entry gate.
     pg8_coord_count: dict[tuple, int] = {}
     for entry in ocl:
-        if entry.page >= 8:
+        if entry.page >= CHR256_PAGE_START:
             key = (entry.page, entry.clut_base)
             pg8_coord_count[key] = pg8_coord_count.get(key, 0) + 1
 
@@ -152,7 +152,7 @@ def build_x6_chr256_override(
     confirmed_bg_page_col: set[tuple] = set()
     for idx in extra:
         entry = ocl[idx]
-        if entry.page >= 8:
+        if entry.page >= CHR256_PAGE_START:
             confirmed_bg_page_col.add((entry.page, entry.col))
 
     tx_raw = tex["raw_image"]
@@ -166,7 +166,7 @@ def build_x6_chr256_override(
         for idx, entry in enumerate(ocl):
             if idx in extra:
                 continue
-            if entry.page < 8:
+            if entry.page < CHR256_PAGE_START:
                 continue
             if (entry.page, entry.col) not in confirmed_bg_page_col:
                 continue
@@ -174,8 +174,8 @@ def build_x6_chr256_override(
             if (pg8_coord_count.get((entry.page, entry.clut_base), 0) > 1
                     and entry.col not in X6_BG_INDICATOR_COLS):
                 continue
-            gx = (entry.page % 8) * 256 + entry.cordX * TILE_SIZE
-            gy = (entry.page // 8) * 256 + entry.cordY * TILE_SIZE
+            gx = (entry.page % PAGES_PER_ROW) * 256 + entry.cordX * TILE_SIZE
+            gy = (entry.page // PAGES_PER_ROW) * 256 + entry.cordY * TILE_SIZE
             if (gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h or
                     gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h):
                 continue
@@ -223,10 +223,10 @@ def build_x6_chr256_override(
         for idx, entry in enumerate(ocl):
             if idx in extra:
                 continue
-            if entry.page < 8:
+            if entry.page < CHR256_PAGE_START:
                 continue
-            gx = (entry.page % 8) * 256 + entry.cordX * TILE_SIZE
-            gy = (entry.page // 8) * 256 + entry.cordY * TILE_SIZE
+            gx = (entry.page % PAGES_PER_ROW) * 256 + entry.cordX * TILE_SIZE
+            gy = (entry.page // PAGES_PER_ROW) * 256 + entry.cordY * TILE_SIZE
             if (gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h or
                     gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h):
                 continue
@@ -283,7 +283,7 @@ def build_x6_chr256_override(
         if idx in pre_gap:
             continue
         entry = ocl[idx]
-        if entry.page >= 8:
+        if entry.page >= CHR256_PAGE_START:
             continue
         if (idx - 1) not in pre_gap or (idx + 1) not in pre_gap:
             continue
@@ -294,8 +294,8 @@ def build_x6_chr256_override(
             continue
         if _strip_run(idx, entry.page, entry.clut_base) < MIN_STRIP_RUN:
             continue
-        gx = (entry.page % 8) * 256 + entry.cordX * TILE_SIZE
-        gy = (entry.page // 8) * 256 + entry.cordY * TILE_SIZE
+        gx = (entry.page % PAGES_PER_ROW) * 256 + entry.cordX * TILE_SIZE
+        gy = (entry.page // PAGES_PER_ROW) * 256 + entry.cordY * TILE_SIZE
         if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
             continue
         if not any(bg_raw[(gy + dy) * bg_w + gx + dx]
@@ -356,7 +356,7 @@ def build_x6_chr256_override(
             entry = ocl[idx]
             # Left bracket: previous index must be a tex_bg lockstep predecessor.
             prev = ocl[idx - 1]
-            if (entry.page >= 8 or (idx - 1) not in pre_bridge
+            if (entry.page >= CHR256_PAGE_START or (idx - 1) not in pre_bridge
                     or prev.page != entry.page
                     or prev.clut_base != entry.clut_base - 1):
                 idx += 1; continue
@@ -378,8 +378,8 @@ def build_x6_chr256_override(
                 if left_len + right_len >= _GAP_MIN_BRACKET:
                     for g in run:
                         e = ocl[g]
-                        gx = (entry.page % 8) * 256 + e.cordX * TILE_SIZE
-                        gy = (entry.page // 8) * 256 + e.cordY * TILE_SIZE
+                        gx = (entry.page % PAGES_PER_ROW) * 256 + e.cordX * TILE_SIZE
+                        gy = (entry.page // PAGES_PER_ROW) * 256 + e.cordY * TILE_SIZE
                         if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
                             continue
                         if not any(bg_raw[(gy + dy) * bg_w + gx + dx]
@@ -439,8 +439,8 @@ def build_x6_chr256_override(
                 continue
             cordX = clut_base & NIBBLE_MASK
             cordY = (clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
-            gx = (page % 8) * 256 + cordX * TILE_SIZE
-            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            gx = (page % PAGES_PER_ROW) * 256 + cordX * TILE_SIZE
+            gy = (page // PAGES_PER_ROW) * 256 + cordY * TILE_SIZE
             if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
                     gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h):
                 continue
@@ -486,8 +486,8 @@ def build_x6_chr256_override(
                     continue
                 cordX = clut_base & NIBBLE_MASK
                 cordY = (clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
-                gx = (page % 8) * 256 + cordX * TILE_SIZE
-                gy = (page // 8) * 256 + cordY * TILE_SIZE
+                gx = (page % PAGES_PER_ROW) * 256 + cordX * TILE_SIZE
+                gy = (page // PAGES_PER_ROW) * 256 + cordY * TILE_SIZE
                 if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
                         gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h):
                     continue
@@ -524,7 +524,7 @@ def build_x6_chr256_override(
         CHR256_PAIR_MAX_GAP = 280
         groups: dict[tuple, list[int]] = {}
         for i, entry in enumerate(ocl):
-            if entry.page < 8:
+            if entry.page < CHR256_PAGE_START:
                 groups.setdefault((entry.page, entry.clut_base), []).append(i)
         for (page, clut_base), idxs in groups.items():
             if len(idxs) < 2:
@@ -536,8 +536,8 @@ def build_x6_chr256_override(
                 continue                       # only the "whole group → chr256" case
             cordX = clut_base & NIBBLE_MASK
             cordY = (clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
-            gx = (page % 8) * 256 + cordX * TILE_SIZE
-            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            gx = (page % PAGES_PER_ROW) * 256 + cordX * TILE_SIZE
+            gy = (page // PAGES_PER_ROW) * 256 + cordY * TILE_SIZE
             if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
                     gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h):
                 continue
@@ -599,7 +599,7 @@ def build_x6_chr256_override(
 
         def _is_fg_strip_cand(i: int) -> bool:
             e = ocl[i]
-            if e.page >= 8 or i not in extra:
+            if e.page >= CHR256_PAGE_START or i not in extra:
                 return False
             idxs = groups_fs[(page, e.clut_base)]
             if len(idxs) < 2 or min(idxs) != i:
@@ -607,7 +607,7 @@ def build_x6_chr256_override(
             return len({ocl[j].col for j in idxs}) >= 2   # mixed-col duplicate (fg/bg pair shape)
 
         def _xy(e: OclEntry) -> tuple[int, int]:
-            return (e.page % 8) * 256 + e.cordX * TILE_SIZE, (e.page // 8) * 256 + e.cordY * TILE_SIZE
+            return (e.page % PAGES_PER_ROW) * 256 + e.cordX * TILE_SIZE, (e.page // PAGES_PER_ROW) * 256 + e.cordY * TILE_SIZE
 
         i = 0
         nocl = len(ocl)
@@ -674,8 +674,8 @@ def build_x6_chr256_override(
         tot = cnt = 0
         for cb in clut_bases:
             cordX = cb & NIBBLE_MASK; cordY = (cb >> NIBBLE_SHIFT) & NIBBLE_MASK
-            gx = (page % 8) * 256 + cordX * TILE_SIZE
-            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            gx = (page % PAGES_PER_ROW) * 256 + cordX * TILE_SIZE
+            gy = (page // PAGES_PER_ROW) * 256 + cordY * TILE_SIZE
             if gx + TILE_SIZE > w or gy + TILE_SIZE > h:
                 continue
             for dy in range(TILE_SIZE):
@@ -691,8 +691,8 @@ def build_x6_chr256_override(
         nz = total = 0
         for cb in clut_bases:
             cordX = cb & NIBBLE_MASK; cordY = (cb >> NIBBLE_SHIFT) & NIBBLE_MASK
-            gx = (page % 8) * 256 + cordX * TILE_SIZE
-            gy = (page // 8) * 256 + cordY * TILE_SIZE
+            gx = (page % PAGES_PER_ROW) * 256 + cordX * TILE_SIZE
+            gy = (page // PAGES_PER_ROW) * 256 + cordY * TILE_SIZE
             if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
                 continue
             for dy in range(TILE_SIZE):
@@ -709,7 +709,7 @@ def build_x6_chr256_override(
         pg_coord_count: dict[tuple, int] = {}
         for idx, entry in enumerate(ocl):
             page = entry.page
-            if page >= 8:
+            if page >= CHR256_PAGE_START:
                 continue
             pg_entries.setdefault(page, []).append(idx)
             k = (page, entry.clut_base)
@@ -733,8 +733,8 @@ def build_x6_chr256_override(
             # tex is striped garbage, tex_bg holds the coherent art: route every
             # entry on this page whose tex_bg coordinate is non-empty to tex_bg.
             for i in idxs:
-                gx = (page % 8) * 256 + ocl[i].cordX * TILE_SIZE
-                gy = (page // 8) * 256 + ocl[i].cordY * TILE_SIZE
+                gx = (page % PAGES_PER_ROW) * 256 + ocl[i].cordX * TILE_SIZE
+                gy = (page // PAGES_PER_ROW) * 256 + ocl[i].cordY * TILE_SIZE
                 if gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h:
                     continue
                 if any(bg_raw[(gy + dy) * bg_w + gx + dx]
@@ -812,15 +812,15 @@ def build_x6_chr256_override(
             if idx in extra:
                 continue
             entry = ocl[idx]
-            if entry.page >= 8:
+            if entry.page >= CHR256_PAGE_START:
                 continue
             if (idx - 1) not in extra:
                 continue
             prev = ocl[idx - 1]
             if prev.page != entry.page or prev.clut_base != entry.clut_base - 1:
                 continue
-            gx = (entry.page % 8) * 256 + entry.cordX * TILE_SIZE
-            gy = (entry.page // 8) * 256 + entry.cordY * TILE_SIZE
+            gx = (entry.page % PAGES_PER_ROW) * 256 + entry.cordX * TILE_SIZE
+            gy = (entry.page // PAGES_PER_ROW) * 256 + entry.cordY * TILE_SIZE
             if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
                     gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h):
                 continue
@@ -867,14 +867,14 @@ def build_x6_chr256_override(
             if idx in extra:
                 continue
             entry = ocl[idx]
-            if entry.page >= 8:
+            if entry.page >= CHR256_PAGE_START:
                 continue
             if (idx - 1) not in extra or (idx + 1) not in extra:
                 continue
             if ocl[idx - 1].page != entry.page or ocl[idx + 1].page != entry.page:
                 continue
-            gx = (entry.page % 8) * 256 + entry.cordX * TILE_SIZE
-            gy = (entry.page // 8) * 256 + entry.cordY * TILE_SIZE
+            gx = (entry.page % PAGES_PER_ROW) * 256 + entry.cordX * TILE_SIZE
+            gy = (entry.page // PAGES_PER_ROW) * 256 + entry.cordY * TILE_SIZE
             if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
                     gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h):
                 continue
@@ -912,20 +912,20 @@ def build_x6_chr256_override(
     if pg8_garbage_hole_suppress:
         bg_cb_by_pagecol: dict[tuple, list[int]] = {}
         for i, e in enumerate(ocl):
-            if e.page >= 8 and i in extra:
+            if e.page >= CHR256_PAGE_START and i in extra:
                 bg_cb_by_pagecol.setdefault((e.page, e.col), []).append(e.clut_base)
         for idx, entry in enumerate(ocl):
             if idx in extra:
                 continue
-            if entry.page < 8 or entry.page > 0xB:
+            if entry.page < CHR256_PAGE_START or entry.page > 0xB:
                 continue
             members = bg_cb_by_pagecol.get((page, entry.col))
             if not members:
                 continue
             if not (any(c < entry.clut_base for c in members) and any(c > entry.clut_base for c in members)):
                 continue
-            gx = (entry.page % 8) * 256 + entry.cordX * TILE_SIZE
-            gy = (entry.page // 8) * 256 + entry.cordY * TILE_SIZE
+            gx = (entry.page % PAGES_PER_ROW) * 256 + entry.cordX * TILE_SIZE
+            gy = (entry.page // PAGES_PER_ROW) * 256 + entry.cordY * TILE_SIZE
             if (gx + TILE_SIZE > bg_w or gy + TILE_SIZE > bg_h or
                     gx + TILE_SIZE > tx_w or gy + TILE_SIZE > tx_h):
                 continue

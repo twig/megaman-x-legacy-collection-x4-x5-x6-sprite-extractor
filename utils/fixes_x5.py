@@ -1,4 +1,4 @@
-from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT
+from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START
 from utils.ocl import OclEntry
 from utils.types import TexData
 from utils.omp import LayoutTable, build_chr256_ocl_indices
@@ -55,8 +55,8 @@ def build_x5_chr256_bg_override(
 
     def _grid(t: "TexData", e: OclEntry) -> "list[list[int]] | None":
         raw = t["raw_image"]; w = t["width"]; h = len(raw) // w
-        gx = (e.page % 8) * 256 + e.cordX * TILE_SIZE
-        gy = (e.page // 8) * 256 + e.cordY * TILE_SIZE
+        gx = (e.page % PAGES_PER_ROW) * 256 + e.cordX * TILE_SIZE
+        gy = (e.page // PAGES_PER_ROW) * 256 + e.cordY * TILE_SIZE
         if gx + TILE_SIZE > w or gy + TILE_SIZE > h:
             return None
         return [list(raw[(gy + r) * w + gx : (gy + r) * w + gx + TILE_SIZE]) for r in range(TILE_SIZE)]
@@ -144,11 +144,11 @@ def build_x5_chr256_bg_override(
     n = len(ocl)
     i = 0
     while i < n:
-        if ocl[i].page >= 8:
+        if ocl[i].page >= CHR256_PAGE_START:
             i += 1
             continue
         j = i
-        while (j + 1 < n and ocl[j + 1].page < 8
+        while (j + 1 < n and ocl[j + 1].page < CHR256_PAGE_START
                and _tilepos(ocl[j + 1]) == _tilepos(ocl[j]) + 1):
             j += 1
         run = list(range(i, j + 1))
@@ -373,10 +373,10 @@ def build_x5_pg8_empty_bg_override(
         # slot (gy=256) that _resolve_tile also draws — the X5 st170 Rangda Bangda W
         # background whose tex block is blank while tex_bg holds it (same tex-empty
         # recovery, so still regression-free; sky stays dropped as its tex_bg is empty too).
-        if not (8 <= e.page <= 0xB or e.page == 15) or idx in out:
+        if not (CHR256_PAGE_START <= e.page <= 0xB or e.page == 15) or idx in out:
             continue
-        gx = (e.page % 8) * 256 + e.cordX * TILE
-        gy = (e.page // 8) * 256 + e.cordY * TILE
+        gx = (e.page % PAGES_PER_ROW) * 256 + e.cordX * TILE
+        gy = (e.page // PAGES_PER_ROW) * 256 + e.cordY * TILE
         if _block_has_data(tex_raw, tex_w, tex_h, gx, gy) is False \
                 and _block_has_data(bg_raw, bg_w, bg_h, gx, gy):
             out.add(idx)
