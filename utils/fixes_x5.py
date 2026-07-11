@@ -1,4 +1,7 @@
-from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START, PAGE_SIZE_PX, TILES_PER_SCREEN
+from utils.consts import (
+    TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START, PAGE_SIZE_PX,
+    TILES_PER_SCREEN, CHR256_PAGE_MAX, OCL_INDEX_MASK, STP_TRANSLUCENT_BIT, PAD_SKYFILL_SENTINEL,
+)
 from utils.ocl import OclEntry
 from utils.types import TexData
 from utils.omp import LayoutTable, build_chr256_ocl_indices
@@ -90,7 +93,7 @@ def build_x5_chr256_bg_override(
                     raw = screen[wy * TILES_PER_SCREEN + wx]
                     if not raw:
                         continue
-                    idx = raw & 0x3FFF
+                    idx = raw & OCL_INDEX_MASK
                     placed_all.add(idx)
                     if ly < fg_rows:
                         placed_fg.add(idx)
@@ -367,13 +370,13 @@ def build_x5_pg8_empty_bg_override(
     out = set(chr256_set)
     n_moved = 0
     for idx, e in enumerate(ocl):
-        if e.pad == 0xFF:
+        if e.pad == PAD_SKYFILL_SENTINEL:
             continue  # sky-fill sentinel (page nibble 15 too) — never real art
         # 8-0xB are the 8bpp bitmap pages; page 15 (pad=0x0F) is the page-band-1 art
         # slot (gy=256) that _resolve_tile also draws — the X5 st170 Rangda Bangda W
         # background whose tex block is blank while tex_bg holds it (same tex-empty
         # recovery, so still regression-free; sky stays dropped as its tex_bg is empty too).
-        if not (CHR256_PAGE_START <= e.page <= 0xB or e.page == 15) or idx in out:
+        if not (CHR256_PAGE_START <= e.page <= CHR256_PAGE_MAX or e.page == 15) or idx in out:
             continue
         gx = (e.page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * TILE
         gy = (e.page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * TILE
@@ -485,13 +488,13 @@ def x5_additive_water(
             for wy in range(TILES_PER_SCREEN):
                 for wx in range(TILES_PER_SCREEN):
                     t = omp.tiles[sc][wy * TILES_PER_SCREEN + wx]
-                    if t == 0 or not (t & 0x4000):
+                    if t == 0 or not (t & STP_TRANSLUCENT_BIT):
                         continue
-                    idx = t & 0x3FFF
+                    idx = t & OCL_INDEX_MASK
                     if idx >= len(ocl):
                         continue
                     e = ocl[idx]
-                    if e.col != water_col or e.pad == 0xFF:
+                    if e.col != water_col or e.pad == PAD_SKYFILL_SENTINEL:
                         continue
                     lx, ly = sx * TILES_PER_SCREEN + wx, sy * TILES_PER_SCREEN + wy
                     layer = ly // tiles_per_layer

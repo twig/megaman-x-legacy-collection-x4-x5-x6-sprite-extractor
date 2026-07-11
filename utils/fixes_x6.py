@@ -1,4 +1,4 @@
-from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START, PAGE_SIZE_PX
+from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START, PAGE_SIZE_PX, CHR256_PAGE_MAX
 from utils.ocl import load_ocl, OclEntry, OclPaletteGroup
 from utils.omp import LayoutTable, build_chr256_ocl_indices
 from utils.types import GameVersion, TexData
@@ -917,7 +917,7 @@ def build_x6_chr256_override(
         for idx, entry in enumerate(ocl):
             if idx in extra:
                 continue
-            if entry.page < CHR256_PAGE_START or entry.page > 0xB:
+            if entry.page < CHR256_PAGE_START or entry.page > CHR256_PAGE_MAX:
                 continue
             members = bg_cb_by_pagecol.get((page, entry.col))
             if not members:

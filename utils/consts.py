@@ -25,6 +25,25 @@ PAGES_PER_ROW = 8
 # 4bpp / 8bpp split: pages 0 -> CHR256_PAGE_START are 4bpp (tex);
 # pages CHR256_PAGE_START onwards are 8bpp and route to the chr256 (tex_bg) sheet.
 CHR256_PAGE_START = 8
+# Highest real 8bpp chr256 page nibble. Pages CHR256_PAGE_START..CHR256_PAGE_MAX
+# (8..11) are the real 8bpp bitmap pages; a page nibble > CHR256_PAGE_MAX is the
+# sky-fill sentinel territory (see PAD_SKYFILL_SENTINEL / pad=0x0F band-1 art).
+CHR256_PAGE_MAX = 0xB
+
+# OCL-index mask on a raw OMP u16 tile cell: the low 14 bits are the OCL index,
+# the top 2 bits (0x8000 / 0x4000) are engine flag bits.
+OCL_INDEX_MASK = 0x3FFF
+# Bit 0x4000 of the raw OMP cell = PSX semi-transparency (STP)
+STP_TRANSLUCENT_BIT = 0x4000
+
+# Six-bit page field mask on the OCL ``pad`` byte: keeps the page nibble plus the
+# page-band selector bit (0x10), while stripping the X6 pad_hi alt-bank bit (0x40).
+PAGE_MASK_6bit = 0x3F
+# pad byte sentinel meaning "no TEX data" — the crystal sky-fill slot, never real art.
+PAD_SKYFILL_SENTINEL = 0xFF
+# On pages >= CHR256_PAGE_START, this OCL col marks a chr256 (tex_bg) background tile
+# (paired with col=0). See X6_BG_INDICATOR_COLS for the X6-specific pairing.
+CHR256_COL_INDICATOR = 112
 
 # Map layering
 COMPOSED_ORDER_BASIC = [2, 1, 0]  # back-to-front

@@ -144,7 +144,11 @@ from pathlib import Path
 from PIL import Image
 from PIL.Image import Image as PILImage
 
-from utils.consts import TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START, PAGE_SIZE_PX, TILES_PER_SCREEN, CLUT_COLORS_PER_ROW
+from utils.consts import (
+    TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START, PAGE_SIZE_PX,
+    TILES_PER_SCREEN, CLUT_COLORS_PER_ROW, CHR256_PAGE_MAX, OCL_INDEX_MASK, STP_TRANSLUCENT_BIT,
+    PAGE_MASK_6bit, PAD_SKYFILL_SENTINEL, CHR256_COL_INDICATOR,
+)
 from utils.ocl import OclEntry, OclPaletteGroup
 from utils.types import ColourRGBA, Palette, TexData
 
@@ -810,7 +814,7 @@ def build_chr256_ocl_indices(
     # When a (page, clut_base) group on page>=8 has:
     #   - 2+ OCL entries
     #   - total span (max_idx - min_idx) < CHR256_INDEX_GAP_THRESHOLD
-    #   - at least one member with col in (0, 112)  [chr256 palette indicator]
+    #   - at least one member with col in (0, CHR256_COL_INDICATOR)  [chr256 palette indicator]
     #   - tex_bg has non-empty pixel data at those coordinates
     # then ALL members of the group belong to the chr256 (background) batch.
     #
@@ -833,7 +837,7 @@ def build_chr256_ocl_indices(
         sorted_g = sorted(idxs)
         if sorted_g[-1] - sorted_g[0] >= CHR256_INDEX_GAP_THRESHOLD:
             continue
-        if not any(ocl_entries[j].col in (0, 112) for j in idxs):
+        if not any(ocl_entries[j].col in (0, CHR256_COL_INDICATOR) for j in idxs):
             continue
         page_k, clut_k = key
         cordX_k = clut_k & NIBBLE_MASK; cordY_k = (clut_k >> NIBBLE_SHIFT) & NIBBLE_MASK
@@ -846,7 +850,7 @@ def build_chr256_ocl_indices(
         # the col=0 member is the foreground tile sharing the same pixel coordinates;
         # it must stay in tex.  The col=0/112 members are handled independently by
         # Pass 3b's proximity check.
-        chr256.update(j for j in idxs if ocl_entries[j].col not in (0, 112))
+        chr256.update(j for j in idxs if ocl_entries[j].col not in (0, CHR256_COL_INDICATOR))
 
     # Pass 3b: page>=8 sole entries — col=0/112 proximity check.
     # A sole page>=8 col-0/112 entry is chr256 when:
@@ -868,7 +872,7 @@ def build_chr256_ocl_indices(
     for i, e in enumerate(ocl_entries):
         if e.page < CHR256_PAGE_START:
             continue
-        if e.col not in (0, 112):
+        if e.col not in (0, CHR256_COL_INDICATOR):
             continue
         if _no_lg_min < 0 or (_chr256_max_pg_lt8 >= 0 and abs(i - _chr256_max_pg_lt8) <= CHR256_INDEX_GAP_THRESHOLD):
             chr256.add(i)
@@ -997,14 +1001,15 @@ def render_omp(
         # OCL byte3 (stored as field 'pad'): low nibble = page number
         #   gx = (page % PAGES_PER_ROW) * PAGE_SIZE_PX + cordX * tile_size   # PAGES_PER_ROW == 8
         #   gy = (page // PAGES_PER_ROW) * PAGE_SIZE_PX + cordY * tile_size   # PAGE_SIZE_PX == 256
-        # page is the low SIX bits of pad, not the low four.  Bit 0x10 is a page-band
-        # selector (pad=0x10 → page 16 → the third 256px band, gy=512: the X5 rose /
-        # st000 / st170 / stsel background tilesets live there).  Bit 0x40 is the X6
-        # pad_hi=4 alt-CLUT-bank marker and is NOT part of the page, so it is masked off
-        # — keeping X6's 0x49/0x4a/0x4b machinery tiles on pages 9/10/11 exactly as
-        # before (0x4b & 0x3F == 0x4b & 0xF == 11).  pad=0xFF is filtered by the
-        # page>0xB skip in the caller before reaching here.
-        page = entry.pad & 0x3F
+        # page is the low SIX bits of pad (PAGE_MASK_6bit), not the low four.  Bit 0x10
+        # is a page-band selector (pad=0x10 → page 16 → the third 256px band, gy=512:
+        # the X5 rose / st000 / st170 / stsel background tilesets live there).  Bit 0x40
+        # is the X6 pad_hi=4 alt-CLUT-bank marker and is NOT part of the page, so
+        # PAGE_MASK_6bit strips it — keeping X6's 0x49/0x4a/0x4b machinery tiles on pages
+        # 9/10/11 exactly as before (0x4b & 0x3F == 0x4b & 0xF == 11).  pad=0xFF
+        # (PAD_SKYFILL_SENTINEL) is filtered by the page>CHR256_PAGE_MAX skip in the
+        # caller before reaching here.
+        page = entry.pad & PAGE_MASK_6bit
 
         # Texture routing:
         #   Pages 0–7: build_chr256_ocl_indices() decides; chr256 entries use tex_bg.
@@ -1046,7 +1051,7 @@ def render_omp(
             # OCL entries already contain pre-oriented pixel data.  Mask them off
             # to get the true OCL index (consistent with TeheManX4_Editor's
             # `id &= 0x3FFF` in Draw16xTile).
-            tile_id = raw_id & 0x3FFF
+            tile_id = raw_id & OCL_INDEX_MASK
 
             if tile_id >= len(ocl_entries):
                 continue  # out of range — skip silently
@@ -1059,23 +1064,23 @@ def render_omp(
             if palette is None:
                 continue  # no palette registered at all — skip
 
-            # Skip the crystal sky-fill sentinel (pad=0xFF — "no TEX data").
-            # TeheManX4_Editor's Draw16xTile bails for ANY page nibble > 0xB, but that
-            # is an editor-preview limit (it only loads 8bpp bitmap pages 8–11), not a
+            # Skip the crystal sky-fill sentinel (pad=PAD_SKYFILL_SENTINEL 0xFF — "no TEX data").
+            # TeheManX4_Editor's Draw16xTile bails for ANY page nibble > CHR256_PAGE_MAX (0xB),
+            # but that is an editor-preview limit (it only loads 8bpp bitmap pages 8–11), not a
             # game-draw rule.  pad=0x0F (page nibble 15, pad_hi 0) addresses real art in
-            # TEX page band 1 (page & 0x3F == 15): the X5 st070 boss-room background
+            # TEX page band 1 (page & PAGE_MASK_6bit == 15): the X5 st070 boss-room background
             # machinery.  These are the ONLY two pad bytes with a page nibble > 0xB, so
             # the slots split cleanly: pad=0xFF sky-fill (always skipped) vs pad=0x0F art
             # (drawn ONLY when its resolved block holds pixels — guard below).
             # NOTE: pad=0x10 is also drawn — page nibble 0, bit 0x10 selects page band 2
             # (the rose / st000 background tiles).
-            if entry.pad == 0xFF:
+            if entry.pad == PAD_SKYFILL_SENTINEL:
                 continue
 
             raw_tile = _resolve_tile(entry, tile_id)
             if raw_tile is None:
                 continue  # tile not found in TEX
-            if entry.page > 0xB and not any(raw_tile):
+            if entry.page > CHR256_PAGE_MAX and not any(raw_tile):
                 # page-nibble>0xB slot resolving to an all-zero block = sky-fill sentinel
                 # (st000/st170 sky), not dropped art.  Skip so it stays transparent rather
                 # than painting CLUT index 0 (dark-but-non-black on some stage rows).
@@ -1085,7 +1090,7 @@ def render_omp(
             if clut_row_override is not None and tile_id in clut_row_override:
                 clut_row = clut_row_override[tile_id]   # explicit per-index wins
             elif (x6_page8_palette is not None
-                  and entry.clut_bank_selector == 0 and CHR256_PAGE_START <= entry.page <= 0xB):
+                  and entry.clut_bank_selector == 0 and CHR256_PAGE_START <= entry.page <= CHR256_PAGE_MAX):
                 # X6 page>=8 pad_hi=0 8bpp tile: read the raw stage CLUT at col+96.
                 active_palette = x6_page8_palette
                 clut_row = entry.col + _X6_PAGE8_CLUT_OFFSET
@@ -1145,7 +1150,7 @@ def render_level(
         # page-band selector (pad=0x10 → page 16, gy=512 — the X5 rose / st000 / st170 /
         # stsel background tilesets); bit 0x40 (X6 pad_hi=4 alt-CLUT-bank) is masked off
         # so X6 machinery pages are unchanged.  pad=0xFF is filtered by the caller.
-        page = entry.pad & 0x3F
+        page = entry.pad & PAGE_MASK_6bit
 
         # Texture routing: see render_omp for full explanation.
         if page < CHR256_PAGE_START:
@@ -1185,7 +1190,7 @@ def render_level(
                         continue  # transparent
 
                     # Bits 14-15 are engine flags, not visual flip signals — mask off.
-                    ocl_idx = raw_id & 0x3FFF
+                    ocl_idx = raw_id & OCL_INDEX_MASK
 
                     if ocl_idx >= len(ocl_entries):
                         continue
@@ -1208,13 +1213,13 @@ def render_level(
                     # pad=0xFF sky-fill (always skipped) vs pad=0x0F art (drawn ONLY when
                     # its resolved block holds pixels — guard below).  pad=0x10 is also
                     # drawn (page nibble 0, bit 0x10 selects page band 2).
-                    if entry.pad == 0xFF:
+                    if entry.pad == PAD_SKYFILL_SENTINEL:
                         continue
 
                     raw_tile = _resolve_tile(entry, ocl_idx)
                     if raw_tile is None:
                         continue
-                    if entry.page > 0xB and not any(raw_tile):
+                    if entry.page > CHR256_PAGE_MAX and not any(raw_tile):
                         # page-nibble>0xB slot with an all-zero block = sky-fill sentinel
                         # (st000/st170 sky), not dropped art.  Skip so it stays transparent
                         # rather than painting CLUT index 0 (dark-but-non-black on some rows).
@@ -1225,28 +1230,28 @@ def render_level(
                     if clut_row_override is not None and ocl_idx in clut_row_override:
                         clut_row = clut_row_override[ocl_idx]   # explicit per-index wins
                     elif (x6_page8_palette is not None
-                          and entry.clut_bank_selector == 0 and CHR256_PAGE_START <= entry.page <= 0xB):
+                          and entry.clut_bank_selector == 0 and CHR256_PAGE_START <= entry.page <= CHR256_PAGE_MAX):
                         # X6 page>=8 pad_hi=0 8bpp tile: read the raw stage CLUT at col+96
                         # (bypasses normalize's null-keep — the 'inverted shadows' fix).
                         active_palette = x6_page8_palette
                         clut_row = entry.col + _X6_PAGE8_CLUT_OFFSET
                     rgba_pixels = _apply_palette_to_tile(raw_tile, clut_row, active_palette)
 
-                    # Bit 0x4000 of the raw OMP cell marks a PSX semi-transparency tile
+                    # Bit STP_TRANSLUCENT_BIT of the raw OMP cell marks a PSX semi-transparency tile
                     # (e.g. X5 st070's layer-0 "water wall" tiles).  Honour it by halving
                     # each opaque pixel's alpha so the tile renders as translucent water
                     # rather than the opaque block produced when the flag is ignored.
                     # Fully-transparent pixels stay transparent; non-flagged tiles are
                     # untouched (output byte-identical), so settled baselines don't move.
                     #
-                    # Per-tile exemption: the 0x4000 bit is set on ~30% of placements in most
+                    # Per-tile exemption: the STP_TRANSLUCENT_BIT is set on ~30% of placements in most
                     # stages (it doubles as an engine flag), so a stage cannot be judged
                     # opaque wholesale.  A tile resolved from a texch3 background sheet
                     # (bg_is_texch3 + routed to tex_bg) is opaque boss art (st170's Rangda
                     # Bangda W), NOT a translucent effect, so it opts out — while same-stage
                     # tiles on the main sheet (e.g. st170's honeycomb, col=5 page=1) keep STP.
                     on_texch3 = bg_is_texch3 and ocl_idx in chr256_indices
-                    if raw_id & 0x4000 and not on_texch3:
+                    if raw_id & STP_TRANSLUCENT_BIT and not on_texch3:
                         rgba_pixels = [
                             (r, g, b, a >> 1) if a else (r, g, b, a)
                             for (r, g, b, a) in rgba_pixels
