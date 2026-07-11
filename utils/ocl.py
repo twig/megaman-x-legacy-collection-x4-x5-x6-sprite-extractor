@@ -50,10 +50,11 @@
 #     cordY = e.cordY   # == (e.clut_base >> 4) & 0x0F  (high nibble)
 #     page  = e.page    # == e.pad & 0x0F
 #
-#     gx = (e.page % PAGES_PER_ROW) * 256 + e.cordX * 16   # pixel X of tile top-left in TEX
-#     gy = (e.page // PAGES_PER_ROW) * 256 + e.cordY * 16   # pixel Y of tile top-left in TEX
+#     gx = (e.page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * 16   # pixel X of tile top-left in TEX
+#     gy = (e.page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * 16   # pixel Y of tile top-left in TEX
 #     (PAGES_PER_ROW == 8: a TEX sheet holds 8 pages across, so page // 8 is the
-#      sheet row/band and page % 8 the column within it.)
+#      sheet row/band and page % 8 the column within it.  PAGE_SIZE_PX == 256:
+#      each page is 256x256 px.)
 #
 #   tex_x (tile column in TEX) = e.page * 16 + e.cordX
 #   tex_y (tile row    in TEX) = e.cordY
