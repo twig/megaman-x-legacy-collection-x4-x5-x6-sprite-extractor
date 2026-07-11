@@ -470,7 +470,7 @@ def x5_additive_water(
         return 0
 
     tiles_per_layer = (n_sy // 3) * TILES_PER_SCREEN
-    th = tiles_per_layer * 16  # third height in px
+    th = tiles_per_layer * TILE_SIZE  # third height in px
 
     work = level_img.convert("RGBA")
     ref = work.copy().load()   # pristine pixel access for background reads
@@ -495,12 +495,12 @@ def x5_additive_water(
                         continue
                     lx, ly = sx * TILES_PER_SCREEN + wx, sy * TILES_PER_SCREEN + wy
                     layer = ly // tiles_per_layer
-                    py_local = (ly % tiles_per_layer) * 16
-                    px = lx * 16
+                    py_local = (ly % tiles_per_layer) * TILE_SIZE
+                    px = lx * TILE_SIZE
                     tile_modified = False
-                    for dy in range(16):
-                        row_y = ly * 16 + dy
-                        for dx in range(16):
+                    for dy in range(TILE_SIZE):
+                        row_y = ly * TILE_SIZE + dy
+                        for dx in range(TILE_SIZE):
                             col_x = px + dx
                             lr, lg, lb, la = ref[col_x, row_y]
                             if la == 0:
