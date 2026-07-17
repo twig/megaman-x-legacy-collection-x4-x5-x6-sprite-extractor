@@ -339,7 +339,7 @@ COMPOSED_ORDER_OVERRIDES: dict[GameVersion, dict[str, list[int] | None]] = {
         "SCR0E_00": None,
         "SCR0F_00_eng": None,
         "SCR01_00": COMPOSED_ORDER_REVERSED,
-        "SCR01_01": COMPOSED_ORDER_REVERSED,
+        # "SCR01_01": COMPOSED_ORDER_REVERSED,
     },
     GameVersion.X5: {
         "st041": COMPOSED_ORDER_REVERSED,
