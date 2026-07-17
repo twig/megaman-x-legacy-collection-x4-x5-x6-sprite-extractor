@@ -1002,7 +1002,7 @@ def render_omp(
         #   gx = (page % PAGES_PER_ROW) * PAGE_SIZE_PX + cordX * tile_size   # PAGES_PER_ROW == 8
         #   gy = (page // PAGES_PER_ROW) * PAGE_SIZE_PX + cordY * tile_size   # PAGE_SIZE_PX == 256
         # page is the low SIX bits of pad (PAGE_MASK_6bit), not the low four.  Bit 0x10
-        # is a page-band selector (pad=0x10 → page 16 → the third 256px band, gy=512:
+        # is a page-band selector (page_and_clutbank=0x10 → page 16 → the third 256px band, gy=512:
         # the X5 rose / st000 / st170 / stsel background tilesets live there).  Bit 0x40
         # is the X6 pad_hi=4 alt-CLUT-bank marker and is NOT part of the page, so
         # PAGE_MASK_6bit strips it — keeping X6's 0x49/0x4a/0x4b machinery tiles on pages
@@ -1067,12 +1067,12 @@ def render_omp(
             # Skip the crystal sky-fill sentinel.
             # TeheManX4_Editor's Draw16xTile bails for ANY page nibble > CHR256_PAGE_MAX (0xB),
             # but that is an editor-preview limit (it only loads 8bpp bitmap pages 8–11), not a
-            # game-draw rule.  pad=0x0F (page nibble 15, pad_hi 0) addresses real art in
+            # game-draw rule.  page_and_clutbank=0x0F (page nibble 15, pad_hi 0) addresses real art in
             # TEX page band 1 (page & PAGE_MASK_6bit == 15): the X5 st070 boss-room background
             # machinery.  These are the ONLY two pad bytes with a page nibble > 0xB, so
-            # the slots split cleanly: pad=0xFF sky-fill (always skipped) vs pad=0x0F art
+            # the slots split cleanly: is_empty vs page_and_clutbank=0x0F art
             # (drawn ONLY when its resolved block holds pixels — guard below).
-            # NOTE: pad=0x10 is also drawn — page nibble 0, bit 0x10 selects page band 2
+            # NOTE: page_and_clutbank=0x10 is also drawn — page nibble 0, bit 0x10 selects page band 2
             # (the rose / st000 background tiles).
             if entry.is_empty:
                 continue
@@ -1147,9 +1147,9 @@ def render_level(
 
     def _resolve_tile(entry: OclEntry, ocl_idx: int) -> list[int] | None:
         # See render_omp's _resolve_tile: page is pad's low SIX bits.  Bit 0x10 is a
-        # page-band selector (pad=0x10 → page 16, gy=512 — the X5 rose / st000 / st170 /
+        # page-band selector (page_and_clutbank=0x10 → page 16, gy=512 — the X5 rose / st000 / st170 /
         # stsel background tilesets); bit 0x40 (X6 pad_hi=4 alt-CLUT-bank) is masked off
-        # so X6 machinery pages are unchanged.  pad=0xFF is filtered by the caller.
+        # so X6 machinery pages are unchanged.  entry.is_empty is filtered by the caller.
         page = entry.page_and_clutbank & PAGE_MASK_6bit
 
         # Texture routing: see render_omp for full explanation.
@@ -1206,12 +1206,12 @@ def render_level(
                     # Skip the crystal sky-fill sentinel.
                     # The editor's Draw16xTile bails for ANY page nibble > 0xB, but that
                     # is an editor-preview limit (it only loads 8bpp bitmap pages 8–11),
-                    # not a game-draw rule.  pad=0x0F (page nibble 15, pad_hi 0) addresses
+                    # not a game-draw rule.  page_and_clutbank=0x0F (page nibble 15, pad_hi 0) addresses
                     # real art in TEX page band 1 (page & 0x3F == 15): the X5 st070
-                    # boss-room background machinery.  pad=0xFF and pad=0x0F are the ONLY
+                    # boss-room background machinery.  is_empty and page_and_clutbank=0x0F are the ONLY
                     # two pad bytes with a page nibble > 0xB, so the slots split cleanly:
-                    # pad=0xFF sky-fill (always skipped) vs pad=0x0F art (drawn ONLY when
-                    # its resolved block holds pixels — guard below).  pad=0x10 is also
+                    # is_empty vs page_and_clutbank=0x0F art (drawn ONLY when
+                    # its resolved block holds pixels — guard below).  page_and_clutbank=0x10 is also
                     # drawn (page nibble 0, bit 0x10 selects page band 2).
                     if entry.is_empty:
                         continue

@@ -27,7 +27,7 @@ PAGES_PER_ROW = 8
 CHR256_PAGE_START = 8
 # Highest real 8bpp chr256 page nibble. Pages CHR256_PAGE_START..CHR256_PAGE_MAX
 # (8..11) are the real 8bpp bitmap pages; a page nibble > CHR256_PAGE_MAX is the
-# sky-fill sentinel territory (see OCL_EMPTY_TILE / pad=0x0F band-1 art).
+# sky-fill sentinel territory (see OCL_EMPTY_TILE / page_and_clutbank=0x0F band-1 art).
 CHR256_PAGE_MAX = 0xB
 
 # OCL-index mask on a raw OMP u16 tile cell: the low 14 bits are the OCL index,
