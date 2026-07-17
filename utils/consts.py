@@ -11,7 +11,7 @@ TILES_PER_SCREEN = 16
 CLUT_COLORS_PER_ROW = 16
 
 # OCL tile-address bit layout: page/cordX/cordY are packed as 4-bit nibbles in
-# the pad / tile_coords bytes.
+# the page_and_clutbank / tile_coords bytes.
 # Low nibble via ``& NIBBLE_MASK``
 # High nibble via ``(byte >> NIBBLE_SHIFT) & NIBBLE_MASK``.
 NIBBLE_MASK = 0xF
@@ -36,10 +36,10 @@ OCL_INDEX_MASK = 0x3FFF
 # Bit 0x4000 of the raw OMP cell = PSX semi-transparency (STP)
 STP_TRANSLUCENT_BIT = 0x4000
 
-# Six-bit page field mask on the OCL ``pad`` byte: keeps the page nibble plus the
-# page-band selector bit (0x10), while stripping the X6 pad_hi alt-bank bit (0x40).
+# Six-bit page field mask on the OCL ``page_and_clutbank`` byte: keeps the page nibble
+# plus the page-band selector bit (0x10), while stripping the X6 pad_hi alt-bank bit (0x40).
 PAGE_MASK_6bit = 0x3F
-# pad byte sentinel meaning "no TEX data" - the crystal sky-fill slot, never real art.
+# page_and_clutbank byte sentinel meaning "no TEX data" - the crystal sky-fill slot, never real art.
 PAD_SKYFILL_SENTINEL = 0xFF
 # On pages >= CHR256_PAGE_START, this OCL col marks a chr256 (tex_bg) background tile
 # (paired with col=0). See X6_BG_INDICATOR_COLS for the X6-specific pairing.

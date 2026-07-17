@@ -29,8 +29,8 @@
 #     byte 2 – tile_coords: TEX tile position encoding
 #                      cordX = byte2 & 0x0F   (low  nibble, tile column within page)
 #                      cordY = (byte2 >> 4) & 0x0F  (high nibble, tile row within page)
-#     byte 3 – (named 'pad', legacy misnomer):
-#                       TEX page encoding —
+#     byte 3 – page_and_clutbank:  low nibble = TEX page; high nibble = X6 CLUT-bank
+#                       selector (pad_hi).
 #                         page  = byte3 & 0x0F
 #                       Values observed: 0–5, 10, 11, 15, 16 (0x10), 255 (0xFF)
 #                       Pages 0..CHR256_PAGE_START-1 (0–7) are 4bpp (the tex sheet);
@@ -44,10 +44,10 @@
 # ============================================================
 #
 #   Given an OclEntry e, the nibble fields are exposed as properties — prefer
-#   e.tex_page / e.cordX / e.cordY over masking pad/clut_base by hand:
+#   e.tex_page / e.cordX / e.cordY over masking page_and_clutbank/tile_coords by hand:
 #     cordX    = e.cordX      # == e.tile_coords & 0x0F         (low  nibble)
 #     cordY    = e.cordY      # == (e.tile_coords >> 4) & 0x0F  (high nibble)
-#     tex_page = e.tex_page   # == e.pad & 0x0F
+#     tex_page = e.tex_page   # == e.page_and_clutbank & 0x0F
 #
 #     gx = (e.tex_page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * 16   # pixel X of tile top-left in TEX
 #     gy = (e.tex_page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * 16   # pixel Y of tile top-left in TEX
@@ -58,8 +58,8 @@
 #   tex_x (tile column in TEX) = e.tex_page * 16 + e.cordX
 #   tex_y (tile row    in TEX) = e.cordY
 #
-#   The HIGH nibble of pad — (e.pad >> 4) & 0x0F — is the X6 pad_hi CLUT-bank
-#   selector, NOT a tile coordinate; use the e.clut_bank_selector property.
+#   The HIGH nibble of page_and_clutbank — (e.page_and_clutbank >> 4) & 0x0F — is the
+#   X6 pad_hi CLUT-bank selector, NOT a tile coordinate; use the e.clut_bank_selector property.
 #
 # ============================================================
 # CLUT formula (confirmed)
@@ -127,24 +127,23 @@ class OclEntry:
     tile_coords: int  # byte 2: TEX tile coords
                     #   low nibble  -> cordX
                     #   high nibble -> cordY
-    # TODO: rename to page_and_bank
-    pad: int        # byte 3: TEX page (legacy field name — NOT padding)
-                    #   low nibble  -> page
-                    #   high nibble -> clut_bank_selector (X6)
+    page_and_clutbank: int  # byte 3: TEX page (low nibble) + X6 CLUT-bank selector (high nibble)
+                    #   low nibble  -> page (see tex_page)
+                    #   high nibble -> clut_bank_selector (X6 pad_hi)
 
     @property
     def tex_page(self) -> int:
-        """TEX page index (low nibble of pad)."""
-        return self.pad & NIBBLE_MASK
+        """TEX page index (low nibble of page_and_clutbank)."""
+        return self.page_and_clutbank & NIBBLE_MASK
 
     @property
     def clut_bank_selector(self) -> int:
-        """X6 CLUT-bank selector (high nibble of pad, a.k.a. pad_hi).
+        """X6 CLUT-bank selector (high nibble of page_and_clutbank, a.k.a. pad_hi).
 
         NOT a tile coordinate. 0 = default bank; 4 selects the alt CLUT bank
         (see fixes_x6.X6_PADHI_ALT_BANK). Ignored on X4/X5.
         """
-        return (self.pad >> NIBBLE_SHIFT) & NIBBLE_MASK
+        return (self.page_and_clutbank >> NIBBLE_SHIFT) & NIBBLE_MASK
 
     @property
     def cordX(self) -> int:
@@ -207,6 +206,6 @@ def load_ocl(ocl_path: Path) -> list[OclEntry]:
     for i in range(entry_count):
         offset = OCL_HEADER_SIZE + i * OCL_ENTRY_SIZE
         flags, col, tile_coords, pad = data[offset : offset + OCL_ENTRY_SIZE]
-        entries.append(OclEntry(tile_type=flags, col=col, tile_coords=tile_coords, pad=pad))
+        entries.append(OclEntry(tile_type=flags, col=col, tile_coords=tile_coords, page_and_clutbank=pad))
 
     return entries

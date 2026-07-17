@@ -66,7 +66,7 @@
 #               col: int                 palette column; abs_clut = col + 64
 #               tile_type: int           collision/behaviour type — maps to OclPaletteGroup
 #               tile_coords (byte2): encodes cordX (low nibble) + cordY (high nibble)
-#               pad (byte3): encodes page number (low nibble)
+#               page_and_clutbank (byte3): encodes page number (low nibble)
 #       └─▶ TEX raw_image  (utils/tex.py, FORMAT_8BPP = 0x12)
 #               cordX = byte2 & 0xF
 #               cordY = (byte2 >> 4) & 0xF
@@ -998,7 +998,7 @@ def render_omp(
         # OCL byte2 (stored as field 'clut_base'): encodes TEX tile coordinates
         #   cordX = byte2 & 0x0F  (low nibble)
         #   cordY = (byte2 >> 4) & 0x0F  (high nibble)
-        # OCL byte3 (stored as field 'pad'): low nibble = page number
+        # OCL byte3 (stored as field 'page_and_clutbank'): low nibble = page number
         #   gx = (page % PAGES_PER_ROW) * PAGE_SIZE_PX + cordX * tile_size   # PAGES_PER_ROW == 8
         #   gy = (page // PAGES_PER_ROW) * PAGE_SIZE_PX + cordY * tile_size   # PAGE_SIZE_PX == 256
         # page is the low SIX bits of pad (PAGE_MASK_6bit), not the low four.  Bit 0x10
@@ -1009,7 +1009,7 @@ def render_omp(
         # 9/10/11 exactly as before (0x4b & 0x3F == 0x4b & 0xF == 11).  pad=0xFF
         # (PAD_SKYFILL_SENTINEL) is filtered by the page>CHR256_PAGE_MAX skip in the
         # caller before reaching here.
-        page = entry.pad & PAGE_MASK_6bit
+        page = entry.page_and_clutbank & PAGE_MASK_6bit
 
         # Texture routing:
         #   Pages 0–7: build_chr256_ocl_indices() decides; chr256 entries use tex_bg.
@@ -1074,7 +1074,7 @@ def render_omp(
             # (drawn ONLY when its resolved block holds pixels — guard below).
             # NOTE: pad=0x10 is also drawn — page nibble 0, bit 0x10 selects page band 2
             # (the rose / st000 background tiles).
-            if entry.pad == PAD_SKYFILL_SENTINEL:
+            if entry.page_and_clutbank == PAD_SKYFILL_SENTINEL:
                 continue
 
             raw_tile = _resolve_tile(entry, tile_id)
@@ -1150,7 +1150,7 @@ def render_level(
         # page-band selector (pad=0x10 → page 16, gy=512 — the X5 rose / st000 / st170 /
         # stsel background tilesets); bit 0x40 (X6 pad_hi=4 alt-CLUT-bank) is masked off
         # so X6 machinery pages are unchanged.  pad=0xFF is filtered by the caller.
-        page = entry.pad & PAGE_MASK_6bit
+        page = entry.page_and_clutbank & PAGE_MASK_6bit
 
         # Texture routing: see render_omp for full explanation.
         if page < CHR256_PAGE_START:
@@ -1213,7 +1213,7 @@ def render_level(
                     # pad=0xFF sky-fill (always skipped) vs pad=0x0F art (drawn ONLY when
                     # its resolved block holds pixels — guard below).  pad=0x10 is also
                     # drawn (page nibble 0, bit 0x10 selects page band 2).
-                    if entry.pad == PAD_SKYFILL_SENTINEL:
+                    if entry.page_and_clutbank == PAD_SKYFILL_SENTINEL:
                         continue
 
                     raw_tile = _resolve_tile(entry, ocl_idx)

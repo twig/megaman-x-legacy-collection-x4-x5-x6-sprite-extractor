@@ -989,8 +989,8 @@ def build_x6_clut_row_override(
 
 # ── X6 CLUT-bank rule (pad_hi) ───────────────────────────────────────────────────
 #
-# ROOT CAUSE of the page>=8 "wrong colour" machinery tiles: the OCL ``pad`` byte's
-# HIGH nibble ``(pad >> 4) & 0xF`` is an X6 CLUT-bank selector that the universal
+# ROOT CAUSE of the page>=8 "wrong colour" machinery tiles: the OCL ``page_and_clutbank``
+# byte's HIGH nibble ``(page_and_clutbank >> 4) & 0xF`` is an X6 CLUT-bank selector that the universal
 # ``col + 64`` lookup ignores — both this renderer and the game's own TeheManX4
 # Draw16xTile discard it via ``page = (val >> 24) & 0xF``.  ``pad_hi == 0`` is correct
 # at col+64 for all cols; ``pad_hi == 4`` occurs ONLY on the machinery tiles and needs
@@ -1024,7 +1024,7 @@ X6_PADHI_ROW_BY_STAGE: dict[str, dict[tuple[int, int], int]] = {
 
 def build_x6_padhi_clut_override(ocl: list[OclEntry], stage_stem: str) -> "dict[int, int]":
     """
-    Return {ocl_idx: alt_clut_row} for every page>=8 tile whose ``pad`` high nibble is
+    Return {ocl_idx: alt_clut_row} for every page>=8 tile whose ``page_and_clutbank`` high nibble is
     the alternate-bank selector (X6_PADHI_ALT_BANK).  The default row is the data-derived
     ``X6_PADHI_DEFAULT_BANK + col`` (320 + col); a per-(col, page) entry in
     X6_PADHI_ROW_BY_STAGE overrides it for stages whose alt CLUTs live elsewhere.

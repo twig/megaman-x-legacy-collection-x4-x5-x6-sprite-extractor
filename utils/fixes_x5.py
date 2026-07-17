@@ -4,7 +4,7 @@ from utils.consts import (
 )
 from utils.ocl import OclEntry
 from utils.types import TexData
-from utils.omp import LayoutTable, build_chr256_ocl_indices
+from utils.omp import LayoutTable, build_chr256_ocl_indices, OmpLayer
 
 # ── X5 background-tileset chr256 (tex_bg) recovery (generic, no per-stage data) ──
 #
@@ -370,9 +370,9 @@ def build_x5_pg8_empty_bg_override(
     out = set(chr256_set)
     n_moved = 0
     for idx, e in enumerate(ocl):
-        if e.pad == PAD_SKYFILL_SENTINEL:
+        if e.page_and_clutbank == PAD_SKYFILL_SENTINEL:
             continue  # sky-fill sentinel (page nibble 15 too) — never real art
-        # 8-0xB are the 8bpp bitmap pages; page 15 (pad=0x0F) is the page-band-1 art
+        # 8-0xB are the 8bpp bitmap pages; tex_page 15 is the page-band-1 art
         # slot (gy=256) that _resolve_tile also draws — the X5 st170 Rangda Bangda W
         # background whose tex block is blank while tex_bg holds it (same tex-empty
         # recovery, so still regression-free; sky stays dropped as its tex_bg is empty too).
@@ -392,7 +392,7 @@ def build_x5_pg8_empty_bg_override(
 # A few X5 background-tileset (tex_bg) batches reference a CLUT row whose static colours
 # are the wrong palette phase: the tile's ``col + 64`` row holds a dark/saturated variant
 # while the correct (in-game) colours live at a different row of the same stage COL.  This
-# is NOT the generic X6 page>=8 / pad_hi mechanism (X5 COL files are plain static palettes,
+# is NOT the generic X6 tex_page>=8 / clut_bank_selector mechanism (X5 COL files are plain static palettes,
 # not VRAM snapshots) and there is no clean cross-stage rule — a blanket per-route offset
 # regresses other tiles — so the affected (col, page) groups are listed per stage and the
 # corrected row validated against ground truth.  Applied ONLY to chr256/tex_bg-routed tiles
@@ -455,7 +455,7 @@ X5_ADDITIVE_WATER_STAGES: dict[str, int] = {
 
 def x5_additive_water(
     level_img,
-    omp,
+    omp: OmpLayer,
     ocl: list[OclEntry],
     layout: LayoutTable,
     n_sx: int,
@@ -494,7 +494,7 @@ def x5_additive_water(
                     if idx >= len(ocl):
                         continue
                     e = ocl[idx]
-                    if e.col != water_col or e.pad == PAD_SKYFILL_SENTINEL:
+                    if e.col != water_col or e.page_and_clutbank == PAD_SKYFILL_SENTINEL:
                         continue
                     lx, ly = sx * TILES_PER_SCREEN + wx, sy * TILES_PER_SCREEN + wy
                     layer = ly // tiles_per_layer
