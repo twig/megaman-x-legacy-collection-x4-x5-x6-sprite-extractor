@@ -26,10 +26,9 @@
 #                             0x39 = animated cycling palette (st0_0.col)
 #                             0x3B = alt-area tileset palette (col00_0z.col)
 #     byte 1 – col:     palette column; abs_clut = col + 64  (confirmed)
-#     byte 2 – (named 'clut_base', legacy misnomer):
-#                       TEX tile position encoding —
-#                         cordX = byte2 & 0x0F   (low  nibble, tile column within page)
-#                         cordY = (byte2 >> 4) & 0x0F  (high nibble, tile row within page)
+#     byte 2 – tile_coords: TEX tile position encoding
+#                      cordX = byte2 & 0x0F   (low  nibble, tile column within page)
+#                      cordY = (byte2 >> 4) & 0x0F  (high nibble, tile row within page)
 #     byte 3 – (named 'pad', legacy misnomer):
 #                       TEX page encoding —
 #                         page  = byte3 & 0x0F
@@ -46,8 +45,8 @@
 #
 #   Given an OclEntry e, the nibble fields are exposed as properties — prefer
 #   e.page / e.cordX / e.cordY over masking pad/clut_base by hand:
-#     cordX = e.cordX   # == e.clut_base & 0x0F         (low  nibble)
-#     cordY = e.cordY   # == (e.clut_base >> 4) & 0x0F  (high nibble)
+#     cordX = e.cordX   # == e.tile_coords & 0x0F         (low  nibble)
+#     cordY = e.cordY   # == (e.tile_coords >> 4) & 0x0F  (high nibble)
 #     page  = e.page    # == e.pad & 0x0F
 #
 #     gx = (e.page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * 16   # pixel X of tile top-left in TEX
@@ -72,14 +71,6 @@
 #     OCL[1092]: col=3  → abs_clut=67  ✓
 #     OCL[715]:  col=26 → abs_clut=90  ✓
 #     OCL[1371]: col=4  → abs_clut=68  ✓
-#
-# ============================================================
-# Field name note
-# ============================================================
-#
-#   The OclEntry field names 'clut_base' and 'pad' are legacy misnomers
-#   inherited from early reverse engineering. They are kept unchanged to avoid
-#   breaking existing callers. See byte layout above for their actual meaning.
 #
 # ============================================================
 # CHR companion files (context only — not OCL format)
@@ -133,7 +124,7 @@ class OclEntry:
                     #   bits [5:0] = collision type; bits [7:6] always 0.
                     #   Three values carry X5 palette-variant meaning — see OclPaletteGroup.
     col: int        # byte 1: palette column; abs_clut = col + 64  (confirmed)
-    clut_base: int  # byte 2: TEX tile coords (legacy field name — NOT a CLUT index)
+    tile_coords: int  # byte 2: TEX tile coords
                     #   low nibble  -> cordX
                     #   high nibble -> cordY
     pad: int        # byte 3: TEX page (legacy field name — NOT padding)
@@ -156,13 +147,13 @@ class OclEntry:
 
     @property
     def cordX(self) -> int:
-        """Tile column within the TEX page (low nibble of clut_base)."""
-        return self.clut_base & NIBBLE_MASK
+        """Tile column within the TEX page (low nibble of tile_coords)."""
+        return self.tile_coords & NIBBLE_MASK
 
     @property
     def cordY(self) -> int:
-        """Tile row within the TEX page (high nibble of clut_base)."""
-        return (self.clut_base >> NIBBLE_SHIFT) & NIBBLE_MASK
+        """Tile row within the TEX page (high nibble of tile_coords)."""
+        return (self.tile_coords >> NIBBLE_SHIFT) & NIBBLE_MASK
 
     def abs_clut_stage(self) -> int:
         """
@@ -214,7 +205,7 @@ def load_ocl(ocl_path: Path) -> list[OclEntry]:
     entries: list[OclEntry] = []
     for i in range(entry_count):
         offset = OCL_HEADER_SIZE + i * OCL_ENTRY_SIZE
-        flags, col, clut_base, pad = data[offset : offset + OCL_ENTRY_SIZE]
-        entries.append(OclEntry(tile_type=flags, col=col, clut_base=clut_base, pad=pad))
+        flags, col, tile_coords, pad = data[offset : offset + OCL_ENTRY_SIZE]
+        entries.append(OclEntry(tile_type=flags, col=col, tile_coords=tile_coords, pad=pad))
 
     return entries

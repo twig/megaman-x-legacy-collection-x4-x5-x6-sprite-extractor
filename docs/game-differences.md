@@ -8,7 +8,7 @@ All four file types share the same binary format:
 | Format | Magic     | Header | Entry size                    |
 | ------ | --------- | ------ | ----------------------------- |
 | COL    | `COL\x00` | 12 B   | 2 B (BGR555)                  |
-| OCL    | `OCL\x00` | 12 B   | 4 B (flags/col/clut_base/pad) |
+| OCL    | `OCL\x00` | 12 B   | 4 B (flags/col/tile_coords/pad) |
 | OMP    | `OMP\x00` | 12 B   | 2 B (LE u16 tile index)       |
 | PAT    | `PAT\x00` | 12 B   | variable (see below)          |
 | TEX    | `TEX\x00` | 0x30 B | 1 B (8bpp) or 4 B (32bpp)     |

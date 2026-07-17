@@ -145,7 +145,7 @@ def build_x6_chr256_override(
     pg8_coord_count: dict[tuple, int] = {}
     for entry in ocl:
         if entry.page >= CHR256_PAGE_START:
-            key = (entry.page, entry.clut_base)
+            key = (entry.page, entry.tile_coords)
             pg8_coord_count[key] = pg8_coord_count.get(key, 0) + 1
 
     # Cols already confirmed as background by the base routing.
@@ -171,7 +171,7 @@ def build_x6_chr256_override(
             if (entry.page, entry.col) not in confirmed_bg_page_col:
                 continue
             # Sole-entry gate (see docstring): skip non-indicator duplicates.
-            if (pg8_coord_count.get((entry.page, entry.clut_base), 0) > 1
+            if (pg8_coord_count.get((entry.page, entry.tile_coords), 0) > 1
                     and entry.col not in X6_BG_INDICATOR_COLS):
                 continue
             gx = (entry.page % PAGES_PER_ROW) * PAGE_SIZE_PX + entry.cordX * TILE_SIZE
@@ -272,10 +272,10 @@ def build_x6_chr256_override(
         """Length of the lockstep chr256 strip (consecutive index + clut_base) through idx."""
         n = 1
         k = idx - 1
-        while k >= 0 and k in pre_gap and ocl[k].page == page and ocl[k].clut_base == cb - (idx - k):
+        while k >= 0 and k in pre_gap and ocl[k].page == page and ocl[k].tile_coords == cb - (idx - k):
             n += 1; k -= 1
         k = idx + 1
-        while k < len(ocl) and k in pre_gap and ocl[k].page == page and ocl[k].clut_base == cb + (k - idx):
+        while k < len(ocl) and k in pre_gap and ocl[k].page == page and ocl[k].tile_coords == cb + (k - idx):
             n += 1; k += 1
         return n
 
@@ -290,9 +290,9 @@ def build_x6_chr256_override(
         prev_e, next_e = ocl[idx - 1], ocl[idx + 1]
         if prev_e.page != entry.page or next_e.page != entry.page:
             continue
-        if prev_e.clut_base != entry.clut_base - 1 or next_e.clut_base != entry.clut_base + 1:
+        if prev_e.tile_coords != entry.tile_coords - 1 or next_e.tile_coords != entry.tile_coords + 1:
             continue
-        if _strip_run(idx, entry.page, entry.clut_base) < MIN_STRIP_RUN:
+        if _strip_run(idx, entry.page, entry.tile_coords) < MIN_STRIP_RUN:
             continue
         gx = (entry.page % PAGES_PER_ROW) * PAGE_SIZE_PX + entry.cordX * TILE_SIZE
         gy = (entry.page // PAGES_PER_ROW) * PAGE_SIZE_PX + entry.cordY * TILE_SIZE
@@ -344,7 +344,7 @@ def build_x6_chr256_override(
         k = start
         want = cb0
         while (0 <= k < len(ocl) and k in pre_bridge and ocl[k].page == page
-               and ocl[k].clut_base == want):
+               and ocl[k].tile_coords == want):
             n += 1; k += step; want += step
         return n
 
@@ -358,23 +358,23 @@ def build_x6_chr256_override(
             prev = ocl[idx - 1]
             if (entry.page >= CHR256_PAGE_START or (idx - 1) not in pre_bridge
                     or prev.page != entry.page
-                    or prev.clut_base != entry.clut_base - 1):
+                    or prev.tile_coords != entry.tile_coords - 1):
                 idx += 1; continue
             # Collect the maximal run of tex (not-bg) lockstep tiles starting at idx.
             run = [idx]
             j = idx + 1
             while (j < len(ocl) and j not in pre_bridge and ocl[j].page == entry.page
-                   and ocl[j].clut_base == ocl[j - 1].clut_base + 1
+                   and ocl[j].tile_coords == ocl[j - 1].tile_coords + 1
                    and len(run) <= _GAP_MAX):
                 run.append(j); j += 1
             # Right bracket: tile after the run must be a tex_bg lockstep successor.
             nxt = ocl[j] if j < len(ocl) else None
             ok = (len(run) <= _GAP_MAX and nxt is not None and j in pre_bridge
                   and nxt.page == entry.page
-                  and nxt.clut_base == ocl[j - 1].clut_base + 1)
+                  and nxt.tile_coords == ocl[j - 1].tile_coords + 1)
             if ok:
-                left_len = _bg_run_len(idx - 1, -1, entry.page, entry.clut_base - 1)
-                right_len = _bg_run_len(j, +1, entry.page, nxt.clut_base)
+                left_len = _bg_run_len(idx - 1, -1, entry.page, entry.tile_coords - 1)
+                right_len = _bg_run_len(j, +1, entry.page, nxt.tile_coords)
                 if left_len + right_len >= _GAP_MIN_BRACKET:
                     for g in run:
                         e = ocl[g]
@@ -427,7 +427,7 @@ def build_x6_chr256_override(
     if palette_fan_guard:
         members_by_coord: dict[tuple, list[int]] = {}
         for i, entry in enumerate(ocl):
-            members_by_coord.setdefault((entry.page, entry.clut_base), []).append(i)
+            members_by_coord.setdefault((entry.page, entry.tile_coords), []).append(i)
         # Cols confirmed as foreground "text/recolor" palettes by the all-low-band
         # fan rule below; used to recover narrower (2-3 col) members of the same
         # recolored glyph set that fall under X6_PALETTE_FAN_MIN_COLS.  Empty for
@@ -525,7 +525,7 @@ def build_x6_chr256_override(
         groups: dict[tuple, list[int]] = {}
         for i, entry in enumerate(ocl):
             if entry.page < CHR256_PAGE_START:
-                groups.setdefault((entry.page, entry.clut_base), []).append(i)
+                groups.setdefault((entry.page, entry.tile_coords), []).append(i)
         for (page, clut_base), idxs in groups.items():
             if len(idxs) < 2:
                 continue
@@ -595,13 +595,13 @@ def build_x6_chr256_override(
     if fg_strip_recover:
         groups_fs: dict[tuple, list[int]] = {}
         for i, e in enumerate(ocl):
-            groups_fs.setdefault((e.page, e.clut_base), []).append(i)
+            groups_fs.setdefault((e.page, e.tile_coords), []).append(i)
 
         def _is_fg_strip_cand(i: int) -> bool:
             e = ocl[i]
             if e.page >= CHR256_PAGE_START or i not in extra:
                 return False
-            idxs = groups_fs[(e.page, e.clut_base)]
+            idxs = groups_fs[(e.page, e.tile_coords)]
             if len(idxs) < 2 or min(idxs) != i:
                 return False                       # only a group's first occurrence
             return len({ocl[j].col for j in idxs}) >= 2   # mixed-col duplicate (fg/bg pair shape)
@@ -618,7 +618,7 @@ def build_x6_chr256_override(
             j = i + 1
             while (j < nocl and _is_fg_strip_cand(j)
                    and ocl[j].page == ocl[j - 1].page
-                   and ocl[j].clut_base == ocl[j - 1].clut_base + 1):
+                   and ocl[j].tile_coords == ocl[j - 1].tile_coords + 1):
                 run.append(j); j += 1
             if len(run) >= _FGSTRIP_MIN_RUN:
                 sum_t = sum_b = 0.0
@@ -712,18 +712,18 @@ def build_x6_chr256_override(
             if page >= CHR256_PAGE_START:
                 continue
             pg_entries.setdefault(page, []).append(idx)
-            k = (page, entry.clut_base)
+            k = (page, entry.tile_coords)
             pg_coord_count[k] = pg_coord_count.get(k, 0) + 1
 
         for page, idxs in pg_entries.items():
             sole = [i for i in idxs
-                    if pg_coord_count[(page, ocl[i].clut_base)] == 1]
+                    if pg_coord_count[(page, ocl[i].tile_coords)] == 1]
             if len(sole) / len(idxs) < _GPF_FRAC_SOLE:
                 continue
             sole_on_tex = [i for i in sole if i not in extra]
             if len(sole_on_tex) < _GPF_MIN_SOLE:
                 continue
-            distinct_cb = {ocl[i].clut_base for i in idxs}
+            distinct_cb = {ocl[i].tile_coords for i in idxs}
             if _page_bg_fill(distinct_cb, page) < _GPF_BGFILL_MIN:
                 continue
             coh_tex = _page_coherence(tx_raw, tx_w, tx_h, distinct_cb, page)
@@ -803,7 +803,7 @@ def build_x6_chr256_override(
         k = idx - 1
         want_cb = cb - 1
         while (k >= 0 and k in extra and ocl[k].page == page
-               and ocl[k].clut_base == want_cb):
+               and ocl[k].tile_coords == want_cb):
             n += 1; k -= 1; want_cb -= 1
         return n
 
@@ -817,7 +817,7 @@ def build_x6_chr256_override(
             if (idx - 1) not in extra:
                 continue
             prev = ocl[idx - 1]
-            if prev.page != entry.page or prev.clut_base != entry.clut_base - 1:
+            if prev.page != entry.page or prev.tile_coords != entry.tile_coords - 1:
                 continue
             gx = (entry.page % PAGES_PER_ROW) * PAGE_SIZE_PX + entry.cordX * TILE_SIZE
             gy = (entry.page // PAGES_PER_ROW) * PAGE_SIZE_PX + entry.cordY * TILE_SIZE
@@ -827,7 +827,7 @@ def build_x6_chr256_override(
             if not any(bg_raw[(gy + dy) * bg_w + gx + dx]
                        for dy in range(TILE_SIZE) for dx in range(TILE_SIZE)):
                 continue
-            if _bg_strip_run_back(idx, entry.page, entry.clut_base) < _STE_MIN_RUN:
+            if _bg_strip_run_back(idx, entry.page, entry.tile_coords) < _STE_MIN_RUN:
                 continue
             # Content gate: empty tex (transparent hole) or striped garbage tex.
             fg_empty = not any(tx_raw[(gy + dy) * tx_w + gx + dx]
@@ -913,7 +913,7 @@ def build_x6_chr256_override(
         bg_cb_by_pagecol: dict[tuple, list[int]] = {}
         for i, e in enumerate(ocl):
             if e.page >= CHR256_PAGE_START and i in extra:
-                bg_cb_by_pagecol.setdefault((e.page, e.col), []).append(e.clut_base)
+                bg_cb_by_pagecol.setdefault((e.page, e.col), []).append(e.tile_coords)
         for idx, entry in enumerate(ocl):
             if idx in extra:
                 continue
@@ -922,7 +922,7 @@ def build_x6_chr256_override(
             members = bg_cb_by_pagecol.get((entry.page, entry.col))
             if not members:
                 continue
-            if not (any(c < entry.clut_base for c in members) and any(c > entry.clut_base for c in members)):
+            if not (any(c < entry.tile_coords for c in members) and any(c > entry.tile_coords for c in members)):
                 continue
             gx = (entry.page % PAGES_PER_ROW) * PAGE_SIZE_PX + entry.cordX * TILE_SIZE
             gy = (entry.page // PAGES_PER_ROW) * PAGE_SIZE_PX + entry.cordY * TILE_SIZE

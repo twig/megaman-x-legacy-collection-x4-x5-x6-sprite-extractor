@@ -65,7 +65,7 @@
 #       └─▶ OCL entry [ocl_idx]          (utils/ocl.py)
 #               col: int                 palette column; abs_clut = col + 64
 #               tile_type: int           collision/behaviour type — maps to OclPaletteGroup
-#               clut_base (byte2): encodes cordX (low nibble) + cordY (high nibble)
+#               tile_coords (byte2): encodes cordX (low nibble) + cordY (high nibble)
 #               pad (byte3): encodes page number (low nibble)
 #       └─▶ TEX raw_image  (utils/tex.py, FORMAT_8BPP = 0x12)
 #               cordX = byte2 & 0xF
@@ -83,7 +83,7 @@
 #     stXXX_chr256.tex   — background/chr256 tileset (tex_bg)
 #
 #   The OCL table for pages 1–7 often contains duplicate entries that share
-#   the same texture coordinate (page, clut_base) but carry different col values:
+#   the same texture coordinate (page, tile_coords) but carry different col values:
 #     - First occurrence  → tex  (standard tileset)
 #     - Later occurrences with a different col → tex_bg (chr256 tileset)
 #
@@ -391,7 +391,7 @@ def build_chr256_ocl_indices(
     (the chr256 background tileset) rather than from tex.
 
     Across all TEX pages 1–7 and all cordY rows, the OCL table contains groups
-    of entries that share a texture coordinate (page, clut_base):
+    of entries that share a texture coordinate (page, tile_coords):
       - First occurrence (any col):       reads from tex.
       - Non-first, same col as first:     reads from tex (hit-flash 0x38 variants
                                           share the base tile's pixel data and palette;
@@ -433,7 +433,7 @@ def build_chr256_ocl_indices(
       two kinds of group.
 
     Algorithm (three passes):
-      Pass 0: count occurrences per (page, clut_base) key.
+      Pass 0: count occurrences per (page, tile_coords) key.
       Pass 1: record the first col seen per key and collect all OCL indices per key.
       Pass 1b: for each multi-entry key, determine whether the group contains a
                large-gap entry (max consecutive-index gap ≥ CHR256_INDEX_GAP_THRESHOLD).
@@ -481,7 +481,7 @@ def build_chr256_ocl_indices(
     for e in ocl_entries:
         if e.page >= CHR256_PAGE_START:
             continue
-        key = (e.page, e.clut_base)
+        key = (e.page, e.tile_coords)
         key_count[key] = key_count.get(key, 0) + 1
 
     # Pass 1: record first col per key and collect all OCL indices per key.
@@ -490,7 +490,7 @@ def build_chr256_ocl_indices(
     for i, e in enumerate(ocl_entries):
         if e.page >= CHR256_PAGE_START:
             continue
-        key = (e.page, e.clut_base)
+        key = (e.page, e.tile_coords)
         if key not in first_col:
             first_col[key] = e.col
             group_indices[key] = []
@@ -596,7 +596,7 @@ def build_chr256_ocl_indices(
     # no-LG groups (e.g. st000) have no defined region, so no gating either.
     _has_sole_diff = _no_lg_min >= 0 and any(
         e.page < CHR256_PAGE_START
-        and key_count.get((e.page, e.clut_base), 0) == 1
+        and key_count.get((e.page, e.tile_coords), 0) == 1
         and not _tex_is_empty(
             raw_tex, w_tex,
             e.page % PAGES_PER_ROW * PAGE_SIZE_PX + e.cordX * TILE_SIZE,
@@ -713,7 +713,7 @@ def build_chr256_ocl_indices(
     for i, e in enumerate(ocl_entries):
         if e.page >= CHR256_PAGE_START:
             continue
-        key = (e.page, e.clut_base)
+        key = (e.page, e.tile_coords)
         if key_count[key] == 1:
             # Sole entry: route to tex_bg when tex is empty at this coordinate,
             # and to tex_bg when tex has data that differs from tex_bg but only
@@ -811,7 +811,7 @@ def build_chr256_ocl_indices(
     _chr256_max_pg_lt8 = max(chr256) if chr256 else -1
 
     # Pass 3a: page>=8 multi-member small-span groups.
-    # When a (page, clut_base) group on page>=8 has:
+    # When a (page, tile_coords) group on page>=8 has:
     #   - 2+ OCL entries
     #   - total span (max_idx - min_idx) < CHR256_INDEX_GAP_THRESHOLD
     #   - at least one member with col in (0, CHR256_COL_INDICATOR)  [chr256 palette indicator]
@@ -826,7 +826,7 @@ def build_chr256_ocl_indices(
     for i, e in enumerate(ocl_entries):
         if e.page < CHR256_PAGE_START:
             continue
-        key = (e.page, e.clut_base)
+        key = (e.page, e.tile_coords)
         if key not in _pg8_groups:
             _pg8_groups[key] = []
         _pg8_groups[key].append(i)
@@ -878,7 +878,7 @@ def build_chr256_ocl_indices(
             chr256.add(i)
 
     # Pass 3c: page>=8 large-span different-col groups.
-    # When a (page, clut_base) group on page>=8 has:
+    # When a (page, tile_coords) group on page>=8 has:
     #   - 2+ OCL entries
     #   - total span (max_idx - min_idx) >= CHR256_INDEX_GAP_THRESHOLD (large gap)
     #   - mixed cols: at least one entry has a col different from the first occurrence

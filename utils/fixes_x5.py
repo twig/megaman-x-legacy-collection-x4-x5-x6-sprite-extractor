@@ -18,7 +18,7 @@ from utils.omp import LayoutTable, build_chr256_ocl_indices
 # touched):
 #
 #   1. SHEET-WALK RUN (structure): a maximal run of >= MIN_RUN_LEN consecutive OCL indices
-#      whose tile coordinate (page*256 + clut_base) increments by exactly 1 — i.e. a
+#      whose tile coordinate (page*256 + tile_coords) increments by exactly 1 — i.e. a
 #      tileset batch dumped in sheet order.  Authored foreground/object tilesets reference
 #      tiles in semantic order, so their coordinates jump around and never form long runs.
 #   2. BACKGROUND-EXCLUSIVE (placement): NO tile of the run is placed in the foreground
@@ -74,7 +74,7 @@ def build_x5_chr256_bg_override(
         return any(p for row in g for p in row)
 
     def _tilepos(e: OclEntry) -> int:
-        return e.page * 256 + e.clut_base
+        return e.page * 256 + e.tile_coords
 
     # Placement: which OCL indices appear in the foreground layer (top third of the
     # vertical-stacked 3-layer layout) and which appear anywhere.

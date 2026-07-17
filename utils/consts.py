@@ -11,7 +11,7 @@ TILES_PER_SCREEN = 16
 CLUT_COLORS_PER_ROW = 16
 
 # OCL tile-address bit layout: page/cordX/cordY are packed as 4-bit nibbles in
-# the pad / clut_base bytes.
+# the pad / tile_coords bytes.
 # Low nibble via ``& NIBBLE_MASK``
 # High nibble via ``(byte >> NIBBLE_SHIFT) & NIBBLE_MASK``.
 NIBBLE_MASK = 0xF
