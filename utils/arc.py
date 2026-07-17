@@ -131,7 +131,7 @@ def _read_file(data: bytes, entry: ArcEntry) -> bytes:
 
 
 def _peek_head(data: bytes, entry: ArcEntry, n: int = 4) -> bytes:
-    # Decompress only the first `n` bytes — enough to read the content tag
+    # Decompress only the first `n` bytes -- enough to read the content tag
     # without inflating the whole payload (used for listing).
     raw = data[entry.offset : entry.offset + entry.comp_size]
     try:

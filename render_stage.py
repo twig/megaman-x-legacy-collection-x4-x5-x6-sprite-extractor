@@ -1,46 +1,27 @@
 """
-Generalised stage renderer for Mega Man X4 (RXC1.exe, MMLC1 PC), X5 and X6 (RXC2.exe, MMLC2 PC).
+Generalised stage renderer for Mega Man X4 (MMLC1 PC), X5 and X6 (MMLC2 PC).
 
 Usage:
     python render_stage.py <path/to/stXXX.omp>
 
-Outputs (written to current working directory):
-    {stem}_catalog.png  — raw OMP screen catalog (skipped with --skip-catalog)
-    {stem}_level.png    — full level render using Layer 0 (only when layout is known; skipped with --skip-stage)
+Outputs (to current working directory):
+    {stem}_level.png    -- full level render, all 3 layers as-is (only when layout is known; skip with --skip-stage)
+    {stem}_composed.png -- full level render, all 3 layers stacked (with --composed)
+    {stem}_catalog.png  -- raw OMP screen catalog (skipped by default with --skip-catalog)
 
-The script derives the OCL and TEX files from the same directory as the OMP.
-Layout parameters are looked up from the STAGE_LAYOUT table below, which is
-populated from confirmed research into RXC2.exe.  If a stage is absent from the
-table the level render is skipped and only the catalog is saved.
+The script derives the OCL and TEX files from `game-files.csv`.
+Layout parameters are looked up from the STAGE_LAYOUT table below.  If a stage is
+absent from the table the level render is skipped and only the catalog is rendered.
 
-== STAGE_LAYOUT status codes ==
-
-  Each STAGE_LAYOUT entry carries an inline status tag (the comment after the
-  tuple), which is the source of truth for that stage's confidence:
-
-    DONE        — renders accurately.
-    FOUND       — layout located, but still has visual defects rendering the stage.
-    ALMOST      — tiles look complete, but offset/dimensions not quite right.
-    IN RANGE    — most tiles displayed and recognisable, but definitely not the right offset.
-    UNCONFIRMED — offset/dimensions resulted from a script, usually wrong but could be close by.
-    GUESS       — offset/dimensions based on guesstimates within boundaries.
-
-  Stages absent from STAGE_LAYOUT have no layout identified yet (catalog-only
-  output).  Treat absent / GUESS / UNCONFIRMED entries as unresolved.  To hunt for
-  unresolved X5 offsets see docs/finding-stage-layout-offsets.md and
-  experimental/verify_x5_heights_omp.py.
-
-== Block 2 boss stages ==
+== Block 2 stages ==
 
   COPY2_OFFSET = 0x02D9B9A4 (.rdata), SIZE_TABLE_2 = 0x02E8DF71 (.data).
-  The X5 group {st090_00, st090_01, st100_00, st100_01, st130} draws from block 2;
-  see each entry's inline status tag for its current confidence.
+  The X5 group {st090_00, st090_01, st100_00, st100_01, st130} draws from block 2.
 
 == COL palette ==
 
-  All stages currently use col00_0x.col as the default palette for all OCL
-  palette groups.  Per-stage COL file selection is unresolved; col/stage/ contains
-  per-stage files (st0_0.col … stm_0.col) whose mapping to OMP stems is unknown.
+  All stages currently use col*.col as the default palette for all OCL
+  palette groups.  Most stages also have a secondary st*.col palette.
 """
 
 import argparse
@@ -63,14 +44,13 @@ from utils.debug import debug_overlay_catalog, debug_overlay_level
 from x4_pc_mmxlc1_layout_offsets import X4_LAYOUT_OFFSETS
 
 
-# Stage layout
-# Maps OMP stem → (exe_file_offset, width_screens, height_screens)
+# Stage layout maps OMP stem -> (exe_file_offset, width_screens, height_screens)
 #
-# exe_file_offset : byte offset in RXC2.exe of the first layout byte (layer 0)
+# exe_file_offset : byte offset in RXC*.exe of the first layout byte (layer 0)
 # width_screens   : number of screens per row (W in the size table)
-# height_screens  : number of screen rows     (H in the size table)
+# height_screens  : number of screen rows     (H in the size table of all 3 layers)
 #
-# The layout block stores 3 consecutive layers, each W×H bytes.
+# The layout block stores 3 consecutive layers, each WxH bytes.
 # load_layout_from_exe() reads all 3 layers and returns the requested layer.
 #
 # Block 1 size table: SIZE_TABLE_OFF = 0x02F0B7BD
@@ -79,20 +59,7 @@ from x4_pc_mmxlc1_layout_offsets import X4_LAYOUT_OFFSETS
 # Block 2 size table: SIZE_TABLE_2   = 0x02E8DF71  (4-byte entries: w, h, f1, f2)
 
 STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
-    # Unmapped, missing or potentially incorrect;
-    # - ENDING_REGWOR.omp
-    # - SCR0B_01.omp
-    # - SCR0D_01_eng_8.omp
-    # - SCR0E_01_eng
-    # - ST0F_01.tex
-    # - STD_1_1_eng_7.tex
-    # - ENDING.ocl
-    # - SCR0D_01_eng_9.ocl
-    # - st0_1.col
-    # - stB_1.col
-    #
-    # SCR00_00: (Intro) some missing tiles near glass (possibly rendered in-game)
-    # SCR01_01: (Web Spider B) possibly wrong layout offset
+    # SCR01_01 (Web Spider Area 2) LAYOUT ALMOST, TILES DONE
     "X4": dict([
         (key, (
         data["pc_offset"], data["w"],  data["h"] * 3))
@@ -110,7 +77,6 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st050":     (0x02D98890, 36, 21), # LAYOUT DONE, TILES DONE (Volt Kraken)
         "st060":     (0x02EC3C70, 34, 9),  # LAYOUT DONE, TILES DONE (Shining Firefly: Area 1)
         "st061":     (0x02D99058, 21, 33), # LAYOUT DONE, TILES DONE (Shining Firefly: Area 2)
-        # ropes near vines partially missing (possibly rendered in-game)
         "st070":     (0x02D98B88, 34, 15), # LAYOUT DONE, TILES ALMOST (Spike Rosered)
         "st080":     (0x02D98688, 19, 27), # LAYOUT DONE, TILES DONE (Spiral Pegasus)
         "st090_00":  (0x02D98695, 2, 6),   # LAYOUT DONE, TILES DONE (Dynamo: Enigma Cannon)
@@ -119,12 +85,10 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
         "st100_01":  (0x02D98695, 2, 6),   # LAYOUT DONE, TILES DONE (Dynamo: Hunter Base 2)
         "st160":     (0x02EC5390, 12, 57), # LAYOUT DONE, TILES DONE (Zero Space 1: Origin)
         "st170":     (0x02EC5660, 21, 30), # LAYOUT DONE, TILES DONE (Zero Space 2: Grief)
-        # missing slope tiles at the start (possibly rendered in-game)
         "st180":     (0x02D99310, 28, 18), # LAYOUT DONE, TILES ALMOST (Zero Space 3: Awakening)
         "st120":     (0x02D99508, 21, 33), # LAYOUT DONE, TILES DONE (Zero Space 4: Birth)
         "st130":     (0x02D9869C, 6, 3),   # LAYOUT DONE, TILES DONE (Stage Select)
-        # missing tiles (lots), colour issues, non-standard layers
-        "st220":     (0x02D97FDA, 25, 12), # LAYOUT LIKELY, TILES SOME (Training Area)
+        "st220":     (0x02D97FDA, 25, 12), # LAYOUT ALMOST, TILES SOME (Training Area)
         "staff_eng": (0x02D9852F, 9, 6),   # LAYOUT DONE, TILES DONE (End Credits)
         "st140_eng": (0x02D98695, 2, 3),   # LAYOUT DONE, TILES DONE (Title screen)
         "st141_eng": (0x02D98695, 2, 3),   # LAYOUT DONE, TILES DONE (Player Select screen)
@@ -158,8 +122,6 @@ STAGE_LAYOUT: dict[str,dict[str, tuple[int, int, int]]] = {
     }
 }
 
-# print("Stage layout offsets loaded:", STAGE_LAYOUT["X4"])
-
 
 def get_game_files(game_version: GameVersion, omp_path: Path):
     omp_filename = omp_path.name
@@ -179,16 +141,11 @@ def get_game_files(game_version: GameVersion, omp_path: Path):
 
     [game, stage, col, col_animate, ocl, tex, tex256, texch3] = found_row
 
-    # Background (chr256) sheet: prefer the tex256 column, but fall back to the
-    # texch3 column when tex256 is empty.  st170 is the only stage that ships its
-    # background tileset (the Rangda Bangda W boss art) as a *_ch3 sheet with no
-    # *_chr256 — without this fallback its tex_bg is None and the boss-art tiles
-    # resolve against the empty main sheet, rendering as near-black boxes.  st000
-    # has both columns and keeps tex256 (the renderer takes a single bg sheet).
+    # Background tilemap (chr256): prefer tex256, fall back to texch3 when tex256 is
+    # empty; fixes X5 st170 (Rangda Bangda W boss bg).
     tex_bg = tex256 or texch3
-    # Whether the bg sheet came from the texch3 column.  A texch3-sourced background
-    # is opaque art (Rangda Bangda W), not a PSX semi-transparent effect, so the caller
-    # renders it with stp_alpha=False — data-driven, no per-stage hardcoding.
+    # A texch3-sourced bg is opaque boss art, not a PSX semi-transparent effect, so
+    # the caller renders it with stp_alpha=False
     bg_from_texch3 = not tex256 and bool(texch3)
 
     return [
@@ -207,7 +164,6 @@ def preload_related_files(omp_path: Path):
 
     omp_stem = omp_path.stem
 
-    # Validate magic
     raw_magic = omp_path.read_bytes()[:4]
     if raw_magic != b"OMP\x00":
         raise ValueError(f"ERROR: Not an OMP file (bad magic {raw_magic!r}): {omp_path}")
@@ -263,7 +219,6 @@ def preload_related_files(omp_path: Path):
 
     print("Loading TEX...")
     tex = load_tex(tex_path)
-    # tex_foreground = load_tex(tex_fg_path)
     if tex_bg_path and tex_bg_path.exists():
         tex_background = load_tex(tex_bg_path)
     else:
@@ -276,17 +231,13 @@ def preload_related_files(omp_path: Path):
     col = load_col_palettes(col_path)
     print(f"  {col_path.name}  ({type(col).__name__})")
 
-    # OclPaletteGroup.ANIMATED_CRYSTAL (tile_type=0x39) tiles use st0_0.col in X5,
-    # but all groups currently map to col00_0x.col pending per-stage COL resolution.
-    # In a combined render, crystal placeholder tiles (tile_type=0x39, col=0) are
-    # suppressed inside omp.py; the background layer shows through instead.
+    # All palette groups map to col*.col pending per-stage COL resolution.
+    # Palette-swap tiles (tile_type=0x39, col=0) are suppressed in omp.py so
+    # the background layer shows through instead.
     if col_path_animated and col_path_animated.exists():
-        # stp_as_alpha: the animated COL is only consumed by the still-frame substitution
-        # below, where its rows replace a known semi-transparent effect's CLUT (e.g. the
-        # SCR01_00 waterfall).  Carrying STP→alpha here lets that effect render translucent
-        # while STP=0 animated effects stay opaque — scoped, not the global-STP mistake.
+        # stp_as_alpha: carry STP->alpha so the still-frame substitution below renders a
+        # translucent effect (e.g. X4 SCR01_00 waterfall) while STP=0 effects stay opaque.
         anim_col = load_col_palettes(col_path_animated, stp_as_alpha=True)
-        # print(f"  {col_path_animated.name}  ({len(anim_col)//16} CLUTs, animated tiles)")
     else:
         print(f"  WARNING: animated COL palette not found at {col_path_animated}, using static palette as fallback.")
         anim_col = None
@@ -294,20 +245,17 @@ def preload_related_files(omp_path: Path):
     # OclEntry.palette_group() maps any unregistered collision type to STANDARD,
     # so all tiles are rendered even if their tile_type is not listed above.
 
-    # X6's col00_0x.col is a VRAM snapshot whose stage CLUTs are relocated to
-    # col+96; normalize_x6_stage_palette() relocates them back onto col+64 so the
-    # renderer can use the universal col+64 lookup.  X4/X5 store stage CLUTs at
-    # col+64 directly, so their palette is used unchanged.
+    # X6's col*.col is a VRAM snapshot whose stage CLUTs sit at col+96;
+    # normalize_x6_stage_palette() relocates them back onto col+64 for the universal
+    # col+64 lookup.  X4/X5 store stage CLUTs at col+64 directly, so used unchanged.
     stage_palette = normalize_x6_stage_palette(col) if game_version == GameVersion.X6 else col
 
-    # Still-image CLUT-animation substitution.  Some animated effects (e.g. X4 waterfalls)
-    # point their tiles at a CLUT row that the engine fills at runtime from a per-stage
-    # animated COL.  The STATIC stage palette holds a stale placeholder frame there — for
-    # X4 SCR01_00 the waterfall's row 77 is a green/pink leftover, not the blue water.  We
-    # render to a still PNG, so rather than emulate the cycling animation we copy frame-0 of
-    # the animation range from the animated COL into those CLUT rows.  CLUT_ANIM_STILL_FRAMES
-    # gives (source-COL filename | None, frames); the named COL is resolved next to the
-    # game-files col_animate path, else the default col_animate is used.
+    # Palette-swap CLUT-animation substitution.  Some animated effects (e.g. waterfalls, glowing lights)
+    # point their tiles at a CLUT row the engine fills at runtime from a per-stage animated
+    # COL; the static palette holds a stale placeholder frame there.  Since we render a still
+    # PNG, copy frame-0 of the animation range from the animated COL into those CLUT rows.
+    # CLUT_ANIM_STILL_FRAMES gives (source-COL filename | None, frames); the named COL is
+    # resolved next to the game-files col_animate path, else the default col_animate is used.
     still_entry = CLUT_ANIM_STILL_FRAMES.get(omp_stem)
     if still_entry is not None:
         src_name, frames = still_entry[0], still_entry[1]
@@ -326,8 +274,7 @@ def preload_related_files(omp_path: Path):
                         continue
                     row = src_col[(src + k) * CLUT_COLORS_PER_ROW:(src + k + 1) * CLUT_COLORS_PER_ROW]
                     if opaque:
-                        # this slot is opaque in-game (unlike the translucent X4 waterfalls);
-                        # drop the STP-derived alpha so the fill matches the static baseline.
+                        # slot is opaque in-game; drop STP-derived alpha to match baseline.
                         row = [(r, g, b, 255) for (r, g, b, _a) in row]
                     stage_palette[(dest + k) * CLUT_COLORS_PER_ROW:(dest + k + 1) * CLUT_COLORS_PER_ROW] = row
                     applied += 1
@@ -335,13 +282,8 @@ def preload_related_files(omp_path: Path):
 
     flags_to_palette = {group: stage_palette for group in OclPaletteGroup}
 
-    # NOTE: animated-crystal tiles (tile_type 0x39) are left on the static stage
-    # palette.  An earlier attempt routed them to the per-stage animated COL indexed
-    # by `col`, but those COL files are per-stage palette banks of wildly varying
-    # size (1-645 rows) — col-direct indexing runs out of range (lost tiles) and, even
-    # in range, yields wrong colours on most stages (st00/st04b/st05 lost tiles;
-    # st04a/st06a/st07 wrong colours).  The correct animated-palette mapping needs the
-    # COL format reverse-engineered; until then the static palette is the safe default.
+    # Palette-swap tiles are left on the static stage palette;
+    # the per-stage animated-COL mapping is unresolved (COL format not reversed).
 
     return [omp, ocl, tex, tex_background, flags_to_palette, game_version, bg_from_texch3]
 
@@ -349,20 +291,12 @@ def preload_related_files(omp_path: Path):
 
 
 
-# Stages whose layer fold must ADD the PSX semi-transparency (STP / OMP bit 0x4000)
-# tiles instead of alpha-blending them.  For these stages the STP tiles are additive
-# light effects (glows, light shafts, reflective glass) whose in-game look is B+F over
-# the composited background — a plain 50%-alpha paste renders them dull.  Gated per
-# stage because the SAME 0x4000 bit marks *translucent* effects elsewhere (e.g. the
-# SCR01 Web Spider waterfalls), which must stay alpha-blended.  Analogue of
-# X5_ADDITIVE_WATER_STAGES; see memory x4-scr00-tube-is-additive-stp.
-#   SCR00_00 (Intro): col=7 glass tubes (layer 0) + col=2/3/6 light shafts (layer 1),
-#     all STP, additively brightening the col=17..23 opaque arch/road background (layer 2).
+# Stages whose layer fold ADDs the PSX semi-transparency (STP / OMP bit 0x4000) tiles
+# (additive light effects: glows, light shafts, reflective glass = B+F over the bg)
+# instead of alpha-blending them.  Gated per stage because the same 0x4000 bit marks
+# translucent effects elsewhere (e.g. intro glass, SCR01 waterfalls) that must stay alpha-blended.
 X4_ADDITIVE_STP_STAGES: frozenset[str] = frozenset({
-    # X4
     "SCR00_00", "SCR01_00", "SCR01_01", "SCR02_01",
-    # X5
-    # "st061",
 })
 
 
@@ -370,16 +304,15 @@ def _additive_layer_fold(
     crop_layer, order: list[int], composed_width: int, composed_height: int
 ) -> PILImage:
     """
-    Fold layer bands back-to-front, ADDING PSX semi-transparency (STP) pixels.
+    Stacks layers based on order, ADDING PSX semi-transparency (STP) pixels.
 
-    render_level flags STP pixels by halving their alpha (opaque=255, STP=127,
+    render_level() composes STP pixels by halving their alpha (opaque=255, STP=127,
     transparent=0), so alpha alone tells the fold how to blend each pixel:
       - a == 255 : opaque tile pixel  -> replace the accumulated colour
       - 0 < a < 255 : STP tile pixel  -> ADD its colour (clamped) to the background
       - a == 0   : transparent        -> leave the accumulator untouched
-    This makes additive glow effects (X4 intro glass tubes / light shafts) brighten the
-    scene behind them, matching the in-game render.  `order` lists layer indices
-    back-to-front (X4 intro uses [2, 0, 1]).
+    This makes additive glow effects brighten the scene behind them,
+    matching the in-game render. `order` lists which layer is rendered first.
     """
     acc = Image.new("RGB", (composed_width, composed_height), (0, 0, 0))
     painted = Image.new("L", (composed_width, composed_height), 0)
@@ -398,7 +331,7 @@ def _additive_layer_fold(
     acc.putalpha(painted)
     return acc
 
-# Return list of layer indices for a given stage.
+# Return ordering of layer indices for a given stage.
 # None means "no composition", returns the original image.
 COMPOSED_ORDER_OVERRIDES: dict[GameVersion, dict[str, list[int] | None]] = {
     GameVersion.X4: {
@@ -441,17 +374,7 @@ def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows:
     def crop_layer(layer_index: int) -> PILImage:
         return full_render.crop((0, layer_index * composed_height, composed_width, (layer_index + 1) * composed_height))
 
-    """
-    Broken
-    X5
-    - st010 Crescent Grizzly (misaligned background)
-    - st060 Glow Firefly (background)
-    - st220 Training stage (needs a lot of manual work)
-    """
-
-    # Layer order, back-to-front by default.
-    # Alternatively X4 SCR00_00 uses the COMPOSED_ORDER_REVERSED order where glass/road foreground
-    # on layer 0 sits between the background and the layer-1 light shafts.
+    # Layer order, back-to-front by default
     order = COMPOSED_ORDER_OVERRIDES.get(game_version, {}).get(omp_stem, COMPOSED_ORDER_BASIC)
 
     if order is None:
@@ -459,9 +382,8 @@ def compose_stage_image(full_render: PILImage, layout_columns: int, layout_rows:
         print(f"  Composition None override for {game_version} {omp_stem}, returning full render.")
         return full_render
 
-    # Additive fold for stages whose STP tiles are additive light effects (see
-    # X4_ADDITIVE_STP_STAGES).  Everything else keeps the plain alpha paste so
-    # translucent STP effects (e.g. SCR01 waterfalls) render unchanged.
+    # Additive compose for stages whose STP tiles are additive light effects.
+    # Everything else keeps the plain alpha merge
     if omp_stem in X4_ADDITIVE_STP_STAGES:
         return _additive_layer_fold(crop_layer, order, composed_width, composed_height)
 
@@ -517,21 +439,20 @@ def main() -> None:
     x6_page8_palette = None
     if game_version == GameVersion.X6:
         chr256_extra = build_x6_chr256_override(ocl, tex, tex_background, omp_stem)
-        # X6 "inverted shadows" general fix: page>=8 pad_hi=0 8bpp tiles read the RAW
+        # X6 "inverted shadows" fix: page>=8 pad_hi=0 8bpp tiles read the RAW
         # (un-normalized) stage CLUT at col+96, bypassing normalize_x6_stage_palette's
-        # null-keep (which leaves the polluted col+64 VRAM snapshot on dark stage CLUTs).
-        # Gated to VRAM-snapshot COL files (every gameplay stage); static menu palettes
-        # like the stage-select screen's are skipped — their col+64 is already correct.
-        # See utils/omp render_level + _X6_PAGE8_CLUT_OFFSET.
+        # null-keep (which leaves the polluted col+64 VRAM snapshot on dark CLUTs).
+        # Gated to VRAM-snapshot COL files; static menu palettes (col+64 already correct)
+        # are skipped.  See utils/omp render_level + _X6_PAGE8_CLUT_OFFSET.
         _gf = get_game_files(game_version, omp_path)
         if _gf is not None:
             _raw_col = load_col_palettes(_gf[3])
             if x6_palette_is_vram_snapshot(_raw_col):
                 x6_page8_palette = _raw_col
-        # pad_hi CLUT-bank rule (data-driven, all stages) with the explicit per-index
-        # X6_CLUT_ROW_FIXES merged ON TOP so validated rows win on any conflict (e.g.
-        # st04a OCL 202).  Result: st04a's validated tiles are unchanged; only newly
-        # covered pad_hi=4 tiles (declined page-10 col=0 batch, st04b, …) move.
+        # pad_hi CLUT-bank rule with the explicit per-index X6_CLUT_ROW_FIXES merged ON TOP
+        # so validated rows win on any conflict (e.g. st04a OCL 202).
+        # Result: st04a's validated tiles are unchanged; only newly
+        # covered pad_hi=4 tiles (declined page-10 col=0 batch, st04b, ...) move.
         padhi_fix = build_x6_padhi_clut_override(ocl, omp_stem)
         explicit_fix = build_x6_clut_row_override(omp_stem, ocl, chr256_extra or frozenset()) or {}
         merged = {**padhi_fix, **explicit_fix}
@@ -539,6 +460,7 @@ def main() -> None:
         n_padhi_only = len(set(padhi_fix) - set(explicit_fix))
         print(f"  CLUT-row overrides: {len(padhi_fix)} pad_hi + {len(explicit_fix)} explicit "
               f"= {len(merged)} ({n_padhi_only} from pad_hi rule alone)")
+
     # X5 background-tileset chr256 recovery is computed in the level-render block below,
     # where the layout (needed for the background-exclusive signal) is available.
 
@@ -561,7 +483,7 @@ def main() -> None:
             debug_overlay_catalog(catalog_img, omp.n_screens)
         catalog_out = output_dir / f"{omp_stem}_catalog.png"
         catalog_img.save(catalog_out)
-        print(f"  Saved {catalog_out}  ({catalog_img.width}×{catalog_img.height} px)")
+        print(f"  Saved {catalog_out}  ({catalog_img.width}x{catalog_img.height} px)")
 
     layout_entry = STAGE_LAYOUT.get(f"X{game_version}", {}).get(omp_stem)
 
@@ -580,34 +502,29 @@ def main() -> None:
 
         n_sx = len(layout.screens[0]) if layout.screens else 0
         n_sy = len(layout.screens)
-        print(f"  {n_sx} screens wide × {n_sy} screens tall")
+        print(f"  {n_sx} screens wide x {n_sy} screens tall")
 
         level_chr256 = chr256_extra
         if game_version == GameVersion.X5:
-            # Recover background tilesets the base router leaves on tex as comb garble
-            # (st061 sky, st070 jungle, st160 scanline plasma, st000 skyline, …).  Generic
-            # — no per-stage data; see build_x5_chr256_bg_override.  Needs the layout for
-            # its background-exclusive signal, so it is computed here.
+            # Recover background tilesets the base router leaves on tex as garbled tiles
+            # (st061 sky, st070 jungle, st160 scanline plasma, st000 skyline, ...)
             level_chr256, n_moved = build_x5_chr256_bg_override(
                 ocl, tex, tex_background, layout,
                 omp.n_screens, omp.tiles, n_sx, n_sy,
             )
             print(f"  X5 chr256 bg-recovery: +{n_moved} tiles routed to tex_bg")
-            # Per-stage tex/tex_bg sheet corrections for page>=8 tiles the PC port re-packed
-            # onto the opposite sheet (e.g. st040's dragon-head flamethrowers; see
-            # X5_SHEET_OVERRIDE_BY_STAGE).  No-op for stages without an entry.
+            # Per-stage tex/tex_bg sheet corrections for page>=8 tiles which the
+            # PC port re-packed onto the opposite sheet (eg. dragon-head flamethrowers.
             n_before = len(level_chr256)
             level_chr256 = build_x5_sheet_override(omp_stem, ocl, level_chr256)
             if len(level_chr256) != n_before:
                 print(f"  X5 sheet override: {len(level_chr256) - n_before:+d} tiles re-routed")
             # Generic recovery of page>=8 art the PC port re-packed onto tex_bg under a
-            # non-indicator col, where tex is blank (undrawn-audit category G; e.g. st120
-            # machine-room tileset).  Unambiguous tex-empty case only — no per-stage table.
+            # non-indicator col, where tex is blank (eg. st120 Sigma room X/Zero pods).
             level_chr256, n_pg8 = build_x5_pg8_empty_bg_override(ocl, tex, tex_background, level_chr256)
             if n_pg8:
                 print(f"  X5 page>=8 tex-empty recovery: +{n_pg8} tiles routed to tex_bg")
             # Per-stage CLUT-row corrections for background batches on the wrong palette
-            # phase (e.g. st061's aqua-column water; see X5_CLUT_ROW_FIXES).
             clut_row_fix = build_x5_clut_row_override(omp_stem, ocl, level_chr256)
             if clut_row_fix:
                 print(f"  X5 CLUT-row fixes: {len(clut_row_fix)} tiles relocated")
@@ -622,7 +539,6 @@ def main() -> None:
             level_height_screens=n_sy,
             tex=tex,
             tex_bg=tex_background,
-            # tex_fg=tex_foreground,
             flags_to_palette=flags_to_palette,
             chr256_override=level_chr256,
             clut_row_override=clut_row_fix,
@@ -633,9 +549,7 @@ def main() -> None:
             bg_is_texch3=bg_from_texch3,
         )
         if game_version == GameVersion.X5:
-            # Bake the additive reflective sheen onto st070's STP water tiles (no-op for
-            # other stages).  Post-render so it can use the tall stack's back layers as each
-            # water tile's local background — see x5_additive_water.
+            # Bake the additive water onto X5 st070 STP water tiles.
             n_water = x5_additive_water(level_img, omp, ocl, layout, n_sx, n_sy, omp_stem)
             if n_water:
                 print(f"  X5 additive-water bake: {n_water} tiles composited")
@@ -655,11 +569,11 @@ def main() -> None:
             level_img = compose_stage_image(level_img, w, h, game_version, omp_stem)
             level_out = level_out.with_stem(f"{level_out.stem}_composed")
             level_img.save(level_out)
-            print(f"  Saved {level_out}  ({level_img.width}×{level_img.height} px)")
+            print(f"  Saved {level_out}  ({level_img.width}x{level_img.height} px)")
         else:
             level_out = level_out.with_stem(f"{level_out.stem}_level")
             level_img.save(level_out)
-            print(f"  Saved {level_out}  ({level_img.width}×{level_img.height} px)")
+            print(f"  Saved {level_out}  ({level_img.width}x{level_img.height} px)")
 
     else:
         print()

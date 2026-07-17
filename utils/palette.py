@@ -3,55 +3,32 @@ COL palette file loader for Mega Man X4/X5/X6 (PC, MMLC).
 
 == VRAM CLUT layout ==
 
-At runtime the game writes palette data into a flat CLUT table in VRAM.
-Each CLUT row is CLUT_COLORS_PER_ROW (16) entries wide (16 × 2 bytes = 32 bytes
-in PSX VRAM, or 16 × 4 bytes as RGBA8 after decoding).  Rows are grouped by function:
+Palette data is a flat CLUT table. Each CLUT row is CLUT_COLORS_PER_ROW (16)
+entries wide (16 x 2 bytes in PSX VRAM, or 16 x 4 bytes RGBA8 decoded). Rows:
 
-    Rows   0–63  : player / sprite / object palettes
-    Rows  64–82  : stage animation tile palette   (col 0–18 → col+64 = 64–82)
-    Rows  83–?   : further stage tile palettes    (col 19+  → col+64)
+    Rows   0-63  : player / sprite / object palettes
+    Rows  64-82  : stage animation tile palette   (col 0-18 -> col+64 = 64-82)
+    Rows  83-?   : further stage tile palettes    (col 19+  -> col+64)
 
-The formula `abs_clut = col + 64` used throughout ocl.py therefore addresses
-stage tile data starting at CLUT row 64, which is exactly where stage CLUTs
-begin after the 64-row player palette block.
+The formula `abs_clut = col + 64` (ocl.py) addresses stage tile data starting
+at CLUT row 64, after the 64-row player palette block.
 
-== COL file types and their CLUT coverage ==
+== COL file types ==
 
-Three distinct COL file types exist across the games:
+  col/pl/plXX/plXX.col   (player palette): ~83 CLUTs, rows 0-82; rows 64-82 =
+      static stage animation colours shared with the stage.
+  col/stage/stXX/stXX.col (X6) / col/stage/stX.col (X5/X4): 19 CLUTs, same as
+      plXX.col rows 64-82 (standalone export of the stage animation region).
+  stage/col/colXX.col (X6) / col/stage/colX.col (X5): full VRAM
+      dump, rows 0-82 + all stage tile CLUTs (rows 83+), 256+ rows. Primary
+      palette source for render_stage.py.
 
-  col/pl/plXX/plXX.col   (player palette)
-      ~83 CLUTs.  Rows 0–82.  Rows 64–82 hold the *static* stage animation
-      colours that the player art happens to share with the stage at load time.
-
-  col/stage/stXX/stXX.col  (X6) / col/stage/stX_0.col  (X5/X4)   (animation palette)
-      19 CLUTs (X6 st00 example).  These are exactly the same 19 rows as
-      plXX.col rows 64–82 — they are a standalone export of the stage
-      animation region.
-
-  stage/col/eng/col00_0x.col  (X6) / col/stage/col00_0x_eng.col  (X5)
-      Full VRAM dump — player palette (rows 0–82) + all stage tile CLUTs
-      (rows 83+), totalling 256+ rows.  Used as the primary palette source
-      by render_stage.py.
-
-== Why X6 needs palette patching but X5/X4 do not ==
-
-X5 and X4 COL files are *stage-only* exports (player rows are absent or
-zeroed).  col+64 therefore addresses real stage tile data directly, and no
-fixup is required.
-
-X6's col00_0x.col is a full in-memory VRAM snapshot.  During gameplay the
-engine writes live player animation cycling frames into rows 64–82, and the
-snapshot captures those cycling frames (bright-green sentinel ~(0,231,33),
-near-white ~(230,230,230)) at the col+64 positions instead of the correct
-static stage colours.  The real stage colours for col 0–18 are stored a
-second time at col+96 (rows 96–114).
-
-normalize_x6_stage_palette() (in this module) compensates by relocating each
-col+96 CLUT row onto its col+64 row, so the renderer can keep the universal
-col+64 lookup.  The relocation is whole-CLUT (not per-entry), with one exception:
-  • Null col+96 rows (max brightness < NULL_CLUT_MAX_BRIGHTNESS): carry no
-    stage data (e.g. road tiles col=43, the all-zero col=89–95 band), so the
-    original col+64 row is kept.
+X5/X4 COL files are stage-only exports; col+64 addresses real stage tile data
+directly. X6's colX.col is a full VRAM snapshot: rows 64-82 are polluted by
+live cycling frames and the real static stage colours live at col+96 (rows
+96-114). normalize_x6_stage_palette() relocates col+96 -> col+64 (whole-CLUT),
+except null col+96 rows (max brightness < NULL_CLUT_MAX_BRIGHTNESS) which carry
+no stage data (road tiles col=43, all-zero col=89-95 band) -> keep col+64.
 """
 from pathlib import Path
 
@@ -62,12 +39,8 @@ from utils.consts import CLUT_COLORS_PER_ROW
 COL_HEADER_SIZE = 12  # COL file: 4-byte magic + 4-byte unknown + 4-byte entry count
 COL_BLOCK_SIZE = 2
 
-# ── X6 palette normalization ──────────────────────────────────────────────────
-# X6's col00_0x.col is a runtime VRAM snapshot: the stage-palette region at the
-# col+64 rows is partly clobbered by live player/animation cycling frames (or is
-# null), and the real static stage palette is relocated to col+96.  To keep the
-# renderer game-agnostic (always addressing col+64), we relocate the col+96 rows
-# into the col+64 rows at load time, with one structural exception (null rows).
+# X6 palette normalization: relocate col+96 static stage CLUTs onto col+64 at
+# load time so the renderer keeps the universal col+64 lookup (null rows excepted).
 X6_STAGE_CLUT_OFFSET = 96     # X6 true static stage CLUT base (vs col+64 for X4/X5)
 NULL_CLUT_MAX_BRIGHTNESS = 30  # a CLUT whose max channel < this is treated as null
 
@@ -83,7 +56,7 @@ def load_col_palettes(palette_path: Path, stp_as_alpha: bool = False) -> Palette
     """Load a COL file into a flat Palette of (r,g,b,a) tuples.
 
     stp_as_alpha: by default the PSX STP (semi-transparency) bit is dropped and every
-    colour is opaque (alpha=255) — STP only blends under a semi-transparent draw
+    colour is opaque (alpha=255) -- STP only blends under a semi-transparent draw
     primitive, which we don't track per tile, and ~90% of stage entries set it, so
     honouring it globally would wrongly make almost everything translucent.  When True,
     a non-black STP-flagged entry gets alpha=128 (PSX 50% blend).  Use this ONLY for the
@@ -112,17 +85,13 @@ def load_col_palettes(palette_path: Path, stp_as_alpha: bool = False) -> Palette
 
     palette: Palette = []
     offset = COL_HEADER_SIZE
-    # Read BGR555 palette data from the start of the file.
-    # Each 2-byte little-endian value encodes one colour:
-    # MSB 15 -> 0 LSB
-    # STP    | Blue (5 bits) | Green (5 bits) | Red (5 bits)
-    # Bit 15: STP (semi-transparency processing flag)
-    #           0 = fully opaque
-    #           1 = semi-transparent (blend mode determined by the GPU primitive;
-    #               approximated as alpha=128 for software rendering)
+    # BGR555 palette data. Each 2-byte little-endian value encodes one colour:
+    # MSB 15 -> 0 LSB:  STP | Blue (5 bits) | Green (5 bits) | Red (5 bits)
+    # Bit 15:     STP (semi-transparency flag; 0=opaque, 1=semi-transparent,
+    #             approximated as alpha=128 for software rendering)
     # Bits 10-14: Blue channel (0-31)
-    # Bits 5-9:  Green channel (0-31)
-    # Bits 0-4:  Red channel (0-31)
+    # Bits 5-9:   Green channel (0-31)
+    # Bits 0-4:   Red channel (0-31)
     # Scale each 5-bit channel to 8-bit by left-shifting 3 (multiply by 8).
     while offset + COL_BLOCK_SIZE <= max_offset:
         block = palette_data[offset : offset + COL_BLOCK_SIZE]
@@ -139,11 +108,10 @@ def load_col_palettes(palette_path: Path, stp_as_alpha: bool = False) -> Palette
         g8 = (g << 3) | (g >> 2)
         b8 = (b << 3) | (b >> 2)
 
-        # STP is a PSX semi-transparency flag; normally ignored (full opacity — see
-        # stp_as_alpha docstring).  Per-pixel transparency is otherwise decided in
-        # _apply_palette_to_tile, which treats a CLUT entry as transparent only when its
-        # colour is the all-zero sentinel (RGB 0,0,0) — NOT merely when the tile index is
-        # 0 (some CLUTs store an opaque real colour, e.g. a highlight, at index 0).
+        # STP normally ignored (full opacity; see stp_as_alpha docstring). Per-pixel
+        # transparency is decided in _apply_palette_to_tile: a CLUT entry is transparent
+        # only when its colour is the all-zero sentinel (RGB 0,0,0), NOT merely when the
+        # tile index is 0 (some CLUTs store an opaque real colour at index 0).
         # With stp_as_alpha, a non-black STP entry becomes 50% translucent (alpha=128).
         alpha = 128 if (stp_as_alpha and stp and (r8 or g8 or b8)) else 255
 
@@ -172,17 +140,15 @@ def _clut_max_brightness(palette: Palette, clut_row: int) -> int:
 
 def x6_palette_is_vram_snapshot(col: Palette) -> bool:
     """
-    True if an X6 COL file is a runtime VRAM snapshot (the col00_0x-style full dump used
-    by every gameplay stage) rather than a static menu palette (e.g. the stage-select
-    screen's col0d_00.col).
+    True if an X6 COL file is a runtime VRAM snapshot (colX-style full dump used by
+    gameplay stages) rather than a static menu palette (e.g. stage-select col0d_00.col).
 
-    Detected by the live player-animation cycling markers — the bright-green sentinel
-    ~(0,231,33) — which a snapshot captures across the player/animation CLUT region
-    (rows 64-82) but a static palette does not.  Across X6: every gameplay COL file has
-    >= 9 such cells here; the menu palette has 1.
+    Detected by live player-animation cycling markers -- the bright-green sentinel
+    ~(0,231,33) -- present across the player/animation CLUT region (rows 64-82) of a
+    snapshot but not a static palette.
 
     Gates the page>=8 raw-col+96 stage-CLUT rule (utils/omp), which exists ONLY to undo
-    the col+64 snapshot pollution — so it must not touch non-snapshot (menu) palettes,
+    the col+64 snapshot pollution -- so it must not touch non-snapshot (menu) palettes,
     whose col+64 rows already hold the correct static colours.
     """
     GREEN_SENTINELS_MIN = 4
@@ -204,25 +170,16 @@ def normalize_x6_stage_palette(col: Palette) -> Palette:
     Produce an X6 stage palette whose col+64 rows hold the correct static stage
     colours, so the renderer can use the universal col+64 lookup.
 
-    X6's col00_0x.col stores the real static stage CLUTs at col+96
+    X6's colX.col stores the real static stage CLUTs at col+96
     (X6_STAGE_CLUT_OFFSET); the col+64 rows are a VRAM snapshot polluted by live
-    player/animation cycling frames.  We relocate each col+96 row onto its col+64
-    row, except:
-      • null fallback — a col+96 row that is effectively empty
-        (max brightness < NULL_CLUT_MAX_BRIGHTNESS) carries no stage data; keep
-        col+64.  This covers road tiles (col=43) and the all-zero col=89-95 band.
+    cycling frames. Relocate each col+96 row onto its col+64 row, except:
+      - null fallback: a col+96 row that is effectively empty (max brightness <
+        NULL_CLUT_MAX_BRIGHTNESS) carries no stage data; keep col+64. Covers road
+        tiles (col=43) and the all-zero col=89-95 band.
 
-    Note: an earlier "enemy bank" exception also kept the col+64 rows for col+96
-    sources in rows 192-207.  It was dropped because in per-stage COL files (e.g.
-    col07_0x.col) those rows are legitimate stage CLUTs — the absolute-row guard
-    wrongly suppressed relocation and left polluted snapshot colours (see col=104 /
-    CLUT #198 region in st07).
-
-    This normalized col+64 lookup is for page<8 (4bpp) tiles only.  page>=8 (8bpp) tiles
-    instead read their stage CLUT from the RAW palette at col+96 directly (see
-    render_level's ``x6_page8_palette`` and utils/omp._X6_PAGE8_CLUT_OFFSET): the fixed
-    +32 relocation mis-sources their CLUTs — dark CLUTs hit the null-keep above, and
-    bit-6 cols (64/80/96) hit the "enemy bank" rows 160/176/192 — so they bypass it.
+    This normalized col+64 lookup is for page<8 (4bpp) tiles only. page>=8 (8bpp) tiles
+    read their stage CLUT from the RAW palette at col+96 directly (see render_level's
+    ``x6_page8_palette`` and utils/omp._X6_PAGE8_CLUT_OFFSET) and bypass this relocation.
 
     The input is not mutated; a new list is returned.
     """
@@ -232,7 +189,7 @@ def normalize_x6_stage_palette(col: Palette) -> Palette:
         dst = c + STAGE_CLUT_BASE_ROW
         src = c + X6_STAGE_CLUT_OFFSET
         if _clut_max_brightness(col, src) < NULL_CLUT_MAX_BRIGHTNESS:
-            continue  # null col+96 row — keep col+64
+            continue  # null col+96 row -- keep col+64
         for j in range(CLUT_COLORS_PER_ROW):
             out[dst * CLUT_COLORS_PER_ROW + j] = col[src * CLUT_COLORS_PER_ROW + j]
     return out

@@ -6,12 +6,26 @@ from utils.types import TexData, TexFormat, ColourRGBA, Palette
 from utils.palette import is_palette_all_black
 from utils.consts import CLUT_COLORS_PER_ROW
 
+# TEX binary format (MT Framework texture)
+#   Offset   Size    Content
+#   0x0000   4 B     Magic: "TEX\x00"
+#   0x0008   4 B     Packed dims (LE u32):
+#                      bits 0-5    mip_count   (& 0x3F)
+#                      bits 6-18   width       ((& 0x0007FFC0) >> 6)
+#                      bits 19-31  height      ((& 0xFFF80000) >> 19)
+#   0x000D   1 B     format_code: 0x07 = FORMAT_32BPP, 0x12 = FORMAT_8BPP
+#   0x0010   7x4 B   Offset table: 7 LE u32 mip offsets; offset_table[0] = base pixel data
+#
+# Pixel payload at base_offset:
+#   FORMAT_8BPP  (0x12): width*height bytes; each byte is a CLUT palette index.
+#   FORMAT_32BPP (0x07): width*height*4 bytes; CLUT index is byte 3 (alpha), bytes 0-2 unused.
+# CLUT lookup:
+#   final_index = clut_index * CLUT_COLORS_PER_ROW + colour_index (see utils/palette).
 
 def parse_tex_header(data: bytes) -> tuple[int, int, int, int]:
     if len(data) < 0x30:
         raise ValueError(f"TEX file too small: {len(data)} bytes")
 
-    # Check magic header
     if data[:4] != b"TEX\x00":
         raise ValueError(f"Not a TEX file: {data[:4]!r}")
 
@@ -33,16 +47,6 @@ def load_tex(input_path: Path) -> TexData:
 
     data = input_path.read_bytes()
     format_code, width, height, mip_count = parse_tex_header(data)
-
-    # print(
-    #     "header",
-    #     {
-    #         "format_code": format_code,
-    #         "width": width,
-    #         "height": height,
-    #         "_mip_count": mip_count,
-    #     },
-    # )
 
     if format_code == TexFormat.FORMAT_32BPP:
         offset_table = [
@@ -77,7 +81,6 @@ def load_tex(input_path: Path) -> TexData:
         )
 
     return {
-        # Python types can't seem to determine whats been filtered out
         "format_code": format_code,  # type: ignore
         "width": width,
         "height": height,
@@ -108,17 +111,13 @@ def convert_tex_to_image(
         print(f"skip: Clut index {clut_index} only has black")
         return None
 
-    # Each pixel in TEX data is a palette index into the active CLUT_COLORS_PER_ROW-entry CLUT block:
+    # Pixel = palette index into the active CLUT block; clut_index supplied externally:
     #   final_index = clut_index * CLUT_COLORS_PER_ROW + colour_index
-    # clut_index is supplied externally — it is not encoded in the pixel data.
-    # Transparency is value-based (matching utils/omp._apply_palette_to_tile): a pixel
-    # is transparent only when the CLUT colour it selects is the all-zero sentinel
-    # (RGB 0,0,0), NOT whenever the index is 0 — some CLUTs hold an opaque real colour
-    # (e.g. a near-white highlight) at index 0.
-    #
-    # Format details:
-    #   FORMAT_32BPP (0x07): 4 bytes/pixel; palette index is stored in the alpha
-    #                        channel (byte 3). Bytes 0-2 are unused/zero.
+    # Transparency is value-based (matches utils/omp._apply_palette_to_tile): transparent
+    # only when the selected CLUT colour is the all-zero sentinel (RGB 0,0,0), NOT whenever
+    # the index is 0 -- some CLUTs hold an opaque real colour at index 0.
+    # Format layout:
+    #   FORMAT_32BPP (0x07): 4 bytes/pixel; palette index in alpha channel (byte 3), bytes 0-2 unused.
     #   FORMAT_8BPP  (0x12): 1 byte/pixel; the byte is the palette index directly.
     pixels: list[ColourRGBA] = []
     for pixel_index in range(width * height):
@@ -131,27 +130,12 @@ def convert_tex_to_image(
         else:
             raise Exception(f"Unsupported TEX format 0x{format_code:02x}")
 
-        # if pixel_index == 272:
-        #     print(
-        #         "272: format_code",
-        #         format_code,
-        #         "colour_index",
-        #         colour_index,
-        #         "clut_index",
-        #         clut_index,
-        #         "final_index",
-        #         final_index,
-        #         "pixel",
-        #         palette[final_index],
-        #     )
-
         if final_index >= len(palette):
-            pixels.append((255, 0, 255, 0))  # out of palette range — transparent
+            pixels.append((255, 0, 255, 0))  # out of palette range -- transparent
             continue
         r, g, b, _stp = palette[final_index]
-        # Value-based transparency: only the all-zero CLUT colour is the transparent
-        # sentinel.  The STP bit (stored as alpha) is a polygon-level blend flag, not a
-        # per-pixel alpha, so every non-sentinel pixel is fully opaque regardless of STP.
+        # The STP bit (stored as alpha) is a polygon-level blend flag, not per-pixel
+        # alpha, so every non-sentinel pixel is fully opaque regardless of STP.
         if r == 0 and g == 0 and b == 0:
             pixels.append((255, 0, 255, 0))  # transparent (debug magenta marker)
         else:
