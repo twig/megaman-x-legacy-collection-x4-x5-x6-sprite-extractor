@@ -44,18 +44,18 @@
 # ============================================================
 #
 #   Given an OclEntry e, the nibble fields are exposed as properties — prefer
-#   e.page / e.cordX / e.cordY over masking pad/clut_base by hand:
-#     cordX = e.cordX   # == e.tile_coords & 0x0F         (low  nibble)
-#     cordY = e.cordY   # == (e.tile_coords >> 4) & 0x0F  (high nibble)
-#     page  = e.page    # == e.pad & 0x0F
+#   e.tex_page / e.cordX / e.cordY over masking pad/clut_base by hand:
+#     cordX    = e.cordX      # == e.tile_coords & 0x0F         (low  nibble)
+#     cordY    = e.cordY      # == (e.tile_coords >> 4) & 0x0F  (high nibble)
+#     tex_page = e.tex_page   # == e.pad & 0x0F
 #
-#     gx = (e.page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * 16   # pixel X of tile top-left in TEX
-#     gy = (e.page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * 16   # pixel Y of tile top-left in TEX
-#     (PAGES_PER_ROW == 8: a TEX sheet holds 8 pages across, so page // 8 is the
-#      sheet row/band and page % 8 the column within it.  PAGE_SIZE_PX == 256:
+#     gx = (e.tex_page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * 16   # pixel X of tile top-left in TEX
+#     gy = (e.tex_page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * 16   # pixel Y of tile top-left in TEX
+#     (PAGES_PER_ROW == 8: a TEX sheet holds 8 pages across, so tex_page // 8 is the
+#      sheet row/band and tex_page % 8 the column within it.  PAGE_SIZE_PX == 256:
 #      each page is 256x256 px.)
 #
-#   tex_x (tile column in TEX) = e.page * 16 + e.cordX
+#   tex_x (tile column in TEX) = e.tex_page * 16 + e.cordX
 #   tex_y (tile row    in TEX) = e.cordY
 #
 #   The HIGH nibble of pad — (e.pad >> 4) & 0x0F — is the X6 pad_hi CLUT-bank
@@ -127,12 +127,13 @@ class OclEntry:
     tile_coords: int  # byte 2: TEX tile coords
                     #   low nibble  -> cordX
                     #   high nibble -> cordY
+    # TODO: rename to page_and_bank
     pad: int        # byte 3: TEX page (legacy field name — NOT padding)
                     #   low nibble  -> page
                     #   high nibble -> clut_bank_selector (X6)
 
     @property
-    def page(self) -> int:
+    def tex_page(self) -> int:
         """TEX page index (low nibble of pad)."""
         return self.pad & NIBBLE_MASK
 

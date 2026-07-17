@@ -58,8 +58,8 @@ def build_x5_chr256_bg_override(
 
     def _grid(t: "TexData", e: OclEntry) -> "list[list[int]] | None":
         raw = t["raw_image"]; w = t["width"]; h = len(raw) // w
-        gx = (e.page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * TILE_SIZE
-        gy = (e.page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * TILE_SIZE
+        gx = (e.tex_page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * TILE_SIZE
+        gy = (e.tex_page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * TILE_SIZE
         if gx + TILE_SIZE > w or gy + TILE_SIZE > h:
             return None
         return [list(raw[(gy + r) * w + gx : (gy + r) * w + gx + TILE_SIZE]) for r in range(TILE_SIZE)]
@@ -74,7 +74,7 @@ def build_x5_chr256_bg_override(
         return any(p for row in g for p in row)
 
     def _tilepos(e: OclEntry) -> int:
-        return e.page * 256 + e.tile_coords
+        return e.tex_page * 256 + e.tile_coords
 
     # Placement: which OCL indices appear in the foreground layer (top third of the
     # vertical-stacked 3-layer layout) and which appear anywhere.
@@ -147,11 +147,11 @@ def build_x5_chr256_bg_override(
     n = len(ocl)
     i = 0
     while i < n:
-        if ocl[i].page >= CHR256_PAGE_START:
+        if ocl[i].tex_page >= CHR256_PAGE_START:
             i += 1
             continue
         j = i
-        while (j + 1 < n and ocl[j + 1].page < CHR256_PAGE_START
+        while (j + 1 < n and ocl[j + 1].tex_page < CHR256_PAGE_START
                and _tilepos(ocl[j + 1]) == _tilepos(ocl[j]) + 1):
             j += 1
         run = list(range(i, j + 1))
@@ -174,7 +174,7 @@ def build_x5_chr256_bg_override(
     # (each fragment was already vetted in _classify), so a foreground placement in one
     # part of a sheet can never drag in the rest — unlike merging into one run.
     def _tp_key(k: int) -> "tuple[int, int]":
-        return (ocl[k].page, _tilepos(ocl[k]))
+        return (ocl[k].tex_page, _tilepos(ocl[k]))
 
     moved_tp = {_tp_key(k) for k in moved}
     changed = True
@@ -183,8 +183,8 @@ def build_x5_chr256_bg_override(
         for notbase in runs:
             if all(k in moved for k in notbase):
                 continue
-            if any((ocl[k].page, _tilepos(ocl[k]) - 1) in moved_tp
-                   or (ocl[k].page, _tilepos(ocl[k]) + 1) in moved_tp
+            if any((ocl[k].tex_page, _tilepos(ocl[k]) - 1) in moved_tp
+                   or (ocl[k].tex_page, _tilepos(ocl[k]) + 1) in moved_tp
                    for k in notbase):
                 for k in notbase:
                     if k not in moved:
@@ -318,7 +318,7 @@ def build_x5_sheet_override(
     group_ov = group_ov or {}
     out = set(chr256_set)
     for idx, e in enumerate(ocl):
-        sheet = idx_ov.get(idx) or group_ov.get((e.col, e.page))
+        sheet = idx_ov.get(idx) or group_ov.get((e.col, e.tex_page))
         if sheet == "bg":
             out.add(idx)
         elif sheet == "tex":
@@ -376,10 +376,10 @@ def build_x5_pg8_empty_bg_override(
         # slot (gy=256) that _resolve_tile also draws — the X5 st170 Rangda Bangda W
         # background whose tex block is blank while tex_bg holds it (same tex-empty
         # recovery, so still regression-free; sky stays dropped as its tex_bg is empty too).
-        if not (CHR256_PAGE_START <= e.page <= CHR256_PAGE_MAX or e.page == 15) or idx in out:
+        if not (CHR256_PAGE_START <= e.tex_page <= CHR256_PAGE_MAX or e.tex_page == 15) or idx in out:
             continue
-        gx = (e.page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * TILE
-        gy = (e.page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * TILE
+        gx = (e.tex_page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * TILE
+        gy = (e.tex_page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * TILE
         if _block_has_data(tex_raw, tex_w, tex_h, gx, gy) is False \
                 and _block_has_data(bg_raw, bg_w, bg_h, gx, gy):
             out.add(idx)
@@ -425,7 +425,7 @@ def build_x5_clut_row_override(
     out: dict[int, int] = {}
     for idx in chr256_set:
         if 0 <= idx < len(ocl):
-            row = fixes.get((ocl[idx].col, ocl[idx].page))
+            row = fixes.get((ocl[idx].col, ocl[idx].tex_page))
             if row is not None:
                 out[idx] = row
     return out or None

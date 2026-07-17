@@ -479,18 +479,18 @@ def build_chr256_ocl_indices(
     # Pass 0: count occurrences per key so standalone entries can be detected
     key_count: dict[tuple[int, int], int] = {}
     for e in ocl_entries:
-        if e.page >= CHR256_PAGE_START:
+        if e.tex_page >= CHR256_PAGE_START:
             continue
-        key = (e.page, e.tile_coords)
+        key = (e.tex_page, e.tile_coords)
         key_count[key] = key_count.get(key, 0) + 1
 
     # Pass 1: record first col per key and collect all OCL indices per key.
     first_col: dict[tuple[int, int], int] = {}
     group_indices: dict[tuple[int, int], list[int]] = {}
     for i, e in enumerate(ocl_entries):
-        if e.page >= CHR256_PAGE_START:
+        if e.tex_page >= CHR256_PAGE_START:
             continue
-        key = (e.page, e.tile_coords)
+        key = (e.tex_page, e.tile_coords)
         if key not in first_col:
             first_col[key] = e.col
             group_indices[key] = []
@@ -595,16 +595,16 @@ def build_chr256_ocl_indices(
     # entries only in the chr256 batch, so no gating is needed.  Stages with no
     # no-LG groups (e.g. st000) have no defined region, so no gating either.
     _has_sole_diff = _no_lg_min >= 0 and any(
-        e.page < CHR256_PAGE_START
-        and key_count.get((e.page, e.tile_coords), 0) == 1
+        e.tex_page < CHR256_PAGE_START
+        and key_count.get((e.tex_page, e.tile_coords), 0) == 1
         and not _tex_is_empty(
             raw_tex, w_tex,
-            e.page % PAGES_PER_ROW * PAGE_SIZE_PX + e.cordX * TILE_SIZE,
-            e.page // PAGES_PER_ROW * PAGE_SIZE_PX + e.cordY * TILE_SIZE,
+            e.tex_page % PAGES_PER_ROW * PAGE_SIZE_PX + e.cordX * TILE_SIZE,
+            e.tex_page // PAGES_PER_ROW * PAGE_SIZE_PX + e.cordY * TILE_SIZE,
         )
         and _tiles_differ(
-            e.page % PAGES_PER_ROW * PAGE_SIZE_PX + e.cordX * TILE_SIZE,
-            e.page // PAGES_PER_ROW * PAGE_SIZE_PX + e.cordY * TILE_SIZE,
+            e.tex_page % PAGES_PER_ROW * PAGE_SIZE_PX + e.cordX * TILE_SIZE,
+            e.tex_page // PAGES_PER_ROW * PAGE_SIZE_PX + e.cordY * TILE_SIZE,
         )
         for e in ocl_entries
     )
@@ -711,9 +711,9 @@ def build_chr256_ocl_indices(
     seen: set[tuple[int, int]] = set()
     chr256: set[int] = set()
     for i, e in enumerate(ocl_entries):
-        if e.page >= CHR256_PAGE_START:
+        if e.tex_page >= CHR256_PAGE_START:
             continue
-        key = (e.page, e.tile_coords)
+        key = (e.tex_page, e.tile_coords)
         if key_count[key] == 1:
             # Sole entry: route to tex_bg when tex is empty at this coordinate,
             # and to tex_bg when tex has data that differs from tex_bg but only
@@ -721,12 +721,12 @@ def build_chr256_ocl_indices(
             # When _gate_tex_empty is active (stage has both no-LG groups and
             # sole_diff entries), the tex_empty rule is also restricted to the
             # chr256 region to avoid routing transparent foreground slots to tex_bg.
-            gx = (e.page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * TILE_SIZE
-            gy = (e.page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * TILE_SIZE
+            gx = (e.tex_page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * TILE_SIZE
+            gy = (e.tex_page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * TILE_SIZE
             if _tex_is_empty(raw_tex, w_tex, gx, gy):
                 if not _gate_tex_empty or _in_chr256_region(i):
                     chr256.add(i)
-            elif _tiles_differ(gx, gy) and _in_chr256_region(i) and e.page in _pages_with_no_lg and not _tex_is_empty(raw_bg, w_bg, gx, gy):
+            elif _tiles_differ(gx, gy) and _in_chr256_region(i) and e.tex_page in _pages_with_no_lg and not _tex_is_empty(raw_bg, w_bg, gx, gy):
                 chr256.add(i)
             continue
         if key in seen:
@@ -778,8 +778,8 @@ def build_chr256_ocl_indices(
                     chr256.add(i)
                 else:
                     fi = group_indices[key][0]
-                    gx = (e.page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * TILE_SIZE
-                    gy = (e.page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * TILE_SIZE
+                    gx = (e.tex_page % PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordX * TILE_SIZE
+                    gy = (e.tex_page // PAGES_PER_ROW) * PAGE_SIZE_PX + e.cordY * TILE_SIZE
                     if (i - fi) >= CHR256_INDEX_GAP_THRESHOLD and group_bg_has_data[key]:
                         bg_fill = _tex_fill(raw_bg, w_bg, gx, gy)
                         fg_fill = _tex_fill(raw_tex, w_tex, gx, gy)
@@ -824,9 +824,9 @@ def build_chr256_ocl_indices(
     # they contain no col=0/112 member (they are foreground palette variants).
     _pg8_groups: dict[tuple[int, int], list[int]] = {}
     for i, e in enumerate(ocl_entries):
-        if e.page < CHR256_PAGE_START:
+        if e.tex_page < CHR256_PAGE_START:
             continue
-        key = (e.page, e.tile_coords)
+        key = (e.tex_page, e.tile_coords)
         if key not in _pg8_groups:
             _pg8_groups[key] = []
         _pg8_groups[key].append(i)
@@ -870,7 +870,7 @@ def build_chr256_ocl_indices(
     # THRESHOLD from either side, ensuring only tiles genuinely adjacent to the
     # end of the chr256 batch are included.
     for i, e in enumerate(ocl_entries):
-        if e.page < CHR256_PAGE_START:
+        if e.tex_page < CHR256_PAGE_START:
             continue
         if e.col not in (0, CHR256_COL_INDICATOR):
             continue
@@ -1080,7 +1080,7 @@ def render_omp(
             raw_tile = _resolve_tile(entry, tile_id)
             if raw_tile is None:
                 continue  # tile not found in TEX
-            if entry.page > CHR256_PAGE_MAX and not any(raw_tile):
+            if entry.tex_page > CHR256_PAGE_MAX and not any(raw_tile):
                 # page-nibble>0xB slot resolving to an all-zero block = sky-fill sentinel
                 # (st000/st170 sky), not dropped art.  Skip so it stays transparent rather
                 # than painting CLUT index 0 (dark-but-non-black on some stage rows).
@@ -1090,7 +1090,7 @@ def render_omp(
             if clut_row_override is not None and tile_id in clut_row_override:
                 clut_row = clut_row_override[tile_id]   # explicit per-index wins
             elif (x6_page8_palette is not None
-                  and entry.clut_bank_selector == 0 and CHR256_PAGE_START <= entry.page <= CHR256_PAGE_MAX):
+                  and entry.clut_bank_selector == 0 and CHR256_PAGE_START <= entry.tex_page <= CHR256_PAGE_MAX):
                 # X6 page>=8 pad_hi=0 8bpp tile: read the raw stage CLUT at col+96.
                 active_palette = x6_page8_palette
                 clut_row = entry.col + _X6_PAGE8_CLUT_OFFSET
@@ -1219,7 +1219,7 @@ def render_level(
                     raw_tile = _resolve_tile(entry, ocl_idx)
                     if raw_tile is None:
                         continue
-                    if entry.page > CHR256_PAGE_MAX and not any(raw_tile):
+                    if entry.tex_page > CHR256_PAGE_MAX and not any(raw_tile):
                         # page-nibble>0xB slot with an all-zero block = sky-fill sentinel
                         # (st000/st170 sky), not dropped art.  Skip so it stays transparent
                         # rather than painting CLUT index 0 (dark-but-non-black on some rows).
@@ -1230,7 +1230,7 @@ def render_level(
                     if clut_row_override is not None and ocl_idx in clut_row_override:
                         clut_row = clut_row_override[ocl_idx]   # explicit per-index wins
                     elif (x6_page8_palette is not None
-                          and entry.clut_bank_selector == 0 and CHR256_PAGE_START <= entry.page <= CHR256_PAGE_MAX):
+                          and entry.clut_bank_selector == 0 and CHR256_PAGE_START <= entry.tex_page <= CHR256_PAGE_MAX):
                         # X6 page>=8 pad_hi=0 8bpp tile: read the raw stage CLUT at col+96
                         # (bypasses normalize's null-keep — the 'inverted shadows' fix).
                         active_palette = x6_page8_palette
