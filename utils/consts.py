@@ -27,7 +27,7 @@ PAGES_PER_ROW = 8
 CHR256_PAGE_START = 8
 # Highest real 8bpp chr256 page nibble. Pages CHR256_PAGE_START..CHR256_PAGE_MAX
 # (8..11) are the real 8bpp bitmap pages; a page nibble > CHR256_PAGE_MAX is the
-# sky-fill sentinel territory (see PAD_SKYFILL_SENTINEL / pad=0x0F band-1 art).
+# sky-fill sentinel territory (see OCL_EMPTY_TILE / pad=0x0F band-1 art).
 CHR256_PAGE_MAX = 0xB
 
 # OCL-index mask on a raw OMP u16 tile cell: the low 14 bits are the OCL index,
@@ -40,7 +40,7 @@ STP_TRANSLUCENT_BIT = 0x4000
 # plus the page-band selector bit (0x10), while stripping the X6 pad_hi alt-bank bit (0x40).
 PAGE_MASK_6bit = 0x3F
 # page_and_clutbank byte sentinel meaning "no TEX data" - the crystal sky-fill slot, never real art.
-PAD_SKYFILL_SENTINEL = 0xFF
+OCL_EMPTY_TILE = 0xFF
 # On pages >= CHR256_PAGE_START, this OCL col marks a chr256 (tex_bg) background tile
 # (paired with col=0). See X6_BG_INDICATOR_COLS for the X6-specific pairing.
 CHR256_COL_INDICATOR = 112

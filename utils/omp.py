@@ -147,7 +147,7 @@ from PIL.Image import Image as PILImage
 from utils.consts import (
     TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START, PAGE_SIZE_PX,
     TILES_PER_SCREEN, CLUT_COLORS_PER_ROW, CHR256_PAGE_MAX, OCL_INDEX_MASK, STP_TRANSLUCENT_BIT,
-    PAGE_MASK_6bit, PAD_SKYFILL_SENTINEL, CHR256_COL_INDICATOR,
+    PAGE_MASK_6bit, CHR256_COL_INDICATOR,
 )
 from utils.ocl import OclEntry, OclPaletteGroup
 from utils.types import ColourRGBA, Palette, TexData
@@ -1006,9 +1006,9 @@ def render_omp(
         # the X5 rose / st000 / st170 / stsel background tilesets live there).  Bit 0x40
         # is the X6 pad_hi=4 alt-CLUT-bank marker and is NOT part of the page, so
         # PAGE_MASK_6bit strips it — keeping X6's 0x49/0x4a/0x4b machinery tiles on pages
-        # 9/10/11 exactly as before (0x4b & 0x3F == 0x4b & 0xF == 11).  pad=0xFF
-        # (PAD_SKYFILL_SENTINEL) is filtered by the page>CHR256_PAGE_MAX skip in the
-        # caller before reaching here.
+        # 9/10/11 exactly as before (0x4b & 0x3F == 0x4b & 0xF == 11).
+        # OclEntry.is_empty is filtered by the page>CHR256_PAGE_MAX skip in
+        # the caller before reaching here.
         page = entry.page_and_clutbank & PAGE_MASK_6bit
 
         # Texture routing:
@@ -1064,7 +1064,7 @@ def render_omp(
             if palette is None:
                 continue  # no palette registered at all — skip
 
-            # Skip the crystal sky-fill sentinel (pad=PAD_SKYFILL_SENTINEL 0xFF — "no TEX data").
+            # Skip the crystal sky-fill sentinel.
             # TeheManX4_Editor's Draw16xTile bails for ANY page nibble > CHR256_PAGE_MAX (0xB),
             # but that is an editor-preview limit (it only loads 8bpp bitmap pages 8–11), not a
             # game-draw rule.  pad=0x0F (page nibble 15, pad_hi 0) addresses real art in
@@ -1074,7 +1074,7 @@ def render_omp(
             # (drawn ONLY when its resolved block holds pixels — guard below).
             # NOTE: pad=0x10 is also drawn — page nibble 0, bit 0x10 selects page band 2
             # (the rose / st000 background tiles).
-            if entry.page_and_clutbank == PAD_SKYFILL_SENTINEL:
+            if entry.is_empty:
                 continue
 
             raw_tile = _resolve_tile(entry, tile_id)
@@ -1203,7 +1203,7 @@ def render_level(
                     if palette is None:
                         continue  # no palette registered at all — skip
 
-                    # Skip the crystal sky-fill sentinel (pad=0xFF — "no TEX data").
+                    # Skip the crystal sky-fill sentinel.
                     # The editor's Draw16xTile bails for ANY page nibble > 0xB, but that
                     # is an editor-preview limit (it only loads 8bpp bitmap pages 8–11),
                     # not a game-draw rule.  pad=0x0F (page nibble 15, pad_hi 0) addresses
@@ -1213,7 +1213,7 @@ def render_level(
                     # pad=0xFF sky-fill (always skipped) vs pad=0x0F art (drawn ONLY when
                     # its resolved block holds pixels — guard below).  pad=0x10 is also
                     # drawn (page nibble 0, bit 0x10 selects page band 2).
-                    if entry.page_and_clutbank == PAD_SKYFILL_SENTINEL:
+                    if entry.is_empty:
                         continue
 
                     raw_tile = _resolve_tile(entry, ocl_idx)

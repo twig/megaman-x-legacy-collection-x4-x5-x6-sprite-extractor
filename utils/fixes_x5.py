@@ -1,6 +1,6 @@
 from utils.consts import (
     TILE_SIZE, NIBBLE_MASK, NIBBLE_SHIFT, PAGES_PER_ROW, CHR256_PAGE_START, PAGE_SIZE_PX,
-    TILES_PER_SCREEN, CHR256_PAGE_MAX, OCL_INDEX_MASK, STP_TRANSLUCENT_BIT, PAD_SKYFILL_SENTINEL,
+    TILES_PER_SCREEN, CHR256_PAGE_MAX, OCL_INDEX_MASK, STP_TRANSLUCENT_BIT,
 )
 from utils.ocl import OclEntry
 from utils.types import TexData
@@ -370,7 +370,7 @@ def build_x5_pg8_empty_bg_override(
     out = set(chr256_set)
     n_moved = 0
     for idx, e in enumerate(ocl):
-        if e.page_and_clutbank == PAD_SKYFILL_SENTINEL:
+        if e.is_empty:
             continue  # sky-fill sentinel (page nibble 15 too) — never real art
         # 8-0xB are the 8bpp bitmap pages; tex_page 15 is the page-band-1 art
         # slot (gy=256) that _resolve_tile also draws — the X5 st170 Rangda Bangda W
@@ -494,7 +494,7 @@ def x5_additive_water(
                     if idx >= len(ocl):
                         continue
                     e = ocl[idx]
-                    if e.col != water_col or e.page_and_clutbank == PAD_SKYFILL_SENTINEL:
+                    if e.col != water_col or e.is_empty:
                         continue
                     lx, ly = sx * TILES_PER_SCREEN + wx, sy * TILES_PER_SCREEN + wy
                     layer = ly // tiles_per_layer

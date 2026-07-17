@@ -37,7 +37,7 @@
 #                       pages CHR256_PAGE_START.. (8+) are 8bpp and route to chr256
 #                       (tex_bg).  See utils/consts.CHR256_PAGE_START.
 #                       page=16 (0x10→masked to 0) = player/sprite tiles
-#                       page=255 = sentinel/unused entry
+#                       page=255 = sentinel/unused entry (OCL_EMPTY_TILE; OclEntry.is_empty)
 #
 # ============================================================
 # TEX tile coordinate formula (confirmed)
@@ -88,7 +88,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
 
-from utils.consts import NIBBLE_MASK, NIBBLE_SHIFT
+from utils.consts import NIBBLE_MASK, NIBBLE_SHIFT, OCL_EMPTY_TILE
 
 OCL_MAGIC = b"OCL\x00"
 OCL_HEADER_SIZE = 12  # magic(4) + version(4) + entry_count(4)
@@ -130,6 +130,13 @@ class OclEntry:
     page_and_clutbank: int  # byte 3: TEX page (low nibble) + X6 CLUT-bank selector (high nibble)
                     #   low nibble  -> page (see tex_page)
                     #   high nibble -> clut_bank_selector (X6 pad_hi)
+
+    @property
+    def is_empty(self) -> bool:
+        """True if this is an empty/unused tile slot — page_and_clutbank equals
+        OCL_EMPTY_TILE (0xFF), the sky-fill sentinel meaning "no TEX data" (never real art).
+        """
+        return self.page_and_clutbank == OCL_EMPTY_TILE
 
     @property
     def tex_page(self) -> int:
