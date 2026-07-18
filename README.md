@@ -10,7 +10,7 @@ And [X GOD's vgmaps.com PSX stage dumps](https://www.vgmaps.com/Atlas/PSX/index.
 
 # Features
 
-- MegaMan X4: almost all stages render correctly
+- MegaMan X4: all stages render correctly
 - MegaMan X5: almost all stages render correctly
 - MegaMan X6: all stages render correctly
 
@@ -212,7 +212,6 @@ eg. `python match_layout_to_map.py st000 screenshots/X5_ST00_00_INTRO.png --game
 X4
 
 - SCR00_00: (Intro) some missing tiles near glass (possibly rendered in-game)
-- SCR01_01: (Web Spider Area 2) possibly wrong layout offset
 
 X5
 

@@ -504,6 +504,44 @@ def main() -> None:
         n_sy = len(layout.screens)
         print(f"  {n_sx} screens wide x {n_sy} screens tall")
 
+        if game_version == GameVersion.X4 and omp_stem == 'SCR01_01':
+            def _shift_screen_row_left(row: int, col: int):
+                del layout.screens[row][col]
+                layout.screens[row].append(0)
+
+            def _shift_screen_row_right(row: int, col: int):
+                layout.screens[row].insert(col, 0)
+                layout.screens[row].pop()
+
+            # patch layout for X4 Web Spider Area 2 due to in-game parallaxing
+            # Screens data for Layer 1 (from TeheManX4 Screens viewer):
+            #    0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
+            #    ----------------------------------------------------------------------------------
+            # 0: 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
+            # 1: 10 11 12 13 14 20 0  15 0  0  0  15 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
+            # 2: 0  0  0  0  22 23 24 25 0  0  27 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
+            # 3: 0  0  0  0  32 33 34 35 36 37 38 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
+            # 4: 0  0  0  0  0  0  0  0  46 47 48 0  0  0  3C 60 61 62 0  0  0  0  0  0  0  0  0  0
+            # 5: 0  0  0  0  0  0  0  0  0  57 58 0  0  6B 4C 70 71 72 6C 6D 6E 0  0  0  0  0  0  0
+            # 6: 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
+            layer_1_offset_y = n_sy // 3
+            # row 1; delete 20 at (row1, col5) and 0 at (row1, col6)
+            _shift_screen_row_left(layer_1_offset_y + 1, 6)
+            _shift_screen_row_left(layer_1_offset_y + 1, 5)
+            # rows 2 to 4; left-shift x2 at start
+            _shift_screen_row_left(layer_1_offset_y + 2, 0)
+            _shift_screen_row_left(layer_1_offset_y + 2, 0)
+            _shift_screen_row_left(layer_1_offset_y + 3, 0)
+            _shift_screen_row_left(layer_1_offset_y + 3, 0)
+            _shift_screen_row_left(layer_1_offset_y + 4, 0)
+            _shift_screen_row_left(layer_1_offset_y + 4, 0)
+            # fix boss bg; insert 2x 0 at 6C (row5, col18)
+            _shift_screen_row_right(layer_1_offset_y + 5, 18)
+            _shift_screen_row_right(layer_1_offset_y + 5, 18)
+            # row 5; left-shift x2 at start
+            _shift_screen_row_left(layer_1_offset_y + 5, 0)
+            _shift_screen_row_left(layer_1_offset_y + 5, 0)
+
         level_chr256 = chr256_extra
         if game_version == GameVersion.X5:
             # Recover background tilesets the base router leaves on tex as garbled tiles
