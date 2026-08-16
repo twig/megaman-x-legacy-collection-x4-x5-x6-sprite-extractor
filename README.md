@@ -8,6 +8,8 @@ Shoutout to acediez for [providing technical dumps](https://x.com/acediez/status
 
 And [X GOD's vgmaps.com PSX stage dumps](https://www.vgmaps.com/Atlas/PSX/index.htm#MegaManX5) which saved countless hours in having to play the games and aided in finding layout offsets.
 
+Check out [development highlights](https://twig.github.io/mmxlc-sprite-extractor/2026/08/16/mmxlc-sprites-extractor-dev-highlights.html) post to see the problems encountered along the way.
+
 # Features
 
 - MegaMan X4: all stages render correctly
