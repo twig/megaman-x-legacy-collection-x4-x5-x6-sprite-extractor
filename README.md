@@ -19,8 +19,7 @@ Check out [development highlights](https://twig.github.io/mmxlc-sprite-extractor
 # Requirements
 
 - Python 3.13+
-- Megaman X Legacy Collection [1](https://store.steampowered.com/app/743890/Mega_Man_X_Legacy_Collection/) and [2](https://store.steampowered.com/app/743900/Mega_Man_X_Legacy_Collection_2/) on PC/Steam (for ARC files)
-- [Watto Game Extractor](https://www.watto.org/game_extractor.html) (to extract ARC files)
+- Megaman X Legacy Collection [1](https://store.steampowered.com/app/743890/Mega_Man_X_Legacy_Collection/) and [2](https://store.steampowered.com/app/743900/Mega_Man_X_Legacy_Collection_2/) on PC/Steam (asset files not provided)
 
 Tested on Windows 11, Python Python 3.13 and 3.14
 
