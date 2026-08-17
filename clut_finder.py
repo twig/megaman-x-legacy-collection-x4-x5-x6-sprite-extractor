@@ -34,6 +34,7 @@ class CLUTFinderApp:
         self.palette_file = palette_file
         self.clut = convert_palette_to_clut(palette)
         self.clut_index = -1
+        self.screenshot_original = screenshot
         self.screenshot_image = screenshot.convert("RGB")
         self.screenshot_tkimage = ImageTk.PhotoImage(self.screenshot_image)
         self.w, self.h = self.screenshot_image.size
@@ -495,7 +496,7 @@ class CLUTFinderApp:
                 "Save screenshot selection", "Select an area on the screenshot first."
             )
             return
-        self._save_crop(self.screenshot_image, self.ss_rect_coords)
+        self._save_crop(self.screenshot_original, self.ss_rect_coords)
 
     def save_tex_selection(self):
         if self.tex_file is None:
