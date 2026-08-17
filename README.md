@@ -18,10 +18,10 @@ Check out [development highlights](https://twig.github.io/mmxlc-sprite-extractor
 
 # Requirements
 
-- Python 3.13+
+- Python 3.14+
 - Megaman X Legacy Collection [1](https://store.steampowered.com/app/743890/Mega_Man_X_Legacy_Collection/) and [2](https://store.steampowered.com/app/743900/Mega_Man_X_Legacy_Collection_2/) on PC/Steam (asset files not provided)
 
-Tested on Windows 11, Python Python 3.13 and 3.14
+Tested on Windows 11, Python 3.14
 
 # Quick start
 
